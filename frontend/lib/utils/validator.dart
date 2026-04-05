@@ -1,8 +1,19 @@
+/// Các hàm validate dùng chung cho toàn bộ ứng dụng.
+///
+/// Mỗi hàm đều nhận optional parameter [message] để hỗ trợ đa ngôn ngữ.
+/// Mặc định là tiếng Việt. Caller truyền message tiếng Anh từ AppLocalizations.
+///
+/// Ví dụ:
+///   // Tiếng Việt (mặc định)
+///   Validator.required(value);
+///
+///   // Tiếng Anh (truyền message)
+///   Validator.required(value, message: t.get('validatorRequired'));
 class Validator {
   // Không để trống
   static String? required(
     String? value, {
-    String message = "Không được để trống",
+    String message = 'Không được để trống',
   }) {
     if (value == null || value.trim().isEmpty) {
       return message;
@@ -11,24 +22,33 @@ class Validator {
   }
 
   // Email
-  static String? email(String? value) {
+  static String? email(
+    String? value, {
+    String requiredMessage = 'Không được để trống',
+    String invalidMessage = 'Email không hợp lệ',
+  }) {
     if (value == null || value.trim().isEmpty) {
-      return "Không được để trống";
+      return requiredMessage;
     }
 
     final regex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
 
     if (!regex.hasMatch(value)) {
-      return "Email không hợp lệ";
+      return invalidMessage;
     }
 
     return null;
   }
 
   // Password mạnh
-  static String? password(String? value) {
+  static String? password(
+    String? value, {
+    String requiredMessage = 'Không được để trống',
+    String invalidMessage =
+        'Mật khẩu phải ≥8 ký tự, gồm chữ hoa, thường, số, ký tự đặc biệt',
+  }) {
     if (value == null || value.isEmpty) {
-      return "Không được để trống";
+      return requiredMessage;
     }
 
     final regex = RegExp(
@@ -36,89 +56,115 @@ class Validator {
     );
 
     if (!regex.hasMatch(value)) {
-      return "Mật khẩu phải ≥8 ký tự, gồm chữ hoa, thường, số, ký tự đặc biệt";
+      return invalidMessage;
     }
 
     return null;
   }
 
   // Username
-  static String? username(String? value) {
+  static String? username(
+    String? value, {
+    String requiredMessage = 'Không được để trống',
+    String invalidMessage = 'Username 3-20 ký tự, không ký tự đặc biệt',
+  }) {
     if (value == null || value.isEmpty) {
-      return "Không được để trống";
+      return requiredMessage;
     }
 
     final regex = RegExp(r'^[a-zA-Z0-9_]{3,20}$');
 
     if (!regex.hasMatch(value)) {
-      return "Username 3-20 ký tự, không ký tự đặc biệt";
+      return invalidMessage;
     }
 
     return null;
   }
 
   // SĐT Việt Nam
-  static String? phone(String? value) {
+  static String? phone(
+    String? value, {
+    String requiredMessage = 'Không được để trống',
+    String invalidMessage = 'Số điện thoại không hợp lệ',
+  }) {
     if (value == null || value.isEmpty) {
-      return "Không được để trống";
+      return requiredMessage;
     }
 
     final regex = RegExp(r'^(0|\+84)[0-9]{9}$');
 
     if (!regex.hasMatch(value)) {
-      return "Số điện thoại không hợp lệ";
+      return invalidMessage;
     }
 
     return null;
   }
 
   // Chỉ số
-  static String? number(String? value) {
+  static String? number(
+    String? value, {
+    String requiredMessage = 'Không được để trống',
+    String invalidMessage = 'Chỉ được nhập số',
+  }) {
     if (value == null || value.isEmpty) {
-      return "Không được để trống";
+      return requiredMessage;
     }
 
     if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
-      return "Chỉ được nhập số";
+      return invalidMessage;
     }
 
     return null;
   }
 
   // Không chứa ký tự đặc biệt
-  static String? noSpecialChar(String? value) {
+  static String? noSpecialChar(
+    String? value, {
+    String requiredMessage = 'Không được để trống',
+    String invalidMessage = 'Không được chứa ký tự đặc biệt',
+  }) {
     if (value == null || value.isEmpty) {
-      return "Không được để trống";
+      return requiredMessage;
     }
 
     if (!RegExp(r'^[a-zA-Z0-9_ ]+$').hasMatch(value)) {
-      return "Không được chứa ký tự đặc biệt";
+      return invalidMessage;
     }
 
     return null;
   }
 
   // Confirm password
-  static String? confirmPassword(String? value, String original) {
+  static String? confirmPassword(
+    String? value,
+    String original, {
+    String requiredMessage = 'Không được để trống',
+    String mismatchMessage = 'Mật khẩu không khớp',
+  }) {
     if (value == null || value.isEmpty) {
-      return "Không được để trống";
+      return requiredMessage;
     }
 
     if (value != original) {
-      return "Mật khẩu không khớp";
+      return mismatchMessage;
     }
 
     return null;
   }
 
   // Min length
-  static String? minLength(String? value, int min) {
+  static String? minLength(
+    String? value,
+    int min, {
+    String requiredMessage = 'Không được để trống',
+    String? tooShortMessage,
+  }) {
     if (value == null || value.isEmpty) {
-      return "Không được để trống";
+      return requiredMessage;
     }
 
     if (value.length < min) {
-      return "Ít nhất $min ký tự";
+      return tooShortMessage ?? 'Ít nhất $min ký tự';
     }
 
     return null;
