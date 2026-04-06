@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../config/app_colors.dart';
-import 'home_view.dart';
-
+import 'package:go_router/go_router.dart';
 /// Màn hình splash (loading) - Hiển thị logo Zalo trên nền xanh
 /// Tự động chuyển sang HomeView sau 5 giây với hiệu ứng chuyển cảnh mượt mà
 class LoadView extends StatefulWidget {
@@ -120,35 +119,8 @@ class _LoadViewState extends State<LoadView> with TickerProviderStateMixin {
 
     // 5. Chuyển sang HomeView với hiệu ứng mượt mà
     _navigated = true;
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            const HomeView(),
-        transitionDuration: const Duration(milliseconds: 700),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          // Hiệu ứng: fade in + slide nhẹ từ dưới lên
-          final fadeAnimation = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOut,
-          );
-          final slideAnimation = Tween<Offset>(
-            begin: const Offset(0, 0.05),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOut,
-          ));
-
-          return FadeTransition(
-            opacity: fadeAnimation,
-            child: SlideTransition(
-              position: slideAnimation,
-              child: child,
-            ),
-          );
-        },
-      ),
-    );
+    
+    context.go('/');
   }
 
   @override

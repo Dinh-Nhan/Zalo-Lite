@@ -1,3 +1,5 @@
+import 'package:frontend/utils/app_localizations.dart';
+
 /// Các hàm validate dùng chung cho toàn bộ ứng dụng.
 ///
 /// Mỗi hàm đều nhận optional parameter [message] để hỗ trợ đa ngôn ngữ.
@@ -82,19 +84,15 @@ class Validator {
   }
 
   // SĐT Việt Nam
-  static String? phone(
-    String? value, {
-    String requiredMessage = 'Không được để trống',
-    String invalidMessage = 'Số điện thoại không hợp lệ',
-  }) {
+  static String? phone(String? value, AppLocalizations t) {
     if (value == null || value.isEmpty) {
-      return requiredMessage;
+      return t.get('validatorRequired');
     }
 
     final regex = RegExp(r'^(0|\+84)[0-9]{9}$');
 
     if (!regex.hasMatch(value)) {
-      return invalidMessage;
+      return t.get('validatorPhone');
     }
 
     return null;

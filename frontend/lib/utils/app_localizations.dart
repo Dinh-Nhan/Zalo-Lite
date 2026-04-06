@@ -71,15 +71,16 @@ class AppLocalizations {
       'phoneNumber': 'Số điện thoại',
       'password': 'Mật khẩu',
       'forgotPassword': 'Quên mật khẩu?',
-      'noAccount': 'Bạn đã có tài khoản?',
+      'noAccount': 'Bạn đã có tài khoản? ',
       'loginNow': 'Đăng nhập ngay',
 
       // Màn hình đăng ký (cho tương lai)
       'enterPhoneNumber': 'Nhập số điện thoại',
       'phoneHint': 'Ehehehehehehe',
-      'agreeTerms': 'Tôi đồng ý với các điều khoản sử dụng Zalo',
-      'agreePolicy':
-          'Tôi đồng ý với Điều khoản Mạng xã hội của Zalo',
+      'agreeTerms': 'Tôi đồng ý với các ',
+      'agreeTermsLink': 'Điều khoản sử dụng của Zalo',
+      'agreePolicy': 'Tôi đồng ý với ',
+      'agreePolicyLink': 'Chính sách Mạng xã hội của Zalo',
       'continue_': 'Tiếp tục',
       'back': 'Quay lại',
     },
@@ -116,8 +117,10 @@ class AppLocalizations {
       // Register screen (future)
       'enterPhoneNumber': 'Enter phone number',
       'phoneHint': 'Ehehehehehehe',
-      'agreeTerms': 'I agree with Zalo\'s terms of use',
-      'agreePolicy': 'I agree with Zalo\'s social network policy',
+      'agreeTerms': 'I agree with Zalo\'s ',
+      'agreeTermsLink': 'terms of use',
+      'agreePolicy': 'I agree with Zalo\'s ',
+      'agreePolicyLink': 'social network policy',
       'continue_': 'Continue',
       'back': 'Back',
     },

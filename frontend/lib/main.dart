@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'views/home/load_view.dart';
+import 'package:frontend/apps/app_locale.dart';
+import 'package:frontend/apps/router.dart';
 import 'config/app_theme.dart';
-
 /// Điểm khởi chạy ứng dụng Zalo Lite
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,13 +14,21 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Zalo Lite',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      // Hiển thị LoadView (splash) đầu tiên
-      // LoadView sẽ tự động chuyển sang HomeView sau 3 giây
-      home: const LoadView(),
+    final router = createRouter();
+    return ValueListenableBuilder(
+      valueListenable: localeNotifier,
+      builder: (context, locale, _) {
+        return MaterialApp.router(
+          title: 'Zalo Lite',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme,
+          routerConfig: router,
+          locale: Locale(locale),
+          // Hiển thị LoadView (splash) đầu tiên
+          // LoadView sẽ tự động chuyển sang HomeView sau 3 giây
+          // home: const LoadView(),
+        );
+      },
     );
   }
 }

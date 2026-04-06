@@ -1,19 +1,27 @@
+import 'package:frontend/views/home/login_view.dart';
 import 'package:go_router/go_router.dart';
 import '../views/home/home_view.dart';
-
+import '../views/home/load_view.dart';
 /// Cấu hình router cho ứng dụng Zalo Lite
 /// Hiện tại chỉ có route chính '/' → HomeView
 /// Sẽ mở rộng thêm khi có thêm màn hình (auth, chat, contacts, ...)
 GoRouter createRouter() {
   return GoRouter(
-    initialLocation: '/',
+    initialLocation: '/load',
     routes: [
+      GoRoute(
+        path: '/load',
+        builder: (context, state) => const LoadView(),
+      ),
       GoRoute(
         path: '/',
         builder: (context, state) => const HomeView(),
       ),
       // TODO: Thêm các route sau khi hoàn thiện thêm views
-      // GoRoute(path: '/login', builder: (context, state) => const LoginView()),
+      GoRoute(
+        path: '/login',
+        builder: (context, state) => LoginView(),
+      ),
       // GoRoute(path: '/register', builder: (context, state) => const RegisterView()),
     ],
   );

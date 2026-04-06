@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:frontend/apps/app_locale.dart';
+import 'package:go_router/go_router.dart';
 import '../../config/app_colors.dart';
 import '../../utils/app_localizations.dart';
 
@@ -16,8 +18,8 @@ class HomeView extends StatefulWidget {
 class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
   // === Ngôn ngữ ===
   String _selectedLanguage = 'Tiếng Việt';
-  late AppLocalizations _t;
-
+  // late AppLocalizations _t;
+  final t = AppLocalizations(localeNotifier.value);
   // === Animation controllers ===
   late AnimationController _contentController;
   late Animation<double> _logoFadeAnimation;
@@ -31,7 +33,7 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
     super.initState();
 
     // Khởi tạo ngôn ngữ mặc định
-    _t = AppLocalizations('vi');
+    // _\t = AppLocalizations('vi');
 
     // Đặt status bar cho nền trắng
     SystemChrome.setSystemUIOverlayStyle(
@@ -94,7 +96,9 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
     if (value != null) {
       setState(() {
         _selectedLanguage = value;
-        _t = AppLocalizations(AppLocalizations.localeFromDisplayName(value));
+        // _t = AppLocalizations(AppLocalizations.localeFromDisplayName(value));
+        localeNotifier.value =
+        AppLocalizations.localeFromDisplayName(value);
       });
     }
   }
@@ -105,35 +109,34 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _contentController,
-      builder: (context, child) {
-        return Scaffold(
-          backgroundColor: AppColors.backgroundWhite,
-          body: SafeArea(
-            child: Column(
-              children: [
-                // === PHẦN TRÊN: Dropdown ngôn ngữ ===
-                _buildLanguageSelector(),
+ @override
+Widget build(BuildContext context) {
+  return ValueListenableBuilder(
+    valueListenable: localeNotifier,
+    builder: (context, locale, _) {
+      final t = AppLocalizations(locale);
 
-                // === PHẦN GIỮA: Logo Zalo ===
-                Expanded(
-                  child: _buildLogo(),
-                ),
-
-                // === PHẦN DƯỚI: Các nút Đăng nhập & Tạo tài khoản ===
-                _buildButtons(),
-
-                const SizedBox(height: 32),
-              ],
+      return AnimatedBuilder(
+        animation: _contentController,
+        builder: (context, child) {
+          return Scaffold(
+            backgroundColor: AppColors.backgroundWhite,
+            body: SafeArea(
+              child: Column(
+                children: [
+                  _buildLanguageSelector(),
+                  Expanded(child: _buildLogo(t)),
+                  _buildButtons(t),
+                  const SizedBox(height: 32),
+                ],
+              ),
             ),
-          ),
-        );
-      },
-    );
-  }
+          );
+        },
+      );
+    },
+  );
+}
 
   /// Dropdown chọn ngôn ngữ ở góc phải trên — chỉ 2 mục: Tiếng Việt / English
   Widget _buildLanguageSelector() {
@@ -192,14 +195,15 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
   }
 
   /// Logo "Zalo" lớn màu xanh ở giữa màn hình
-  Widget _buildLogo() {
+  Widget _buildLogo(AppLocalizations t) {
     return Opacity(
       opacity: _logoFadeAnimation.value,
       child: Transform.translate(
         offset: Offset(0, _logoSlideAnimation.value),
         child: Center(
           child: Text(
-            _t.get('appName'),
+            // _t.get('appName'),
+            t.get('appName'),
             style: TextStyle(
               fontSize: 72,
               fontWeight: FontWeight.bold,
@@ -221,7 +225,7 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
   }
 
   /// Các nút Đăng nhập và Tạo tài khoản mới — text tự đổi theo ngôn ngữ
-  Widget _buildButtons() {
+  Widget _buildButtons(AppLocalizations t) {
     return Opacity(
       opacity: _buttonsFadeAnimation.value,
       child: Transform.translate(
@@ -238,6 +242,8 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
                 child: ElevatedButton(
                   onPressed: () {
                     // TODO: Điều hướng sang trang đăng nhập
+                    // context.go('/login', extra: _t.locale);
+                    context.go('/login');
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryBlue,
@@ -249,7 +255,8 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
                     ),
                   ),
                   child: Text(
-                    _t.get('login'),
+                    // _t.get('login'),
+                    t.get('login'),
                     style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w600,
@@ -280,7 +287,8 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
                     ),
                   ),
                   child: Text(
-                    _t.get('createAccount'),
+                    // _t.get('createAccount'),
+                    t.get('createAccount'),
                     style: const TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w600,
