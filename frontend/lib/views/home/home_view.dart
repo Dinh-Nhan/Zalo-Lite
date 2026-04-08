@@ -17,7 +17,7 @@ class HomeView extends StatefulWidget {
 
 class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
   // === Ngôn ngữ ===
-  String _selectedLanguage = 'Tiếng Việt';
+  String _selectedLanguage = AppLocalizations(localeNotifier.value).displayName;
   // late AppLocalizations _t;
   final t = AppLocalizations(localeNotifier.value);
   // === Animation controllers ===
@@ -138,7 +138,73 @@ Widget build(BuildContext context) {
   );
 }
 
-  /// Dropdown chọn ngôn ngữ ở góc phải trên — chỉ 2 mục: Tiếng Việt / English
+  /// Mở bottom sheet chọn ngôn ngữ
+  void _showLanguageBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      backgroundColor: Colors.white,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              // Thanh kéo nhỏ ở trên cùng
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Tiêu đề
+              const Text(
+                'Chọn ngôn ngữ',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Danh sách ngôn ngữ
+              ...AppLocalizations.supportedLanguages.map((lang) {
+                final isSelected = lang == _selectedLanguage;
+                return ListTile(
+                  title: Text(
+                    lang,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.w400,
+                      color: isSelected
+                          ? AppColors.primaryBlue
+                          : AppColors.textPrimary,
+                    ),
+                  ),
+                  trailing: isSelected
+                      ? const Icon(Icons.check, color: AppColors.primaryBlue)
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _onLanguageChanged(lang);
+                  },
+                );
+              }),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Nút chọn ngôn ngữ ở góc phải trên — ấn vào mở bottom sheet
   Widget _buildLanguageSelector() {
     return Opacity(
       opacity: _languageFadeAnimation.value,
@@ -147,44 +213,44 @@ Widget build(BuildContext context) {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: AppColors.borderGray,
-                  width: 1,
+            GestureDetector(
+              onTap: _showLanguageBottomSheet,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppColors.borderGray,
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _selectedLanguage,
-                  isDense: true,
-                  icon: const Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    color: AppColors.textSecondary,
-                    size: 20,
-                  ),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  items: AppLocalizations.supportedLanguages.map((lang) {
-                    return DropdownMenuItem<String>(
-                      value: lang,
-                      child: Text(lang),
-                    );
-                  }).toList(),
-                  onChanged: _onLanguageChanged,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _selectedLanguage,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.textSecondary,
+                      size: 20,
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -207,7 +273,6 @@ Widget build(BuildContext context) {
             style: TextStyle(
               fontSize: 72,
               fontWeight: FontWeight.bold,
-              fontStyle: FontStyle.italic,
               color: AppColors.primaryBlue,
               letterSpacing: 1,
               shadows: [

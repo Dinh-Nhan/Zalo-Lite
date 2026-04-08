@@ -81,19 +81,21 @@ class _LoginViewState extends State<LoginView> {
   void _clearPhone() {
     _phoneController.clear();
   }
+
   void _showConfirmSheet() {
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black54,
       builder: (_) => ConfirmPhoneSheet(
         phone: _phoneController.text,
         onContinue: () {
-          context.go('/otp');
+          Navigator.pop(context);
+          context.go('/otp', extra: _phoneController.text);
         },
       ),
     );
-}
+  }
+
   @override
   void dispose() {
     _phoneController.dispose();
@@ -106,60 +108,60 @@ class _LoginViewState extends State<LoginView> {
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder(
-    valueListenable: localeNotifier,
-    builder: (context, locale, _) {
-      final t = AppLocalizations(locale);
-      return Scaffold(
-        backgroundColor: AppColors.backgroundWhite,
-        appBar: _buildAppBar(),
-        body: SafeArea(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
+      valueListenable: localeNotifier,
+      builder: (context, locale, _) {
+        final t = AppLocalizations(locale);
+        return Scaffold(
+          backgroundColor: AppColors.backgroundWhite,
+          appBar: _buildAppBar(),
+          body: SafeArea(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          _buildTitle(t),
+                          const SizedBox(height: 24),
+                          _buildPhoneField(t),
+                          const SizedBox(height: 20),
+                          _buildCheckbox(
+                            value: _agreeTerms,
+                            onChanged: _onAgreeTermsChanged,
+                            label: t.get('agreeTerms'),
+                            link: t.get('agreeTermsLink'),
+                          ),
+                          _buildCheckbox(
+                            value: _agreeSocialPolicy,
+                            onChanged: _onAgreeSocialPolicyChanged,
+                            label: t.get('agreePolicy'),
+                            link: t.get('agreePolicyLink'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  Padding(
                     padding: const EdgeInsets.all(20),
                     child: Column(
                       children: [
-                        _buildTitle(t),
-                        const SizedBox(height: 24),
-                        _buildPhoneField(t),
-                        const SizedBox(height: 20),
-                        _buildCheckbox(
-                          value: _agreeTerms,
-                          onChanged: _onAgreeTermsChanged,
-                          label: t.get('agreeTerms'),
-                          link: t.get('agreeTermsLink'),
-                        ),
-                        _buildCheckbox(
-                          value: _agreeSocialPolicy,
-                          onChanged: _onAgreeSocialPolicyChanged,
-                          label: t.get('agreePolicy'),
-                          link: t.get('agreePolicyLink'),
-                        ),
+                        _buildButton(t),
+                        const SizedBox(height: 12),
+                        _buildLoginLink(t),
                       ],
                     ),
-                  ),
-                ),
-
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      _buildButton(t),
-                      const SizedBox(height: 12),
-                      _buildLoginLink(t),
-                    ],
-                  ),
-                )
-              ],
+                  )
+                ],
+              ),
             ),
           ),
-        ),
-      );
-    },
-  );
+        );
+      },
+    );
   }
 
   PreferredSizeWidget _buildAppBar() {
@@ -175,14 +177,27 @@ class _LoginViewState extends State<LoginView> {
   }
 
   Widget _buildTitle(AppLocalizations t) {
-    return Text(
-      t.get('enterPhoneNumber'),
-      textAlign: TextAlign.center,
-      style: const TextStyle(
-        fontSize: 24,
-        fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
-      ),
+    return Column(
+      children: [
+        Text(
+          t.get('enterPhoneNumber'),
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          t.get('phoneHintDesc'),
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 14,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
     );
   }
 
@@ -191,6 +206,11 @@ class _LoginViewState extends State<LoginView> {
       controller: _phoneController,
       focusNode: _phoneFocusNode,
       keyboardType: TextInputType.phone,
+      style: const TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w500,
+        color: AppColors.textPrimary,
+      ),
       inputFormatters: [
         FilteringTextInputFormatter.digitsOnly,
         LengthLimitingTextInputFormatter(11),
@@ -199,100 +219,105 @@ class _LoginViewState extends State<LoginView> {
       onChanged: (_) => _updateButtonState(),
       decoration: InputDecoration(
         hintText: t.get('phoneNumber'),
-        filled: true,
-        fillColor: AppColors.backgroundWhite,
-        contentPadding: const EdgeInsets.all(16),
+        hintStyle: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: AppColors.textHint,
+        ),
+        filled: false,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
         suffixIcon: _phoneController.text.isNotEmpty
             ? IconButton(
-                icon: const Icon(Icons.clear),
+                icon: const Icon(
+                  Icons.cancel,
+                  color: AppColors.textHint,
+                  size: 20,
+                ),
                 onPressed: _clearPhone,
               )
             : null,
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(
-            color: Colors.grey,
+        enabledBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(
+            color: AppColors.borderGray,
+            width: 1,
+          ),
+        ),
+        focusedBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(
+            color: AppColors.primaryBlue,
             width: 1.5,
           ),
         ),
-
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(
-            color: Colors.green,
-            width: 2,
+        errorBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(
+            color: Colors.red,
+            width: 1,
           ),
         ),
-
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(
+        focusedErrorBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(
             color: Colors.red,
-            width: 2,
+            width: 1.5,
           ),
         ),
-
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(
-            color: Colors.red,
-            width: 2,
-          ),
+        errorStyle: const TextStyle(
+          fontSize: 12,
+          color: Colors.red,
         ),
       ),
     );
   }
 
   Widget _buildCheckbox({
-  required bool value,
-  required Function(bool?) onChanged,
-  required String label,
-  required String link,
-}) {
-  return Row(
-    children: [
-      Checkbox(
-        value: value,
-        onChanged: onChanged,
-        activeColor: AppColors.primaryBlue,
-      ),
-      Expanded(
-        child: GestureDetector(
-          onTap: () => onChanged(!value),
-          // Sửa lỗi: Đổi children thành child và bọc bằng Wrap hoặc Row
-          child: Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              if (link.isNotEmpty)
-                GestureDetector(
-                  onTap: () {
-                    print("Mở link: $link");
-                  },
-                  child: Text(
-                    "$link", 
-                    style: const TextStyle(
-                      color: AppColors.textBlue,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      decoration: TextDecoration.none,
-                    ),
+    required bool value,
+    required Function(bool?) onChanged,
+    required String label,
+    required String link,
+  }) {
+    return Row(
+      children: [
+        Checkbox(
+          value: value,
+          onChanged: onChanged,
+          activeColor: AppColors.primaryBlue,
+        ),
+        Expanded(
+          child: GestureDetector(
+            onTap: () => onChanged(!value),
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-            ],
+                if (link.isNotEmpty)
+                  GestureDetector(
+                    onTap: () {
+                      // TODO: [Backend] Mở link điều khoản / chính sách
+                      debugPrint("Mở link: $link");
+                    },
+                    child: Text(
+                      link,
+                      style: const TextStyle(
+                        color: AppColors.textBlue,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ),
-      )
-    ],
-  );
-}
+        )
+      ],
+    );
+  }
 
   Widget _buildButton(AppLocalizations t) {
     return SizedBox(
