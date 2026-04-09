@@ -65,15 +65,6 @@ class _LoginViewState extends State<LoginView> {
 
   // ================= ACTION =================
 
-  void _onContinuePressed() {
-    if (!_formKey.currentState!.validate()) return;
-
-    context.go(
-      '/otp',
-      extra: _phoneController.text,
-    );
-  }
-
   void _onBackPressed() {
     context.go('/');
   }
