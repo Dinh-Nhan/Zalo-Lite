@@ -17,27 +17,6 @@ public class UserController : ControllerBase
         _firebaseService = firebaseService;
     }
 
-    // POST: api/user/register
-    [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] UserCreateRequest request)
-    {
-        if (request == null || string.IsNullOrWhiteSpace(request.Id) || string.IsNullOrWhiteSpace(request.DisplayName))
-        {
-            return BadRequest(new { error = "Id and DisplayName are required." });
-        }
-
-        try
-        {
-            var user = await _userService.EnsureUserExistsAsync(request.Id.Trim(), request.DisplayName.Trim());
-            var response = UserResponse.FromUser(user);
-            return CreatedAtAction(nameof(GetUserById), new { userId = user.Id }, response);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { error = ex.Message });
-        }
-    }
-
     // POST: api/user
     [HttpPost]
     public async Task<IActionResult> CreateUser([FromBody] User user)

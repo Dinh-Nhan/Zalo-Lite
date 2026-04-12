@@ -72,34 +72,6 @@ public class FirebaseService
         return FirestoreDb.Collection("chats").Document(conversationId).Collection("messages");
     }
 
-    public async Task<string> SendChatMessageAsync(string conversationId, ChatMessage message)
-    {
-        if (message == null)
-        {
-            throw new ArgumentNullException(nameof(message));
-        }
-
-        message.Timestamp = message.Timestamp == default ? DateTime.UtcNow : message.Timestamp;
-        var docRef = await GetChatCollection(conversationId).AddAsync(message);
-        return docRef.Id;
-    }
-
-    public async Task<IEnumerable<ChatMessage>> GetChatMessagesAsync(string conversationId)
-    {
-        var snapshot = await GetChatCollection(conversationId)
-            .OrderBy("timestamp")
-            .GetSnapshotAsync();
-
-        return snapshot.Documents
-            .Select(doc =>
-            {
-                var chatMessage = doc.ConvertTo<ChatMessage>();
-                chatMessage.Id = doc.Id;
-                return chatMessage;
-            })
-            .ToList();
-    }
-
     public async Task<IEnumerable<Dictionary<string, object>>> GetCollectionAsync(string collectionName)
     {
         var snapshot = await FirestoreDb.Collection(collectionName).GetSnapshotAsync();
