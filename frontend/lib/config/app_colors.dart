@@ -36,6 +36,12 @@ class AppColors {
   static const Color divider = Color(0xFFEEEEEE);
   static const Color darkDivider = Color(0xFF3A3A4D);
 
+  //Call Color
+  static const Color callRed = Color(0xFFE53935);
+  static const Color callGreen = Color(0xFF4CAF50);
+  static const Color callBackground = Color(0xFF1A1A1A);
+  static const Color whiteOpacity = Colors.white24;
+
   // Helper methods
   static Color getBackground(bool isDark) => isDark ? darkBackground : backgroundWhite;
   static Color getSurface(bool isDark) => isDark ? darkSurface : backgroundWhite;

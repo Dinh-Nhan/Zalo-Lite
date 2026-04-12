@@ -16,6 +16,10 @@ dependencies:
   firebase_core: ^2.24.0
   cloud_firestore: ^4.17.5
 
+  provider: ^6.1.1
+  camera: ^0.10.5+5
+  permission_handler: ^11.0.1
+  flutter_ringtone_player: ^3.2.0 # Để tạo tiếng chuông
 dev_dependencies:
   flutter_test:
     sdk: flutter

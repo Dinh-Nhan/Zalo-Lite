@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:frontend/views/auth/login_view.dart';
 import 'package:frontend/views/auth/otp_verify_view.dart';
+import 'package:frontend/views/call/call_receiver_view.dart';
+import 'package:frontend/views/call/call_view.dart';
 import 'package:frontend/views/chat/chat_list_view.dart';
 import 'package:go_router/go_router.dart';
 import '../views/home/home_view.dart';
@@ -10,7 +11,7 @@ import '../views/home/load_view.dart';
 /// Cấu trúc: home/ (load, welcome) → auth/ (login, otp, register)
 GoRouter createRouter() {
   return GoRouter(
-    initialLocation: '/load',
+    initialLocation: '/chat-list', // Mặc định vào thẳng chat list sau khi load
     routes: [
       // === HOME ===
       GoRoute(
@@ -40,6 +41,18 @@ GoRouter createRouter() {
         path: '/chat-list',
         builder: (context, state) => const ChatListView(),
       ),
+
+      
+      // === CALL ===
+      GoRoute(
+        path: '/call',
+        builder: (context, state) => CallView(),
+      ),
+      GoRoute(
+        path: '/call-receiver',
+        builder: (context, state) => const CallReceiverView(),
+      ),
+
       // TODO: [Backend] Thêm route chat chi tiết khi có ChatDetailView
       // GoRoute(
       //   path: '/chat/:conversationId',

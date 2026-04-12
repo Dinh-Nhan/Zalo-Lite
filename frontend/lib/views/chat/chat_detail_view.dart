@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/apps/app_locale.dart';
+import 'package:frontend/models/call_model.dart';
+import 'package:frontend/providers/call_provider.dart';
 import 'package:frontend/utils/app_localizations.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/config/dark_mode_config.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 /// Màn hình chi tiết tin nhắn
 class ChatDetailView extends StatefulWidget {
@@ -298,14 +302,34 @@ class _ChatDetailViewState extends State<ChatDetailView> {
             ),
           ),
           IconButton(
-            onPressed: () {},
+            onPressed: () {
+              final callData = CallModel(
+                id: DateTime.now().toString(),
+                remoteName: widget.contactName,
+                remoteAvatar: '', // Thêm avatar nếu có
+                isVideo: false,
+              );
+              context.read<CallProvider>().initCall(callData);
+
+              // 2. Sau đó mới chuyển trang
+              context.go('/call');
+            },
             icon: Icon(
               Icons.call_outlined,
               color: isDark ? Colors.white : AppColors.textPrimary,
             ),
           ),
           IconButton(
-            onPressed: () {},
+            onPressed: () {
+              final callData = CallModel(
+                id: DateTime.now().toString(),
+                remoteName: widget.contactName,
+                remoteAvatar: '', // Thêm avatar nếu có
+                isVideo: false,
+              );
+              context.read<CallProvider>().initCall(callData);
+
+            },
             icon: Icon(
               Icons.videocam_outlined,
               color: isDark ? Colors.white : AppColors.textPrimary,

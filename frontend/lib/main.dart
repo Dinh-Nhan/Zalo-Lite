@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/apps/app_locale.dart';
 import 'package:frontend/apps/router.dart';
+import 'package:frontend/providers/call_provider.dart';
+import 'package:provider/provider.dart';
 import 'config/app_theme.dart';
 /// Điểm khởi chạy ứng dụng Zalo Lite
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MyApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => CallProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  ); 
 }
 
 /// Widget gốc của ứng dụng
