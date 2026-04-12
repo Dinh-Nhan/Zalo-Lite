@@ -9,10 +9,12 @@ namespace backend.Controllers;
 public class ChatController : ControllerBase
 {
     private readonly FirebaseService _firebaseService;
+    private readonly UserService _userService;
 
-    public ChatController(FirebaseService firebaseService)
+    public ChatController(FirebaseService firebaseService, UserService userService)
     {
         _firebaseService = firebaseService;
+        _userService = userService;
     }
 
     [HttpPost("send")]
@@ -23,8 +25,8 @@ public class ChatController : ControllerBase
             return BadRequest(new { error = "senderId, recipientId, and content are required." });
         }
 
-        await _firebaseService.EnsureUserExistsAsync(request.SenderId.Trim(), request.SenderId.Trim());
-        await _firebaseService.EnsureUserExistsAsync(request.RecipientId.Trim(), request.RecipientId.Trim());
+        await _userService.EnsureUserExistsAsync(request.SenderId.Trim(), request.SenderId.Trim());
+        await _userService.EnsureUserExistsAsync(request.RecipientId.Trim(), request.RecipientId.Trim());
 
         var conversationId = string.IsNullOrWhiteSpace(request.ConversationId)
             ? FirebaseService.GetConversationId(request.SenderId, request.RecipientId)

@@ -3,6 +3,8 @@ using Google.Apis.Auth.OAuth2;
 using Google.Cloud.Firestore;
 using backend.Models;
 using System.IO;
+using Microsoft.Extensions.Configuration;
+using System;
 
 namespace backend.Services;
 
@@ -28,9 +30,10 @@ public class FirebaseService
 
         if (FirebaseApp.DefaultInstance == null)
         {
+            var credential = GoogleCredential.FromFile(credentialsFilePath);
             FirebaseApp.Create(new AppOptions
             {
-                Credential = GoogleCredential.FromFile(credentialsFilePath)
+                Credential = credential
             });
         }
 
@@ -40,69 +43,12 @@ public class FirebaseService
             throw new FileNotFoundException($"Firebase credentials file not found: {resolvedPath}", resolvedPath);
         }
 
+        var firestoreCredential = GoogleCredential.FromFile(resolvedPath);
         FirestoreDb = new FirestoreDbBuilder
         {
             ProjectId = projectId,
-            CredentialsPath = resolvedPath
+            Credential = firestoreCredential
         }.Build();
-    }
-
-    private CollectionReference UsersCollection => FirestoreDb.Collection("users");
-
-    public async Task<User?> GetUserAsync(string userId)
-    {
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            return null;
-        }
-
-        var document = await UsersCollection.Document(userId.Trim()).GetSnapshotAsync();
-        if (!document.Exists)
-        {
-            return null;
-        }
-
-        var user = document.ConvertTo<User>();
-        user.Id = document.Id;
-        return user;
-    }
-
-    public async Task<IEnumerable<User>> GetUsersAsync()
-    {
-        var snapshot = await UsersCollection.GetSnapshotAsync();
-        return snapshot.Documents
-            .Select(doc =>
-            {
-                var user = doc.ConvertTo<User>();
-                user.Id = doc.Id;
-                return user;
-            })
-            .ToList();
-    }
-
-    public async Task<User> EnsureUserExistsAsync(string userId, string displayName)
-    {
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            throw new ArgumentException("User ID is required.", nameof(userId));
-        }
-
-        var trimmedId = userId.Trim();
-        var user = await GetUserAsync(trimmedId);
-        if (user != null)
-        {
-            return user;
-        }
-
-        var newUser = new User
-        {
-            Id = trimmedId,
-            DisplayName = string.IsNullOrWhiteSpace(displayName) ? trimmedId : displayName.Trim(),
-            CreatedAt = DateTime.UtcNow
-        };
-
-        await UsersCollection.Document(trimmedId).SetAsync(newUser);
-        return newUser;
     }
 
     public static string GetConversationId(string userId1, string userId2)
