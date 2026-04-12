@@ -133,6 +133,19 @@ class AppLocalizations {
       'darkModeTitle': 'Giao diện Dark Mode',
       'darkModeDescription': 'Thư giãn và bảo vệ mắt với chế độ giao diện tối mới trên Zalo PC',
       'tryNow': 'Thử ngay',
+
+      // Contacts (Danh bạ)
+      'contacts': 'Danh bạ',
+      'friendList': 'Danh sách bạn bè',
+      'groupAndCommunity': 'Danh sách nhóm và cộng đồng',
+      'friendRequest': 'Lời mời kết bạn',
+      'groupInvitation': 'Lời mời vào nhóm và cộng đồng',
+      'allContacts': 'Tất cả',
+      'recentAccess': 'Mới truy cập',
+      'noFriendRequest': 'Bạn không có lời mời nào',
+      'noGroupInvitation': 'Không có lời mời vào nhóm và cộng đồng',
+      'discover': 'Khám phá',
+      'profile': 'Cá nhân',
     },
 
     // ---- ENGLISH ----
@@ -223,6 +236,19 @@ class AppLocalizations {
       'darkModeTitle': 'Dark Mode Interface',
       'darkModeDescription': 'Relax and protect your eyes with the new dark interface on Zalo PC',
       'tryNow': 'Try now',
+
+      // Contacts
+      'contacts': 'Contacts',
+      'friendList': 'Friends List',
+      'groupAndCommunity': 'Groups & Communities',
+      'friendRequest': 'Friend Requests',
+      'groupInvitation': 'Group & Community Invitations',
+      'allContacts': 'All',
+      'recentAccess': 'Recently accessed',
+      'noFriendRequest': 'You have no friend requests',
+      'noGroupInvitation': 'No group or community invitations',
+      'discover': 'Discover',
+      'profile': 'Profile',
     },
   };
 }

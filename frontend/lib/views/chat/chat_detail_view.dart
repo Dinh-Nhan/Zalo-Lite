@@ -252,14 +252,28 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   }
 
   Widget _buildHeader(AppLocalizations t, bool isDark) {
+    // On mobile (showBackButton), use blue header (dark mode: black); on wide screen, keep white/dark
+    final bool isMobileHeader = widget.showBackButton;
+    final Color headerBg = isMobileHeader
+        ? (isDark ? const Color(0xFF1A1A1A) : AppColors.primaryBlue)
+        : (isDark ? const Color(0xFF1E1E1E) : Colors.white);
+    final Color headerIconColor = isMobileHeader
+        ? Colors.white
+        : (isDark ? Colors.white : AppColors.textPrimary);
+    final Color headerTextColor = isMobileHeader
+        ? Colors.white
+        : (isDark ? Colors.white : AppColors.textPrimary);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        border: Border(
-          left: BorderSide(color: AppColors.getDivider(isDark), width: 1),
-          bottom: BorderSide(color: AppColors.getDivider(isDark), width: 1),
-        ),
+        color: headerBg,
+        border: isMobileHeader
+            ? null
+            : Border(
+                left: BorderSide(color: AppColors.getDivider(isDark), width: 1),
+                bottom: BorderSide(color: AppColors.getDivider(isDark), width: 1),
+              ),
       ),
       child: Row(
         children: [
@@ -268,7 +282,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
               onPressed: () => Navigator.pop(context),
               icon: Icon(
                 Icons.arrow_back,
-                color: isDark ? Colors.white : AppColors.textPrimary,
+                color: headerIconColor,
               ),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
@@ -283,7 +297,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                 Text(
                   widget.contactName,
                   style: TextStyle(
-                    color: isDark ? Colors.white : AppColors.textPrimary,
+                    color: headerTextColor,
                     fontSize: 17,
                     fontWeight: FontWeight.w600,
                   ),
@@ -292,9 +306,11 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                   Text(
                     '${widget.memberCount} ${t.get('members')}',
                     style: TextStyle(
-                      color: isDark
+                      color: isMobileHeader
                           ? Colors.white.withValues(alpha: 0.8)
-                          : AppColors.textSecondary,
+                          : (isDark
+                              ? Colors.white.withValues(alpha: 0.8)
+                              : AppColors.textSecondary),
                       fontSize: 12,
                     ),
                   ),
@@ -316,7 +332,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
             },
             icon: Icon(
               Icons.call_outlined,
-              color: isDark ? Colors.white : AppColors.textPrimary,
+              color: headerIconColor,
             ),
           ),
           IconButton(
@@ -332,19 +348,39 @@ class _ChatDetailViewState extends State<ChatDetailView> {
             },
             icon: Icon(
               Icons.videocam_outlined,
-              color: isDark ? Colors.white : AppColors.textPrimary,
+              color: headerIconColor,
             ),
           ),
           IconButton(
             onPressed: () {},
             icon: Icon(
               Icons.menu,
-              color: isDark ? Colors.white : AppColors.textPrimary,
+              color: headerIconColor,
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// Check if two messages are in the same group
+  /// (same sender, within 5 minutes)
+  bool _isSameGroup(Map<String, dynamic> msg1, Map<String, dynamic> msg2) {
+    if (msg1['isMe'] != msg2['isMe']) return false;
+    // For group chats, also check sender name
+    if (widget.isGroup && !msg1['isMe']) {
+      if (msg1['senderName'] != msg2['senderName']) return false;
+    }
+    // Parse time (HH:mm format) and check if within 5 minutes
+    try {
+      final parts1 = msg1['time'].split(':');
+      final parts2 = msg2['time'].split(':');
+      final min1 = int.parse(parts1[0]) * 60 + int.parse(parts1[1]);
+      final min2 = int.parse(parts2[0]) * 60 + int.parse(parts2[1]);
+      return (min2 - min1).abs() <= 5;
+    } catch (_) {
+      return false;
+    }
   }
 
   Widget _buildMessageList(AppLocalizations t, bool isDark) {
@@ -356,8 +392,22 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         if (index == 0) {
           return _buildDateDivider(t, isDark);
         }
-        final message = _messages[index - 1];
-        return _buildMessageBubble(message, isDark);
+        final msgIndex = index - 1;
+        final message = _messages[msgIndex];
+
+        // Determine if this is the last message in a consecutive group
+        final bool isLastInGroup = msgIndex == _messages.length - 1 ||
+            !_isSameGroup(message, _messages[msgIndex + 1]);
+        final bool isFirstInGroup = msgIndex == 0 ||
+            !_isSameGroup(_messages[msgIndex - 1], message);
+
+        return _buildMessageBubble(
+          message,
+          isDark,
+          showTime: isLastInGroup,
+          isFirstInGroup: isFirstInGroup,
+          isLastInGroup: isLastInGroup,
+        );
       },
     );
   }
@@ -381,34 +431,69 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     );
   }
 
-  Widget _buildMessageBubble(Map<String, dynamic> message, bool isDark) {
+  Widget _buildMessageBubble(
+    Map<String, dynamic> message,
+    bool isDark, {
+    bool showTime = true,
+    bool isFirstInGroup = true,
+    bool isLastInGroup = true,
+  }) {
     final bool isMe = message['isMe'];
     final String content = message['content'];
     final String time = message['time'];
     final Color? senderAvatar = message['senderAvatar'];
     final String? senderName = message['senderName'];
 
+    // Tighter spacing for grouped messages
+    final double bottomPadding = isLastInGroup ? 12.0 : 3.0;
+
+    // Show avatar only on last message of group for non-me messages
+    final bool showAvatar = !isMe && isLastInGroup;
+    // Reserve avatar space for alignment
+    final double avatarSpace = !isMe ? 44.0 : 0.0; // 18*2 radius + 8 spacing
+
+    // Adjust border radius for grouped bubbles
+    late BorderRadius bubbleRadius;
+    if (isMe) {
+      bubbleRadius = BorderRadius.only(
+        topLeft: const Radius.circular(18),
+        topRight: Radius.circular(isFirstInGroup ? 18 : 6),
+        bottomLeft: const Radius.circular(18),
+        bottomRight: Radius.circular(isLastInGroup ? 4 : 6),
+      );
+    } else {
+      bubbleRadius = BorderRadius.only(
+        topLeft: Radius.circular(isFirstInGroup ? 18 : 6),
+        topRight: const Radius.circular(18),
+        bottomLeft: Radius.circular(isLastInGroup ? 4 : 6),
+        bottomRight: const Radius.circular(18),
+      );
+    }
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.only(bottom: bottomPadding),
       child: Row(
         mainAxisAlignment: isMe
             ? MainAxisAlignment.end
             : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMe) ...[
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: senderAvatar ?? widget.avatarColor,
-              child: Text(
-                _getInitials(senderName ?? widget.contactName),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
+            if (showAvatar)
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: senderAvatar ?? widget.avatarColor,
+                child: Text(
+                  _getInitials(senderName ?? widget.contactName),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-            ),
+              )
+            else
+              const SizedBox(width: 36), // placeholder for avatar alignment
             const SizedBox(width: 8),
           ],
           Flexible(
@@ -417,8 +502,8 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                   ? CrossAxisAlignment.end
                   : CrossAxisAlignment.start,
               children: [
-                // Hiển thị tên người gửi trong nhóm
-                if (!isMe && widget.isGroup && senderName != null) ...[
+                // Show sender name only on first message of group in group chats
+                if (!isMe && widget.isGroup && senderName != null && isFirstInGroup) ...[
                   Padding(
                     padding: const EdgeInsets.only(left: 8, bottom: 4),
                     child: Text(
@@ -437,9 +522,11 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                   constraints: BoxConstraints(
                     maxWidth: MediaQuery.of(context).size.width * 0.7,
                   ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+                  padding: EdgeInsets.only(
+                    left: 12,
+                    right: 12,
+                    top: 8,
+                    bottom: showTime ? 4 : 8,
                   ),
                   decoration: BoxDecoration(
                     color: isMe
@@ -447,37 +534,37 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                               ? const Color(0xFF3A5A80)
                               : const Color(0xFFD6EAF8))
                         : (isDark ? AppColors.darkCard : Colors.white),
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(18),
-                      topRight: const Radius.circular(18),
-                      bottomLeft: Radius.circular(isMe ? 18 : 4),
-                      bottomRight: Radius.circular(isMe ? 4 : 18),
-                    ),
+                    borderRadius: bubbleRadius,
                   ),
-                  child: Text(
-                    content,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: isDark
-                          ? AppColors.darkTextPrimary
-                          : AppColors.textPrimary,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Padding(
-                  padding: EdgeInsets.only(
-                    left: isMe ? 0 : 8,
-                    right: isMe ? 8 : 0,
-                  ),
-                  child: Text(
-                    time,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.textSecondary.withValues(alpha: 0.6),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        content,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: isDark
+                              ? AppColors.darkTextPrimary
+                              : AppColors.textPrimary,
+                        ),
+                      ),
+                      if (showTime) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          time,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isMe
+                                ? (isDark
+                                    ? Colors.white.withValues(alpha: 0.6)
+                                    : AppColors.primaryBlue.withValues(alpha: 0.7))
+                                : (isDark
+                                    ? AppColors.darkTextSecondary
+                                    : AppColors.textSecondary.withValues(alpha: 0.6)),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],

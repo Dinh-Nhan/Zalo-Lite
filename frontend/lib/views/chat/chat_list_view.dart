@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend/apps/app_locale.dart';
 import 'package:frontend/utils/app_localizations.dart';
@@ -6,7 +6,8 @@ import 'package:frontend/config/dark_mode_config.dart';
 import 'package:frontend/views/settings/settings_dialog.dart';
 import 'package:frontend/views/chat/chat_detail_view.dart';
 import 'package:go_router/go_router.dart';
-import '../../config/app_colors.dart';
+import 'package:frontend/config/app_colors.dart';
+import 'package:frontend/views/contacts/contacts_view.dart';
 
 /// Man hinh danh sach tin nhan - Thiet ke giong Zalo Web
 class ChatListView extends StatefulWidget {
@@ -187,28 +188,33 @@ class _ChatListViewState extends State<ChatListView> {
                       return Row(
                         children: [
                           _buildSidebar(isDark),
-                          _buildChatListPanelWide(t, isDark),
-                          Expanded(
-                            child: _selectedConversation == null
-                                ? _buildWelcomePanel(t, isDark)
-                                : ChatDetailView(
-                                    conversationId:
-                                        _selectedConversation!['id'],
-                                    contactName: _selectedConversation!['name'],
-                                    avatarColor:
-                                        _selectedConversation!['avatarColor'],
-                                    isGroup:
-                                        _selectedConversation!['isGroup'] ??
-                                        false,
-                                    memberCount:
-                                        _selectedConversation!['memberCount'],
-                                    showBackButton: false,
-                                  ),
-                          ),
+                          if (_selectedNavIndex == 0) ...[
+                            _buildChatListPanelWide(t, isDark),
+                            Expanded(
+                              child: _selectedConversation == null
+                                  ? _buildWelcomePanel(t, isDark)
+                                  : ChatDetailView(
+                                      conversationId:
+                                          _selectedConversation!['id'],
+                                      contactName: _selectedConversation!['name'],
+                                      avatarColor:
+                                          _selectedConversation!['avatarColor'],
+                                      isGroup:
+                                          _selectedConversation!['isGroup'] ??
+                                          false,
+                                      memberCount:
+                                          _selectedConversation!['memberCount'],
+                                      showBackButton: false,
+                                    ),
+                            ),
+                          ] else if (_selectedNavIndex == 2)
+                            const Expanded(
+                              child: ContactsView(isWideScreen: true),
+                            ),
                         ],
                       );
                     } else {
-                      return _buildChatListPanel(t, isDark);
+                      return _buildMobileView(t, isDark);
                     }
                   },
                 ),
@@ -250,6 +256,7 @@ class _ChatListViewState extends State<ChatListView> {
           ),
           const SizedBox(height: 20),
           _buildSidebarItem(Icons.chat_bubble, 0, isDark),
+          _buildSidebarItem(Icons.contacts_outlined, 2, isDark),
           const Spacer(),
           _buildSidebarItem(Icons.settings_outlined, 1, isDark),
           const SizedBox(height: 12),
@@ -279,6 +286,7 @@ class _ChatListViewState extends State<ChatListView> {
             } else {
               setState(() {
                 _selectedNavIndex = index;
+                _selectedConversation = null;
               });
             }
           },
@@ -291,10 +299,8 @@ class _ChatListViewState extends State<ChatListView> {
   Widget _buildChatListPanel(AppLocalizations t, bool isDark) {
     return Column(
       children: [
-        _buildSearchHeader(t, isDark),
-        _buildFilterTabs(t, isDark),
+        _buildSearchHeader(t, isDark, isMobile: true),
         Expanded(child: _buildConversationList(t, isDark)),
-        _buildBottomNavigation(isDark),
       ],
     );
   }
@@ -310,7 +316,7 @@ class _ChatListViewState extends State<ChatListView> {
       ),
       child: Column(
         children: [
-          _buildSearchHeader(t, isDark),
+          _buildSearchHeader(t, isDark, isMobile: false),
           _buildFilterTabs(t, isDark),
           Expanded(child: _buildConversationList(t, isDark)),
         ],
@@ -318,7 +324,55 @@ class _ChatListViewState extends State<ChatListView> {
     );
   }
 
-  Widget _buildSearchHeader(AppLocalizations t, bool isDark) {
+  Widget _buildSearchHeader(AppLocalizations t, bool isDark, {bool isMobile = false}) {
+    if (isMobile) {
+      // Mobile: blue background (dark mode: black) with white search bar and white icons
+      final Color mobileHeaderBg = isDark ? const Color(0xFF1A1A1A) : AppColors.primaryBlue;
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        color: mobileHeaderBg,
+        child: Row(
+          children: [
+            Expanded(
+              child: Container(
+                height: 32,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: _onSearchChanged,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: t.get('searchPlaceholder'),
+                    hintStyle: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 13,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      color: Colors.white.withValues(alpha: 0.8),
+                      size: 18,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _buildHeaderIconButton(Icons.qr_code_scanner, isDark, () {}, iconColor: Colors.white),
+            _buildHeaderIconButton(Icons.add, isDark, () {}, iconColor: Colors.white),
+          ],
+        ),
+      );
+    }
+
+    // Wide screen: keep original white/dark style
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       color: AppColors.getSurface(isDark),
@@ -366,8 +420,9 @@ class _ChatListViewState extends State<ChatListView> {
   Widget _buildHeaderIconButton(
     IconData icon,
     bool isDark,
-    VoidCallback onTap,
-  ) {
+    VoidCallback onTap, {
+    Color? iconColor,
+  }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -379,7 +434,7 @@ class _ChatListViewState extends State<ChatListView> {
           alignment: Alignment.center,
           child: Icon(
             icon,
-            color: AppColors.getTextSecondary(isDark),
+            color: iconColor ?? AppColors.getTextSecondary(isDark),
             size: 20,
           ),
         ),
@@ -901,6 +956,65 @@ class _ChatListViewState extends State<ChatListView> {
     );
   }
 
+  /// Mobile view with bottom navigation switching between tabs
+  Widget _buildMobileView(AppLocalizations t, bool isDark) {
+    return Column(
+      children: [
+        Expanded(
+          child: IndexedStack(
+            index: _selectedNavIndex,
+            children: [
+              // Tab 0: Chat List
+              _buildChatListPanel(t, isDark),
+              // Tab 1: Contacts
+              const ContactsView(isWideScreen: false),
+              // Tab 2: Discover (placeholder)
+              _buildPlaceholderTab(t.get('discover'), Icons.explore_outlined, isDark),
+              // Tab 3: Profile (placeholder)
+              _buildPlaceholderTab(t.get('profile'), Icons.person_outline, isDark),
+            ],
+          ),
+        ),
+        _buildBottomNavigation(isDark),
+      ],
+    );
+  }
+
+  Widget _buildPlaceholderTab(String title, IconData icon, bool isDark) {
+    return Container(
+      color: isDark ? AppColors.darkBackground : AppColors.backgroundGray,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 64,
+              color: AppColors.getTextSecondary(isDark).withValues(alpha: 0.4),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: AppColors.getTextSecondary(isDark),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Coming soon...',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.getTextSecondary(isDark).withValues(alpha: 0.6),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomNavigation(bool isDark) {
     return Container(
       decoration: BoxDecoration(
@@ -912,29 +1026,38 @@ class _ChatListViewState extends State<ChatListView> {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              IconButton(
-                onPressed: () {},
-                icon: Icon(
-                  Icons.chat_bubble,
-                  color: AppColors.primaryBlue,
-                  size: 26,
-                ),
-              ),
-              IconButton(
-                onPressed: _openSettings,
-                icon: Icon(
-                  Icons.settings_outlined,
-                  color: AppColors.getTextSecondary(isDark),
-                  size: 26,
-                ),
-              ),
+              _buildBottomNavItem(Icons.chat_bubble, Icons.chat_bubble_outline, 0, isDark),
+              _buildBottomNavItem(Icons.contacts, Icons.contacts_outlined, 1, isDark),
+              _buildBottomNavItem(Icons.auto_stories, Icons.auto_stories_outlined, 2, isDark),
+              _buildBottomNavItem(Icons.person, Icons.person_outline, 3, isDark),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildBottomNavItem(
+    IconData activeIcon,
+    IconData inactiveIcon,
+    int index,
+    bool isDark,
+  ) {
+    final isSelected = _selectedNavIndex == index;
+    return IconButton(
+      onPressed: () {
+        setState(() => _selectedNavIndex = index);
+      },
+      icon: Icon(
+        isSelected ? activeIcon : inactiveIcon,
+        color: isSelected
+            ? AppColors.primaryBlue
+            : AppColors.getTextSecondary(isDark),
+        size: 26,
       ),
     );
   }
