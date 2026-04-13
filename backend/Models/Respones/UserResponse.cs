@@ -8,9 +8,10 @@ namespace backend.Models;
 public class UserResponse
 {
     public string Id { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
-    public string Phone { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
     public string Avatar { get; set; } = string.Empty;
     public string DateOfBirth { get; set; } = string.Empty; // Format: dd-MM-yyyy
     public string Bio { get; set; } = string.Empty;
@@ -26,9 +27,10 @@ public class UserResponse
         return new UserResponse
         {
             Id = user.Id,
+            Role = user.Role,
             FirstName = user.FirstName,
             LastName = user.LastName,
-            Phone = user.Phone,
+            Email = user.Email,
             Avatar = user.Avatar,
             DateOfBirth = user.DateOfBirth != DateOnly.MinValue 
                 ? user.DateOfBirth.ToFormattedString() 

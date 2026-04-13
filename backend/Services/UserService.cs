@@ -81,9 +81,18 @@ public class UserService
             throw new ArgumentException("User ID is required.", nameof(user.Id));
         }
 
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            throw new ArgumentException("Email is required.", nameof(user.Email));
+        }
+
         user.CreateAt = DateTime.UtcNow;
         user.UpdateAt = DateTime.UtcNow;
 
+        // Create or update user in Firebase Authentication
+        await _firebaseService.CreateOrUpdateAuthUserAsync(user.Id, user.Email);
+
+        // Save to Firestore
         await UsersCollection.Document(user.Id).SetAsync(user);
         return user;
     }
@@ -110,6 +119,14 @@ public class UserService
         updatedUser.UpdateAt = DateTime.UtcNow;
         updatedUser.CreateAt = existingUser.CreateAt; // Preserve original creation time
 
+        // Update email in Firebase Authentication if email is provided and changed
+        if (!string.IsNullOrWhiteSpace(updatedUser.Email) && 
+            updatedUser.Email != existingUser.Email)
+        {
+            await _firebaseService.UpdateAuthUserEmailAsync(userId, updatedUser.Email);
+        }
+
+        // Save to Firestore
         await UsersCollection.Document(userId).SetAsync(updatedUser);
         return updatedUser;
     }

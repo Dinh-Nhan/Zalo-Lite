@@ -1,4 +1,5 @@
 using FirebaseAdmin;
+using FirebaseAdmin.Auth;
 using Google.Apis.Auth.OAuth2;
 using Google.Cloud.Firestore;
 using backend.Models;
@@ -51,30 +52,79 @@ public class FirebaseService
         }.Build();
     }
 
-    public static string GetConversationId(string userId1, string userId2)
+    /// <summary>
+    /// Create or update user in Firebase Authentication with email
+    /// </summary>
+    public async Task<UserRecord> CreateOrUpdateAuthUserAsync(string userId, string email)
     {
-        if (string.IsNullOrWhiteSpace(userId1) || string.IsNullOrWhiteSpace(userId2))
+        if (string.IsNullOrWhiteSpace(userId))
         {
-            throw new ArgumentException("Both user IDs must be provided.");
+            throw new ArgumentException("User ID is required.", nameof(userId));
         }
 
-        var participants = new[] { userId1.Trim(), userId2.Trim() };
-        return string.Join("_", participants.OrderBy(x => x, StringComparer.OrdinalIgnoreCase));
-    }
-
-    private CollectionReference GetChatCollection(string conversationId)
-    {
-        if (string.IsNullOrWhiteSpace(conversationId))
+        if (string.IsNullOrWhiteSpace(email))
         {
-            throw new ArgumentException("ConversationId is required.", nameof(conversationId));
+            throw new ArgumentException("Email is required.", nameof(email));
         }
 
-        return FirestoreDb.Collection("chats").Document(conversationId).Collection("messages");
+        try
+        {
+            // Try to get existing user
+            var userRecord = await FirebaseAuth.DefaultInstance.GetUserAsync(userId);
+            
+            // Update existing user
+            var args = new UserRecordArgs
+            {
+                Uid = userId,
+                Email = email.Trim(),
+                EmailVerified = false
+            };
+            
+            return await FirebaseAuth.DefaultInstance.UpdateUserAsync(args);
+        }
+        catch (FirebaseAuthException ex) when (ex.AuthErrorCode == AuthErrorCode.UserNotFound)
+        {
+            // Create new user if not exists
+            var args = new UserRecordArgs
+            {
+                Uid = userId,
+                Email = email.Trim(),
+                EmailVerified = false
+            };
+            
+            return await FirebaseAuth.DefaultInstance.CreateUserAsync(args);
+        }
     }
 
-    public async Task<IEnumerable<Dictionary<string, object>>> GetCollectionAsync(string collectionName)
+    /// <summary>
+    /// Update email in Firebase Authentication
+    /// </summary>
+    public async Task<UserRecord?> UpdateAuthUserEmailAsync(string userId, string email)
     {
-        var snapshot = await FirestoreDb.Collection(collectionName).GetSnapshotAsync();
-        return snapshot.Documents.Select(doc => doc.ToDictionary()).ToList();
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("User ID is required.", nameof(userId));
+        }
+
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            throw new ArgumentException("Email is required.", nameof(email));
+        }
+
+        try
+        {
+            var args = new UserRecordArgs
+            {
+                Uid = userId,
+                Email = email.Trim(),
+                EmailVerified = false
+            };
+            
+            return await FirebaseAuth.DefaultInstance.UpdateUserAsync(args);
+        }
+        catch (FirebaseAuthException ex) when (ex.AuthErrorCode == AuthErrorCode.UserNotFound)
+        {
+            return null;
+        }
     }
 }

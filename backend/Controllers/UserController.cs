@@ -143,26 +143,4 @@ public class UserController : ControllerBase
             return StatusCode(500, new { error = ex.Message });
         }
     }
-
-    // POST: api/user/sample
-    [HttpPost("sample")]
-    public async Task<IActionResult> CreateSampleUsers()
-    {
-        try
-        {
-            var userA = await _userService.EnsureUserExistsAsync("userA", "User A");
-            var userB = await _userService.EnsureUserExistsAsync("userB", "User B");
-            var conversationId = FirebaseService.GetConversationId(userA.Id, userB.Id);
-
-            return Ok(new
-            {
-                users = UserResponse.FromUsers(new[] { userA, userB }),
-                conversationId
-            });
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { error = ex.Message });
-        }
-    }
 }
