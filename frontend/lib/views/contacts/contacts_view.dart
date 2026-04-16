@@ -412,7 +412,7 @@ class _ContactsViewState extends State<ContactsView>
     return Container(
       width: 240,
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.white,
+        color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
         border: Border(
           right: BorderSide(color: AppColors.getDivider(isDark), width: 1),
         ),
@@ -420,97 +420,99 @@ class _ContactsViewState extends State<ContactsView>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Search header
+          const SizedBox(height: 12),
+          // Search header with action icons
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             child: Row(
               children: [
                 Expanded(
                   child: Container(
-                    height: 32,
+                    height: 40,
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? AppColors.darkCard
-                          : AppColors.backgroundGray,
-                      borderRadius: BorderRadius.circular(4),
+                      color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF5F5F5),
+                      borderRadius: BorderRadius.circular(6),
                     ),
-                    child: TextField(
-                      style: TextStyle(
-                        color: AppColors.getTextPrimary(isDark),
-                        fontSize: 13,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: t.get('searchPlaceholder'),
-                        hintStyle: TextStyle(
-                          color: AppColors.getTextSecondary(isDark),
-                          fontSize: 13,
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 14),
+                        Icon(Icons.search, color: AppColors.getTextSecondary(isDark), size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            style: TextStyle(
+                              color: AppColors.getTextPrimary(isDark),
+                              fontSize: 14,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: t.get('searchPlaceholder'),
+                              hintStyle: TextStyle(
+                                color: AppColors.getTextSecondary(isDark),
+                                fontSize: 14,
+                              ),
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.zero,
+                            ),
+                          ),
                         ),
-                        prefixIcon: Icon(
-                          Icons.search,
-                          color: AppColors.getTextSecondary(isDark),
-                          size: 18,
-                        ),
-                        border: InputBorder.none,
-                        contentPadding:
-                            const EdgeInsets.symmetric(vertical: 8),
-                      ),
+                        const SizedBox(width: 14),
+                      ],
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                _buildIconBtn(
-                  Icons.person_add_outlined,
-                  AppColors.getTextSecondary(isDark),
-                  () {},
-                ),
-                _buildIconBtn(
-                  Icons.group_add_outlined,
-                  AppColors.getTextSecondary(isDark),
-                  () {},
-                ),
+                _buildIconBtnSidebar(Icons.person_add_outlined, isDark, () {}),
+                _buildIconBtnSidebar(Icons.group_add_outlined, isDark, () {}),
               ],
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           // Menu items
           ...menuItems.asMap().entries.map((entry) {
             final index = entry.key;
             final item = entry.value;
             final isSelected = _selectedMenuIndex == index;
-            return InkWell(
-              onTap: () => setState(() => _selectedMenuIndex = index),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+              child: Material(
                 color: isSelected
                     ? (isDark
-                        ? AppColors.primaryBlue.withValues(alpha: 0.15)
-                        : AppColors.primaryBlue.withValues(alpha: 0.08))
+                        ? const Color(0xFF2A2A2A)
+                        : const Color(0xFFE8F0FE))
                     : Colors.transparent,
-                child: Row(
-                  children: [
-                    Icon(
-                      item['icon'] as IconData,
-                      size: 20,
-                      color: isSelected
-                          ? AppColors.primaryBlue
-                          : AppColors.getTextSecondary(isDark),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        item['label'] as String,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.w400,
+                borderRadius: BorderRadius.circular(4),
+                child: InkWell(
+                  onTap: () => setState(() => _selectedMenuIndex = index),
+                  borderRadius: BorderRadius.circular(4),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    child: Row(
+                      children: [
+                        Icon(
+                          item['icon'] as IconData,
+                          size: 20,
                           color: isSelected
                               ? AppColors.primaryBlue
-                              : AppColors.getTextPrimary(isDark),
+                              : AppColors.getTextSecondary(isDark),
                         ),
-                      ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            item['label'] as String,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight:
+                                  isSelected ? FontWeight.w600 : FontWeight.w400,
+                              color: isSelected
+                                  ? AppColors.primaryBlue
+                                  : AppColors.getTextPrimary(isDark),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             );
@@ -522,15 +524,15 @@ class _ContactsViewState extends State<ContactsView>
 
   Widget _buildWideContent(AppLocalizations t, bool isDark) {
     return Container(
-      color: isDark ? AppColors.darkBackground : AppColors.backgroundGray,
+      color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header title
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
             decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : Colors.white,
+              color: isDark ? const Color(0xFF242424) : Colors.white,
               border: Border(
                 bottom:
                     BorderSide(color: AppColors.getDivider(isDark), width: 1),
@@ -540,14 +542,14 @@ class _ContactsViewState extends State<ContactsView>
               children: [
                 Icon(
                   _getContentIcon(),
-                  size: 22,
-                  color: AppColors.getTextPrimary(isDark),
+                  size: 20,
+                  color: AppColors.primaryBlue,
                 ),
                 const SizedBox(width: 10),
                 Text(
                   _getContentTitle(t),
                   style: TextStyle(
-                    fontSize: 17,
+                    fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: AppColors.getTextPrimary(isDark),
                   ),
@@ -616,6 +618,129 @@ class _ContactsViewState extends State<ContactsView>
     String? currentLetter;
     final List<Widget> items = [];
 
+    // Search and filter bar
+    items.add(
+      Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF242424) : Colors.white,
+          border: Border(
+            bottom: BorderSide(color: AppColors.getDivider(isDark), width: 1),
+          ),
+        ),
+        child: Row(
+          children: [
+            // Search field
+            Expanded(
+              flex: 3,
+              child: Container(
+                height: 34,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF0F2F5),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: TextField(
+                  style: TextStyle(
+                    color: AppColors.getTextPrimary(isDark),
+                    fontSize: 14,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Tìm bạn',
+                    hintStyle: TextStyle(
+                      color: AppColors.getTextSecondary(isDark),
+                      fontSize: 14,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      color: AppColors.getTextSecondary(isDark),
+                      size: 18,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Sort dropdown
+            Expanded(
+              flex: 2,
+              child: Container(
+                height: 34,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF0F2F5),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.sort,
+                      size: 16,
+                      color: AppColors.getTextSecondary(isDark),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Tên (A-Z)',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.getTextPrimary(isDark),
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(
+                      Icons.keyboard_arrow_down,
+                      size: 18,
+                      color: AppColors.getTextSecondary(isDark),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Filter dropdown
+            Expanded(
+              flex: 2,
+              child: Container(
+                height: 34,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF0F2F5),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.filter_list,
+                      size: 16,
+                      color: AppColors.getTextSecondary(isDark),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Tất cả',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.getTextPrimary(isDark),
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(
+                      Icons.keyboard_arrow_down,
+                      size: 18,
+                      color: AppColors.getTextSecondary(isDark),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
     // Friend count header
     items.add(
       Padding(
@@ -631,13 +756,32 @@ class _ContactsViewState extends State<ContactsView>
       ),
     );
 
+    // "Bạn mới" section
+    items.add(
+      Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: Text(
+          'Bạn mới',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.getTextPrimary(isDark),
+          ),
+        ),
+      ),
+    );
+    // Mock new friend
+    if (sorted.isNotEmpty) {
+      items.add(_buildWideContactTile(sorted.first, isDark, isNew: true));
+    }
+
     for (final contact in sorted) {
       final firstLetter = (contact['name'] as String)[0].toUpperCase();
       if (firstLetter != currentLetter) {
         currentLetter = firstLetter;
         items.add(
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Text(
               currentLetter,
               style: TextStyle(
@@ -652,46 +796,67 @@ class _ContactsViewState extends State<ContactsView>
       items.add(_buildWideContactTile(contact, isDark));
     }
 
-    return ListView(
-      padding: EdgeInsets.zero,
-      children: items,
+    return Container(
+      color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: items,
+      ),
     );
   }
 
-  Widget _buildWideContactTile(Map<String, dynamic> contact, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: contact['avatarColor'],
-            child: Text(
-              _getInitials(contact['name']),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+  Widget _buildWideContactTile(Map<String, dynamic> contact, bool isDark, {bool isNew = false}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {},
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: contact['avatarColor'],
+                backgroundImage: contact['avatar'] != null
+                    ? NetworkImage(contact['avatar'] as String)
+                    : null,
+                child: contact['avatar'] == null
+                    ? Text(
+                        _getInitials(contact['name']),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      )
+                    : null,
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              contact['name'],
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                color: AppColors.getTextPrimary(isDark),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  contact['name'],
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                    color: AppColors.getTextPrimary(isDark),
+                  ),
+                ),
               ),
-            ),
+              InkWell(
+                onTap: () {},
+                borderRadius: BorderRadius.circular(4),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  child: Icon(
+                    Icons.more_horiz,
+                    color: AppColors.getTextSecondary(isDark),
+                    size: 18,
+                  ),
+                ),
+              ),
+            ],
           ),
-          Icon(
-            Icons.more_horiz,
-            color: AppColors.getTextSecondary(isDark),
-            size: 20,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -823,6 +988,26 @@ class _ContactsViewState extends State<ContactsView>
           height: 32,
           alignment: Alignment.center,
           child: Icon(icon, color: color, size: 20),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIconBtnSidebar(IconData icon, bool isDark, VoidCallback onTap) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(4),
+        child: Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          child: Icon(
+            icon,
+            color: AppColors.getTextSecondary(isDark),
+            size: 20,
+          ),
         ),
       ),
     );

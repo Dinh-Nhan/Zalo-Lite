@@ -23,6 +23,7 @@ class _ChatListViewState extends State<ChatListView> {
   String _filterMode = 'all';
   int _selectedNavIndex = 0;
   Map<String, dynamic>? _selectedConversation;
+  bool? _wasWideScreen; // Track previous screen size
 
   final List<Map<String, dynamic>> _mockConversations = [
     {
@@ -184,6 +185,42 @@ class _ChatListViewState extends State<ChatListView> {
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final isWideScreen = constraints.maxWidth >= 700;
+                    
+                    // Convert index when screen size changes
+                    if (_wasWideScreen != null && _wasWideScreen != isWideScreen) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (isWideScreen) {
+                          // Mobile → Wide conversion
+                          setState(() {
+                            if (_selectedNavIndex == 0) {
+                              _selectedNavIndex = 0; // Chat → Chat
+                            } else if (_selectedNavIndex == 1) {
+                              _selectedNavIndex = 2; // Contacts → Contacts
+                            } else {
+                              _selectedNavIndex = 0; // Discover/Profile → Chat
+                            }
+                            // Keep selected conversation when switching to wide
+                            _selectedConversation = _selectedConversation;
+                          });
+                        } else {
+                          // Wide → Mobile conversion
+                          setState(() {
+                            if (_selectedNavIndex == 0) {
+                              _selectedNavIndex = 0; // Chat → Chat
+                            } else if (_selectedNavIndex == 2) {
+                              _selectedNavIndex = 1; // Contacts → Contacts
+                            } else {
+                              _selectedNavIndex = 0; // Settings → Chat
+                            }
+                            // Clear selected conversation when switching to mobile
+                            // because mobile uses full-screen navigation
+                            _selectedConversation = null;
+                          });
+                        }
+                      });
+                    }
+                    _wasWideScreen = isWideScreen;
+                    
                     if (isWideScreen) {
                       return Row(
                         children: [
@@ -210,7 +247,28 @@ class _ChatListViewState extends State<ChatListView> {
                           ] else if (_selectedNavIndex == 2)
                             const Expanded(
                               child: ContactsView(isWideScreen: true),
+                            )
+                          else ...[
+                            // Default to chat panel for any other index
+                            _buildChatListPanelWide(t, isDark),
+                            Expanded(
+                              child: _selectedConversation == null
+                                  ? _buildWelcomePanel(t, isDark)
+                                  : ChatDetailView(
+                                      conversationId:
+                                          _selectedConversation!['id'],
+                                      contactName: _selectedConversation!['name'],
+                                      avatarColor:
+                                          _selectedConversation!['avatarColor'],
+                                      isGroup:
+                                          _selectedConversation!['isGroup'] ??
+                                          false,
+                                      memberCount:
+                                          _selectedConversation!['memberCount'],
+                                      showBackButton: false,
+                                    ),
                             ),
+                          ],
                         ],
                       );
                     } else {
@@ -328,6 +386,7 @@ class _ChatListViewState extends State<ChatListView> {
     if (isMobile) {
       // Mobile: blue background (dark mode: black) with white search bar and white icons
       final Color mobileHeaderBg = isDark ? const Color(0xFF1A1A1A) : AppColors.primaryBlue;
+      final searchBg = isDark ? const Color(0xFF2A2A2A) : Colors.white.withValues(alpha: 0.25);
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         color: mobileHeaderBg,
@@ -335,32 +394,38 @@ class _ChatListViewState extends State<ChatListView> {
           children: [
             Expanded(
               child: Container(
-                height: 32,
+                height: 40,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(4),
+                  color: searchBg,
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: _onSearchChanged,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: t.get('searchPlaceholder'),
-                    hintStyle: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontSize: 13,
+                child: Row(
+                  children: [
+                    const SizedBox(width: 14),
+                    Icon(Icons.search, color: Colors.white.withValues(alpha: 0.8), size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: _onSearchChanged,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: t.get('searchPlaceholder'),
+                          hintStyle: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.7),
+                            fontSize: 14,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
                     ),
-                    prefixIcon: Icon(
-                      Icons.search,
-                      color: Colors.white.withValues(alpha: 0.8),
-                      size: 18,
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                  ),
+                    const SizedBox(width: 14),
+                  ],
                 ),
               ),
             ),
@@ -373,39 +438,46 @@ class _ChatListViewState extends State<ChatListView> {
     }
 
     // Wide screen: keep original white/dark style
+    final searchBg = isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF5F5F5);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       color: AppColors.getSurface(isDark),
       child: Row(
         children: [
           Expanded(
             child: Container(
-              height: 32,
+              height: 40,
               decoration: BoxDecoration(
-                color: isDark ? AppColors.darkCard : AppColors.backgroundGray,
-                borderRadius: BorderRadius.circular(4),
+                color: searchBg,
+                borderRadius: BorderRadius.circular(6),
               ),
-              child: TextField(
-                controller: _searchController,
-                onChanged: _onSearchChanged,
-                style: TextStyle(
-                  color: AppColors.getTextPrimary(isDark),
-                  fontSize: 13,
-                ),
-                decoration: InputDecoration(
-                  hintText: t.get('searchPlaceholder'),
-                  hintStyle: TextStyle(
-                    color: AppColors.getTextSecondary(isDark),
-                    fontSize: 13,
+              child: Row(
+                children: [
+                  const SizedBox(width: 14),
+                  Icon(Icons.search, color: AppColors.getTextSecondary(isDark), size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: _onSearchChanged,
+                      style: TextStyle(
+                        color: AppColors.getTextPrimary(isDark),
+                        fontSize: 14,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: t.get('searchPlaceholder'),
+                        hintStyle: TextStyle(
+                          color: AppColors.getTextSecondary(isDark),
+                          fontSize: 14,
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
                   ),
-                  prefixIcon: Icon(
-                    Icons.search,
-                    color: AppColors.getTextSecondary(isDark),
-                    size: 18,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                ),
+                  const SizedBox(width: 14),
+                ],
               ),
             ),
           ),

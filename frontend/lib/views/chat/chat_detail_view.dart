@@ -290,6 +290,20 @@ class _ChatDetailViewState extends State<ChatDetailView> {
             const SizedBox(width: 12),
           ] else
             const SizedBox(width: 8),
+          // Avatar
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: widget.avatarColor,
+            child: Text(
+              _getInitials(widget.contactName),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
