@@ -1,150 +1,79 @@
 using Google.Cloud.Firestore;
 using backend.Models;
+using backend.Attributes;
+using backend.dtos.Response;
+using backend.Exceptions;
+using backend.Enums;
+using Mapster;
+using backend.dtos.Request;
 
 namespace backend.Services;
 
-public class UserService
+[ScopedService]
+public class UserService(FirestoreDb db, ILogger<UserService> logger)
 {
-    private readonly FirebaseService _firebaseService;
-    private CollectionReference UsersCollection => _firebaseService.FirestoreDb.Collection("users");
+    private const string Collection = "users";
 
-    public UserService(FirebaseService firebaseService)
+    public async Task<UserResponse> GetByIdAsync(string id)
     {
-        _firebaseService = firebaseService;
+        var snapshot = await db.Collection(Collection).Document(id).GetSnapshotAsync();
+
+        if (!snapshot.Exists)
+            throw new AppException(ErrorCode.USER_NOT_FOUND);
+
+        return snapshot.ConvertTo<User>().Adapt<UserResponse>();
     }
 
-    public async Task<User?> GetUserAsync(string userId)
+    public async Task<List<UserResponse>> GetAllAsync()
     {
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            return null;
-        }
+        var snapshot = await db.Collection(Collection).GetSnapshotAsync();
 
-        var document = await UsersCollection.Document(userId.Trim()).GetSnapshotAsync();
-        if (!document.Exists)
-        {
-            return null;
-        }
-
-        var user = document.ConvertTo<User>();
-        user.Id = document.Id;
-        return user;
-    }
-
-    public async Task<IEnumerable<User>> GetUsersAsync()
-    {
-        var snapshot = await UsersCollection.GetSnapshotAsync();
         return snapshot.Documents
-            .Select(doc =>
-            {
-                var user = doc.ConvertTo<User>();
-                user.Id = doc.Id;
-                return user;
-            })
+            .Select(doc => doc.ConvertTo<User>().Adapt<UserResponse>())
             .ToList();
     }
 
-    public async Task<User> EnsureUserExistsAsync(string userId, string displayName)
+    public async Task<UserResponse> CreateAsync(CreateUserRequest request)
     {
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            throw new ArgumentException("User ID is required.", nameof(userId));
-        }
+        var existing = await db.Collection(Collection)
+            .WhereEqualTo("email", request.Email)
+            .GetSnapshotAsync();
 
-        var trimmedId = userId.Trim();
-        var user = await GetUserAsync(trimmedId);
-        if (user != null)
-        {
-            return user;
-        }
+        if (existing.Count > 0)
+            throw new AppException(ErrorCode.EMAIL_ALREADY_EXISTS);
 
-        var newUser = new User
-        {
-            Id = trimmedId,
-            FirstName = string.IsNullOrWhiteSpace(displayName) ? trimmedId : displayName.Trim(),
-            CreateAt = DateTime.UtcNow
-        };
+        var user = request.Adapt<User>();
+        var docRef = await db.Collection(Collection).AddAsync(user);
+        user.Id = docRef.Id;
 
-        await UsersCollection.Document(trimmedId).SetAsync(newUser);
-        return newUser;
+        logger.LogInformation("User created: {UserId}", user.Id);
+        return user.Adapt<UserResponse>();
     }
 
-    public async Task<User> CreateUserAsync(User user)
+    public async Task<UserResponse> UpdateAsync(string id, UpdateUserRequest request)
     {
-        if (user == null)
-        {
-            throw new ArgumentNullException(nameof(user));
-        }
+        var docRef = db.Collection(Collection).Document(id);
+        var snapshot = await docRef.GetSnapshotAsync();
 
-        if (string.IsNullOrWhiteSpace(user.Id))
-        {
-            throw new ArgumentException("User ID is required.", nameof(user.Id));
-        }
+        if (!snapshot.Exists)
+            throw new AppException(ErrorCode.USER_NOT_FOUND);
 
-        if (string.IsNullOrWhiteSpace(user.Email))
-        {
-            throw new ArgumentException("Email is required.", nameof(user.Email));
-        }
+        var user = snapshot.ConvertTo<User>();
+        request.Adapt(user);
+        await docRef.SetAsync(user, SetOptions.MergeAll);
 
-        user.CreateAt = DateTime.UtcNow;
-        user.UpdateAt = DateTime.UtcNow;
-
-        // Create or update user in Firebase Authentication
-        await _firebaseService.CreateOrUpdateAuthUserAsync(user.Id, user.Email);
-
-        // Save to Firestore
-        await UsersCollection.Document(user.Id).SetAsync(user);
-        return user;
+        return user.Adapt<UserResponse>();
     }
 
-    public async Task<User?> UpdateUserAsync(string userId, User updatedUser)
+    public async Task DeleteAsync(string id)
     {
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            throw new ArgumentException("User ID is required.", nameof(userId));
-        }
+        var docRef = db.Collection(Collection).Document(id);
+        var snapshot = await docRef.GetSnapshotAsync();
 
-        if (updatedUser == null)
-        {
-            throw new ArgumentNullException(nameof(updatedUser));
-        }
+        if (!snapshot.Exists)
+            throw new AppException(ErrorCode.USER_NOT_FOUND);
 
-        var existingUser = await GetUserAsync(userId);
-        if (existingUser == null)
-        {
-            return null;
-        }
-
-        updatedUser.Id = userId;
-        updatedUser.UpdateAt = DateTime.UtcNow;
-        updatedUser.CreateAt = existingUser.CreateAt; // Preserve original creation time
-
-        // Update email in Firebase Authentication if email is provided and changed
-        if (!string.IsNullOrWhiteSpace(updatedUser.Email) && 
-            updatedUser.Email != existingUser.Email)
-        {
-            await _firebaseService.UpdateAuthUserEmailAsync(userId, updatedUser.Email);
-        }
-
-        // Save to Firestore
-        await UsersCollection.Document(userId).SetAsync(updatedUser);
-        return updatedUser;
-    }
-
-    public async Task<bool> DeleteUserAsync(string userId)
-    {
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            return false;
-        }
-
-        var user = await GetUserAsync(userId);
-        if (user == null)
-        {
-            return false;
-        }
-
-        await UsersCollection.Document(userId).DeleteAsync();
-        return true;
+        await docRef.DeleteAsync();
+        logger.LogInformation("User deleted: {UserId}", id);
     }
 }
