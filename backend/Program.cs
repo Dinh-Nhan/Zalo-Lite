@@ -7,6 +7,7 @@ using FluentValidation.AspNetCore;
 using Mapster;
 using MapsterMapper;
 using Serilog;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +16,13 @@ builder.Host.UseSerilog((ctx, config) => config
     .Enrich.FromLogContext()
     .WriteTo.Console(outputTemplate:
         "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext} | {Message}{NewLine}{Exception}"));
+
+// ── Redis ────────────────────────────────────────────────
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+{
+    var config = builder.Configuration["Redis:ConnectString"];
+    return ConnectionMultiplexer.Connect(config);
+});
 
 // ── Mapster ────────────────────────────────────────────────
 var mapsterConfig = TypeAdapterConfig.GlobalSettings;
