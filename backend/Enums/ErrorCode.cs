@@ -47,6 +47,9 @@ namespace backend.Enums
 
     [ErrorMeta(9999, "Internal server error", HttpStatusCode.InternalServerError)]
     INTERNAL_ERROR,
+
+    [ErrorMeta(5000, "Feed not found", HttpStatusCode.NotFound)]
+    FEED_NOT_FOUND,
     }
 
     [AttributeUsage(AttributeTargets.Field)]
