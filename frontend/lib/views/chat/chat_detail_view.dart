@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/apps/app_locale.dart';
-import 'package:frontend/models/call_model.dart';
-import 'package:frontend/providers/call_provider.dart';
+import 'package:frontend/app/app_locale.dart';
+import 'package:frontend/controller/user_controller.dart';
+import 'package:frontend/data/models/call_model.dart';
+import 'package:frontend/controller/call_controller.dart';
 import 'package:frontend/utils/app_localizations.dart';
-import 'package:frontend/config/app_colors.dart';
-import 'package:frontend/config/dark_mode_config.dart';
+import 'package:frontend/common/config/app_colors.dart';
+import 'package:frontend/common/config/dark_mode_config.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -47,6 +48,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   }
 
   void _loadMockMessages() {
+    
     // Mock messages cho chat cá nhân (friend)
     if (!widget.isGroup) {
       _messages = [

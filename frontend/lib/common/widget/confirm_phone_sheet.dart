@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/apps/app_locale.dart';
-import 'package:frontend/config/app_colors.dart';
+import 'package:frontend/app/app_locale.dart';
+import 'package:frontend/common/config/app_colors.dart';
 import 'package:frontend/utils/app_localizations.dart';
 
 class ConfirmPhoneSheet extends StatelessWidget {

@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:frontend/apps/app_locale.dart';
+import 'package:frontend/app/app_locale.dart';
 import 'package:frontend/utils/app_localizations.dart';
 import 'package:go_router/go_router.dart';
-import '../../config/app_colors.dart';
+import '../../common/config/app_colors.dart';
 
 /// Màn hình nhập mã xác thực OTP
 /// Hiển thị 6 ô nhập OTP, đếm ngược gửi lại, nút Tiếp tục

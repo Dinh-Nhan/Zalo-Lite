@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/apps/app_locale.dart';
+import 'package:frontend/app/app_locale.dart';
 import 'package:frontend/utils/app_localizations.dart';
-import 'package:frontend/config/app_colors.dart';
-import 'package:frontend/config/dark_mode_config.dart';
+import 'package:frontend/common/config/app_colors.dart';
+import 'package:frontend/common/config/dark_mode_config.dart';
 
 /// Màn hình Danh bạ - Contacts View
 /// Giao diện nhỏ (mobile): hiển thị tabs Bạn bè / Nhóm

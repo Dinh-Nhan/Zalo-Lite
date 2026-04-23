@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/apps/app_locale.dart';
-import 'package:frontend/apps/router.dart';
-import 'package:frontend/providers/call_provider.dart';
+import 'package:frontend/app/app_locale.dart';
+import 'package:frontend/app/router.dart';
+import 'package:frontend/controller/call_controller.dart';
 import 'package:provider/provider.dart';
-import 'config/app_theme.dart';
+import 'common/config/app_theme.dart';
 /// Điểm khởi chạy ứng dụng Zalo Lite
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

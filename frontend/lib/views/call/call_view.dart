@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import 'package:frontend/component/ripple_aminimation.dart';
+import 'package:frontend/common/widget/ripple_aminimation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:frontend/models/call_model.dart';
-import '../../config/app_colors.dart';
-import '../../providers/call_provider.dart';
-import '../../services/call_service.dart';
+import 'package:frontend/data/models/call_model.dart';
+import '../../common/config/app_colors.dart';
+import '../../controller/call_controller.dart';
+import '../../data/services/call_service.dart';
 
 class CallView extends StatefulWidget {
   const CallView({super.key});
@@ -50,7 +50,7 @@ class _CallViewState extends State<CallView> {
     _callService.dispose();
     super.dispose();
   }
-
+//Người nhận không nhấc máy -> Hiển thị thông báo và tự động thoát sau 3 giây
   @override
   Widget build(BuildContext context) {
     final callProv = context.watch<CallProvider>();
@@ -137,6 +137,7 @@ class _CallViewState extends State<CallView> {
       ),
     );
   }
+  //Người nhận nhấc máy -> Hủy timeout và bắt đầu tính thời gian cuộc gọi
   // @override
   // Widget build(BuildContext context) {
   //   final callProv = context.watch<CallProvider>();

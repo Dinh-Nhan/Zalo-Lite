@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../models/call_model.dart';
+import '../data/models/call_model.dart';
 
 class CallProvider with ChangeNotifier {
   CallModel? _currentCall;
@@ -21,7 +21,7 @@ class CallProvider with ChangeNotifier {
     final seconds = (_seconds % 60).toString().padLeft(2, '0');
     return "$minutes:$seconds";
   }
-
+//Dùng khi người gọi được kết nối trong 20 giây, bắt đầu đếm thời gian cuộc gọi
   // void initCall(CallModel call) {
   //   _currentCall = call;
   //   _seconds = 0;
@@ -44,6 +44,9 @@ class CallProvider with ChangeNotifier {
   //     }
   //   });
   // }
+
+  
+  // Người gọi sau 20 giây mà người nhận không nhấc máy -> Hiển thị thông báo và tự động thoát sau 3 giây
   void initCall(CallModel call) {
   _currentCall = call;
   _seconds = 0;

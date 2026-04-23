@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:frontend/apps/app_locale.dart';
-import 'package:frontend/component/confirm_phone_sheet.dart';
+import 'package:frontend/app/app_locale.dart';
+import 'package:frontend/common/widget/confirm_phone_sheet.dart';
 import 'package:frontend/utils/app_localizations.dart';
 import 'package:go_router/go_router.dart';
-import '../../config/app_colors.dart';
+import '../../common/config/app_colors.dart';
 import '../../utils/validator.dart';
 
 class LoginView extends StatefulWidget {

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../config/app_colors.dart';
+import '../../common/config/app_colors.dart';
 import 'package:go_router/go_router.dart';
 /// Màn hình splash (loading) - Hiển thị logo Zalo trên nền xanh
 /// Tự động chuyển sang HomeView sau 5 giây với hiệu ứng chuyển cảnh mượt mà

@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:frontend/apps/app_locale.dart';
+import 'package:frontend/app/app_locale.dart';
+import 'package:frontend/common/widget/primary_button.dart';
+import 'package:frontend/common/widget/secondary_button.dart';
 import 'package:go_router/go_router.dart';
-import '../../config/app_colors.dart';
+import '../../common/config/app_colors.dart';
 import '../../utils/app_localizations.dart';
 
-/// Màn hình chính sau splash - Trang chào mừng / đăng nhập Zalo
-/// Giao diện nền trắng với logo Zalo xanh, dropdown ngôn ngữ (Việt/Anh),
-/// nút Đăng nhập và Tạo tài khoản mới
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
 
@@ -301,66 +300,19 @@ Widget build(BuildContext context) {
             mainAxisSize: MainAxisSize.min,
             children: [
               // === Nút ĐĂNG NHẬP (xanh, bo tròn) ===
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: () {
-                    // TODO: Điều hướng sang trang đăng nhập
-                    // context.go('/login', extra: _t.locale);
-                    context.go('/login');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryBlue,
-                    foregroundColor: Colors.white,
-                    elevation: 3,
-                    shadowColor: AppColors.primaryBlue.withValues(alpha: 0.4),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
-                    ),
-                  ),
-                  child: Text(
-                    // _t.get('login'),
-                    t.get('login'),
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
+              PrimaryButton(
+                text: t.get('login'),
+                onPressed: () {
+                  context.go('/login');
+                },
               ),
 
               const SizedBox(height: 14),
 
               // === Nút TẠO TÀI KHOẢN MỚI (viền xám, nền trắng) ===
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: OutlinedButton(
-                  onPressed: () {
-                    // TODO: Điều hướng sang trang đăng ký
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textPrimary,
-                    side: const BorderSide(
-                      color: AppColors.borderGray,
-                      width: 1.2,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
-                    ),
-                  ),
-                  child: Text(
-                    // _t.get('createAccount'),
-                    t.get('createAccount'),
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                ),
+              SecondaryButton(
+                text: t.get('createAccount'),
+                onPressed: () {},
               ),
             ],
           ),
