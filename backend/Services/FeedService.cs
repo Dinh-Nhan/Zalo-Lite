@@ -51,28 +51,30 @@ namespace backend.Services
         }
 
 
-    public async Task<FeedResponse> GetByIdAsync(string id, string currentUserId)
-    {
-        var snapshot = await db.Collection(COLLECTION).Document(id).GetSnapshotAsync();
-
-        if (!snapshot.Exists)
-            throw new AppException(ErrorCode.FEED_NOT_FOUND);
-
-        var feed = snapshot.ConvertTo<Feeds>();
-        var response = feed.Adapt<FeedResponse>();
-
-        // IsLiked không map được trong config vì cần currentUserId
-        // → dùng with expression để set thêm sau khi map
-        return response with
+        public async Task<FeedResponse> GetByIdAsync(string id, string currentUserId)
         {
-            Stats = new StatsResponse
+            var snapshot = await db.Collection(COLLECTION).Document(id).GetSnapshotAsync();
+
+            if (!snapshot.Exists)
+                throw new AppException(ErrorCode.FEED_NOT_FOUND);
+
+            var feed = snapshot.ConvertTo<Feeds>();
+            var response = feed.Adapt<FeedResponse>();
+
+            // IsLiked không map được trong config vì cần currentUserId
+            // → dùng with expression để set thêm sau khi map
+            return response with
             {
-                ViewCount = response.Stats.ViewCount,
-                LikeCount = response.Stats.LikeCount,
-                IsLiked = feed.Stats.Likes.Contains(currentUserId)
-            }
-        };
+                Stats = new StatsResponse
+                {
+                    ViewCount = response.Stats.ViewCount,
+                    LikeCount = response.Stats.LikeCount,
+                    IsLiked = feed.Stats.Likes.Contains(currentUserId)
+                }
+            };
+        }
+
+        
     }
-    }
-    
+
 }

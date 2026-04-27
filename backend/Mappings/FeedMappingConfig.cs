@@ -22,6 +22,8 @@ namespace backend.Mappings
             config.NewConfig<CreateContentRequest, Content>();
             config.NewConfig<Content, ContentResponse>();
 
+            config.NewConfig<Settings, SettingResponse>();
+
             // Stats → StatsResponse (tính toán thêm)
             config.NewConfig<Stats, StatsResponse>()
                 .Map(dest => dest.ViewCount, src => src.Views.Count)
