@@ -24,7 +24,7 @@ namespace backend.Services
             await _redis.StringSetAsync(
                     $"otp:{email}",
                     hashedOtp,
-                    TimeSpan.FromSeconds(120)
+                    TimeSpan.FromSeconds(60)
                 );
 
             // Send OTP to user's email here (omitted for brevity)
