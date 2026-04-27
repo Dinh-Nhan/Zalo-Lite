@@ -1,7 +1,22 @@
 using backend.Services;
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var firebaseConfig = builder.Configuration.GetSection("Firebase");
+var projectId = firebaseConfig["ProjectId"];
+var credentialPath = firebaseConfig["CredentialsFilePath"];
+
+var credential = CredentialFactory
+    .FromFile<ServiceAccountCredential>(credentialPath)
+    .ToGoogleCredential();
+
+FirebaseApp.Create(new AppOptions()
+{
+    Credential = credential,
+    ProjectId = projectId
+});
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddSingleton<FirebaseService>();
@@ -20,6 +35,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseMiddleware<FirebaseAuthMiddleware>();
 
 app.MapControllers();
 
