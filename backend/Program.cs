@@ -2,12 +2,31 @@ using System.Reflection;
 using backend.Attributes;
 using backend.Middleware;
 using backend.Services;
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Mapster;
 using MapsterMapper;
 using Serilog;
 using StackExchange.Redis;
+
+var builder = WebApplication.CreateBuilder(args);
+
+var firebaseConfig = builder.Configuration.GetSection("Firebase");
+var projectId = firebaseConfig["ProjectId"];
+var credentialPath = firebaseConfig["CredentialsFilePath"];
+
+var credential = CredentialFactory
+    .FromFile<ServiceAccountCredential>(credentialPath)
+    .ToGoogleCredential();
+
+FirebaseApp.Create(new AppOptions()
+{
+    Credential = credential,
+    ProjectId = projectId
+});
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,7 +69,7 @@ builder.Services.AddSingleton<FirebaseService>();
 builder.Services.AddSingleton(sp => 
     sp.GetRequiredService<FirebaseService>().FirestoreDb);
 
-builder.Services.AddScoped<UserService>();
+// builder.Services.AddScoped<UserService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -67,6 +86,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseMiddleware<FirebaseAuthMiddleware>();
 
 app.MapControllers();
 

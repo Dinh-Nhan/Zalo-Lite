@@ -10,12 +10,12 @@ public class User
     public string Id { get; set; } = null!;
 
     [FirestoreProperty("role")]
-    public string Role { get; set; } = string.Empty; //client or admin
+    public string Role { get; set; } = "client"; // "client" or "admin"
 
-    [FirestoreProperty("first_name")] // Tên
+    [FirestoreProperty("first_name")]
     public string FirstName { get; set; } = string.Empty;
 
-    [FirestoreProperty("last_name")] // Họ
+    [FirestoreProperty("last_name")]
     public string LastName { get; set; } = string.Empty;
 
     [FirestoreProperty("email"), MaxLength(100)]
@@ -31,13 +31,11 @@ public class User
     public string Bio { get; set; } = string.Empty;
 
     [FirestoreProperty("status")]
-    public bool Status { get; set; } = true; // true: active, false: inactive
+    public bool Status { get; set; } = true; // true for "active", false for "inactive"
 
-    [FirestoreProperty("create_at")]
+    [FirestoreProperty("created_at")]
     public DateTime CreateAt { get; set; } = DateTime.UtcNow;
 
-    [FirestoreProperty("update_at")]
+    [FirestoreProperty("updated_at")]
     public DateTime UpdateAt { get; set; } = DateTime.UtcNow;
 }
-
-

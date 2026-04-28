@@ -36,7 +36,6 @@ namespace backend.Models
     [FirestoreProperty("deleted_at")]
     public DateTime? DeletedAt { get; set; }
 
-        
-
+    
     }
 }

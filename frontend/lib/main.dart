@@ -1,20 +1,24 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend/apps/app_locale.dart';
 import 'package:frontend/apps/router.dart';
 import 'package:frontend/providers/call_provider.dart';
 import 'package:provider/provider.dart';
+
 import 'config/app_theme.dart';
+
 /// Điểm khởi chạy ứng dụng Zalo Lite
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp();
+
   runApp(
     MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => CallProvider()),
-      ],
+      providers: [ChangeNotifierProvider(create: (_) => CallProvider())],
       child: const MyApp(),
     ),
-  ); 
+  );
 }
 
 /// Widget gốc của ứng dụng

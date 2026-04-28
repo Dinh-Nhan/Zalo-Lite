@@ -8,7 +8,7 @@ namespace backend.dtos.Response
 {
     public class ApiResponse<T>
     {
-    public int Code { get; init; }
+    public int Code { get; init; } = 200;
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Message { get; init; }
