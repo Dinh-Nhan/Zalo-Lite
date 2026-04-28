@@ -19,6 +19,8 @@ namespace backend.Services
 
         public async Task<string> GenerateOtpAsync(string email)
         {
+            
+
             var otp = new Random().Next(100000, 999999).ToString();
             var hashedOtp = HashOtp(otp);
             await _redis.StringSetAsync(
@@ -27,7 +29,6 @@ namespace backend.Services
                     TimeSpan.FromSeconds(60)
                 );
 
-            // Send OTP to user's email here (omitted for brevity)
             await _emailService.SendOtpEmailAsync(email, otp);
 
             return otp;
@@ -45,11 +46,29 @@ namespace backend.Services
 
             if(storedHash == inputHash)
             {
-                await _redis.KeyDeleteAsync(key); // Use only one time
+                await _redis.KeyDeleteAsync(key); 
                 return true;
             }
 
             return false;
+        }
+
+        public async Task<string> MessageVerifyOtpAsync(string email, string otp)
+        {
+            var key = $"otp:{email}";
+            var storedHash = await _redis.StringGetAsync(key);
+
+            if (storedHash.IsNullOrEmpty)
+                return "OTP not found";
+
+            var inputHash = HashOtp(otp);
+
+            if(inputHash != storedHash)
+            {
+                return "Your OTP is not match";
+            }
+            
+            return "Your OTP is valid";
         }
 
         private string HashOtp(string otp)
