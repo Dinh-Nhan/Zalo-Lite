@@ -1,5 +1,6 @@
 using System.Reflection;
 using backend.Attributes;
+using backend.Hubs;
 using backend.Middleware;
 using backend.Services;
 using FirebaseAdmin;
@@ -39,7 +40,7 @@ builder.Host.UseSerilog((ctx, config) => config
 // ── Redis ────────────────────────────────────────────────
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
-    var config = builder.Configuration["Redis:ConnectString"];
+    var config = builder.Configuration["Redis:ConnectString"]!;
     return ConnectionMultiplexer.Connect(config);
 });
 
@@ -73,16 +74,19 @@ builder.Services.AddSingleton(sp =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-//
-builder.Services.AddCors(options =>
+
+// ── SignalR ──────────────────────────────────────
+builder.Services.AddSignalR();
+
+// ── CORS (cần thiết cho Flutter Web / dev) ────────────────
+builder.Services.AddCors(opt =>
 {
-    options.AddPolicy("AllowAll", policy =>
-    {
+    opt.AddDefaultPolicy(policy =>
         policy
-            .AllowAnyOrigin()
             .AllowAnyHeader()
-            .AllowAnyMethod();
-    });
+            .AllowAnyMethod()
+            .SetIsOriginAllowed(_ => true) // dev only
+            .AllowCredentials());
 });
 
 var app = builder.Build();
@@ -97,10 +101,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseCors();
 app.UseHttpsRedirection();
+app.UseRouting();
 
 app.UseMiddleware<FirebaseAuthMiddleware>();
 
 app.MapControllers();
+app.MapHub<FriendHub>("/hubs/friend");
 
 app.Run();

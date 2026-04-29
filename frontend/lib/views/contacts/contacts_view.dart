@@ -3,6 +3,9 @@ import 'package:frontend/apps/app_locale.dart';
 import 'package:frontend/utils/app_localizations.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/config/dark_mode_config.dart';
+import 'package:frontend/features/friends/screens/friend_list_screen.dart';
+import 'package:frontend/features/friends/screens/friend_requests_screen.dart';
+import 'package:frontend/features/friends/screens/add_friend_screen.dart';
 
 /// Màn hình Danh bạ - Contacts View
 /// Giao diện nhỏ (mobile): hiển thị tabs Bạn bè / Nhóm
@@ -21,44 +24,8 @@ class _ContactsViewState extends State<ContactsView>
   late TabController _tabController;
   int _selectedMenuIndex = 0;
 
-  // Mock contacts data
-  final List<Map<String, dynamic>> _mockContacts = [
-    {
-      'id': 'c_001',
-      'name': 'Đình Nhân',
-      'avatar': null,
-      'avatarColor': const Color(0xFF4CAF50),
-      'isOnline': true,
-    },
-    {
-      'id': 'c_002',
-      'name': 'Minh Anh',
-      'avatar': null,
-      'avatarColor': const Color(0xFF2196F3),
-      'isOnline': false,
-    },
-    {
-      'id': 'c_003',
-      'name': 'Tuấn Kiệt',
-      'avatar': null,
-      'avatarColor': const Color(0xFFE91E63),
-      'isOnline': true,
-    },
-    {
-      'id': 'c_004',
-      'name': 'Anh Sơn',
-      'avatar': null,
-      'avatarColor': const Color(0xFF9C27B0),
-      'isOnline': false,
-    },
-    {
-      'id': 'c_005',
-      'name': 'Bảo',
-      'avatar': null,
-      'avatarColor': const Color(0xFFFF9800),
-      'isOnline': true,
-    },
-  ];
+  // NOTE: _mockContacts đã được thay bằng FriendListScreen (API thật).
+  // Chỉ giữ _mockGroups vì tab Nhóm chưa có API.
 
   // Mock groups data
   final List<Map<String, dynamic>> _mockGroups = [
@@ -168,7 +135,14 @@ class _ContactsViewState extends State<ContactsView>
             ),
           ),
           const SizedBox(width: 8),
-          _buildIconBtn(Icons.person_add_outlined, Colors.white, () {}),
+          _buildIconBtn(
+            Icons.person_add_outlined,
+            Colors.white,
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AddFriendScreen()),
+            ),
+          ),
         ],
       ),
     );
@@ -195,22 +169,8 @@ class _ContactsViewState extends State<ContactsView>
   }
 
   Widget _buildFriendListMobile(AppLocalizations t, bool isDark) {
-    return Container(
-      color: isDark ? AppColors.darkBackground : AppColors.backgroundGray,
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          // Friend request section
-          _buildFriendRequestBanner(t, isDark),
-          // Filter chips
-          _buildFilterChips(t, isDark),
-          // Contact list
-          ..._mockContacts.map(
-            (contact) => _buildContactTile(contact, isDark),
-          ),
-        ],
-      ),
-    );
+    // Sử dụng FriendListScreen thật thay vì mock data
+    return const FriendListScreen();
   }
 
   Widget _buildGroupListMobile(AppLocalizations t, bool isDark) {
@@ -263,7 +223,7 @@ class _ContactsViewState extends State<ContactsView>
       child: Row(
         children: [
           _buildChip(
-            '${t.get('allContacts')} ${_mockContacts.length}',
+            '${t.get('allContacts')} 0',
             true,
             isDark,
           ),
@@ -597,23 +557,23 @@ class _ContactsViewState extends State<ContactsView>
   Widget _buildContentByMenu(AppLocalizations t, bool isDark) {
     switch (_selectedMenuIndex) {
       case 0:
-        return _buildWideFriendList(t, isDark);
+        // Danh sách bạn bè thật từ API
+        return const FriendListScreen();
       case 1:
         return _buildWideGroupList(t, isDark);
       case 2:
-        return _buildWideFriendRequests(t, isDark);
+        // Lời mời kết bạn thật từ API
+        return const FriendRequestsScreen();
       case 3:
         return _buildWideGroupInvitations(t, isDark);
       default:
-        return _buildWideFriendList(t, isDark);
+        return const FriendListScreen();
     }
   }
 
   Widget _buildWideFriendList(AppLocalizations t, bool isDark) {
     // Group contacts alphabetically
-    final sorted = List<Map<String, dynamic>>.from(_mockContacts)
-      ..sort(
-          (a, b) => (a['name'] as String).compareTo(b['name'] as String));
+    final sorted = <Map<String, dynamic>>[];
 
     String? currentLetter;
     final List<Widget> items = [];
@@ -746,7 +706,7 @@ class _ContactsViewState extends State<ContactsView>
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
         child: Text(
-          '${t.get('friends')} (${_mockContacts.length})',
+          '${t.get('friends')} (0)',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
