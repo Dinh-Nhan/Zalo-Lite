@@ -50,6 +50,40 @@ namespace backend.Enums
 
     [ErrorMeta(5000, "Feed not found", HttpStatusCode.NotFound)]
     FEED_NOT_FOUND,
+
+    // Friendship - 6xxx
+    [ErrorMeta(6000, "Friend request not found", HttpStatusCode.NotFound)]
+    FRIEND_REQUEST_NOT_FOUND,
+
+    [ErrorMeta(6001, "Cannot send friend request to yourself", HttpStatusCode.BadRequest)]
+    CANNOT_SELF_FRIEND,
+
+    [ErrorMeta(6002, "You are already friends with this user", HttpStatusCode.Conflict)]
+    ALREADY_FRIENDS,
+
+    [ErrorMeta(6003, "A pending friend request already exists", HttpStatusCode.Conflict)]
+    FRIEND_REQUEST_ALREADY_SENT,
+
+    [ErrorMeta(6004, "You have been blocked by this user", HttpStatusCode.Forbidden)]
+    BLOCKED_BY_USER,
+
+    [ErrorMeta(6005, "You have blocked this user", HttpStatusCode.Forbidden)]
+    YOU_BLOCKED_USER,
+
+    [ErrorMeta(6006, "You can only respond to requests sent to you", HttpStatusCode.Forbidden)]
+    NOT_REQUEST_RECIPIENT,
+
+    [ErrorMeta(6007, "This friend request is no longer pending", HttpStatusCode.Conflict)]
+    REQUEST_NOT_PENDING,
+
+    [ErrorMeta(6008, "You can only cancel requests that you sent", HttpStatusCode.Forbidden)]
+    NOT_REQUEST_SENDER,
+
+    [ErrorMeta(6009, "Cannot block yourself", HttpStatusCode.BadRequest)]
+    CANNOT_SELF_BLOCK,
+
+    [ErrorMeta(6010, "You have already blocked this user", HttpStatusCode.Conflict)]
+    ALREADY_BLOCKED,
     }
 
     [AttributeUsage(AttributeTargets.Field)]
