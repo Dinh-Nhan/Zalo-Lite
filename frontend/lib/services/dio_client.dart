@@ -68,7 +68,8 @@ class DioClient {
     final dio = Dio(
       BaseOptions(
         // Thay bằng base URL thực tế của backend
-        baseUrl: 'http://10.0.2.2:5244',
+        // baseUrl: 'http://10.0.2.2:5244',
+        baseUrl : 'http://localhost:5244',
         connectTimeout: const Duration(seconds: 15),
         receiveTimeout: const Duration(seconds: 15),
         headers: {'Content-Type': 'application/json'},

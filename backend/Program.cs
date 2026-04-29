@@ -28,7 +28,7 @@ FirebaseApp.Create(new AppOptions()
 });
 
 
-var builder = WebApplication.CreateBuilder(args);
+//var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.UseSerilog((ctx, config) => config
     .ReadFrom.Configuration(ctx.Configuration)
@@ -73,9 +73,21 @@ builder.Services.AddSingleton(sp =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+//
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy
+            .AllowAnyOrigin()
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
 
 var app = builder.Build();
-
+app.UseCors("AllowAll");
+app.UseAuthorization();
 app.UseMiddleware<GlobalExceptionHandler>();
 
 // Configure the HTTP request pipeline.
