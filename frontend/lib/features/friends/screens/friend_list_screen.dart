@@ -100,9 +100,9 @@ class _FriendListScreenState extends State<FriendListScreen> {
     final borderColor = AppColors.getDivider(isDark);
 
     return Container(
-      color: bg,
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
+        color: bg,
         border: Border(bottom: BorderSide(color: borderColor, width: 0.5)),
       ),
       child: Row(
