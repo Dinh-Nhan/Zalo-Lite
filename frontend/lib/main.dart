@@ -6,12 +6,13 @@ import 'package:frontend/providers/call_provider.dart';
 import 'package:provider/provider.dart';
 
 import 'config/app_theme.dart';
+import 'firebase_options.dart';
 
 /// Điểm khởi chạy ứng dụng Zalo Lite
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   runApp(
     MultiProvider(

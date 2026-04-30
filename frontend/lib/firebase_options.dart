@@ -17,10 +17,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -65,4 +62,14 @@ class DefaultFirebaseOptions {
     storageBucket: 'zalo-lite-47899.firebasestorage.app',
     iosBundleId: 'com.example.frontend',
   );
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyCifnV49y6chIf-5Tfsyrh_jC6nurNe3UU',
+    appId: '1:1040826455699:web:85f34a5d6dd3fec8675f66',
+    messagingSenderId: '1040826455699',
+    projectId: 'zalo-lite-47899',
+    authDomain: 'zalo-lite-47899.firebaseapp.com',
+    storageBucket: 'zalo-lite-47899.firebasestorage.app',
+  );
+
 }
