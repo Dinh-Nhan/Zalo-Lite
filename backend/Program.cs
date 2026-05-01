@@ -3,8 +3,6 @@ using backend.Attributes;
 using backend.Hubs;
 using backend.Middleware;
 using backend.Services;
-using FirebaseAdmin;
-using Google.Apis.Auth.OAuth2;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Mapster;
@@ -14,19 +12,7 @@ using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var firebaseConfig = builder.Configuration.GetSection("Firebase");
-var projectId = firebaseConfig["ProjectId"];
-var credentialPath = firebaseConfig["CredentialsFilePath"];
-
-var credential = CredentialFactory
-    .FromFile<ServiceAccountCredential>(credentialPath)
-    .ToGoogleCredential();
-
-FirebaseApp.Create(new AppOptions()
-{
-    Credential = credential,
-    ProjectId = projectId
-});
+// Firebase được khởi tạo bởi FirebaseService (singleton) — không khởi tạo lại ở đây
 
 builder.Host.UseSerilog((ctx, config) => config
     .ReadFrom.Configuration(ctx.Configuration)
@@ -87,6 +73,10 @@ builder.Services.AddCors(opt =>
 });
 
 var app = builder.Build();
+
+// ── Warm-up: khởi tạo FirebaseService ngay khi app start
+// để FirebaseApp.DefaultInstance sẵn sàng trước khi có request
+app.Services.GetRequiredService<FirebaseService>();
 
 app.UseMiddleware<GlobalExceptionHandler>();
 

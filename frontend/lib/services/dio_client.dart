@@ -4,6 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 /// Interceptor tự động gắn Firebase ID Token vào Header Authorization
 /// của mọi request. Token được refresh tự động khi hết hạn.
 class _AuthInterceptor extends Interceptor {
+  // Tránh retry loop: chỉ retry 1 lần duy nhất
+  static const _retryKey = 'retried';
+
   @override
   Future<void> onRequest(
     RequestOptions options,
@@ -22,8 +25,9 @@ class _AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    // Nếu backend trả 401 → token hết hạn, thử force refresh rồi retry
-    if (err.response?.statusCode == 401) {
+    // Nếu backend trả 401 và chưa retry lần nào → thử force refresh rồi retry
+    final alreadyRetried = err.requestOptions.extra[_retryKey] == true;
+    if (err.response?.statusCode == 401 && !alreadyRetried) {
       _retryWithFreshToken(err, handler);
       return;
     }
@@ -44,9 +48,10 @@ class _AuthInterceptor extends Interceptor {
       // Force refresh token mới
       final newToken = await user.getIdToken(true);
 
-      // Tạo lại request với token mới
+      // Tạo lại request với token mới, đánh dấu đã retry
       final opts = err.requestOptions;
       opts.headers['Authorization'] = 'Bearer $newToken';
+      opts.extra[_retryKey] = true; // ngăn retry lần 2
 
       final dio = DioClient.instance;
       final response = await dio.fetch(opts);

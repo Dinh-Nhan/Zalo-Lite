@@ -29,19 +29,20 @@ public class FirebaseService
             throw new InvalidOperationException("Missing Firebase:ProjectId in appsettings.json.");
         }
 
-        if (FirebaseApp.DefaultInstance == null)
-        {
-            var credential = GoogleCredential.FromFile(credentialsFilePath);
-            FirebaseApp.Create(new AppOptions
-            {
-                Credential = credential
-            });
-        }
-
         var resolvedPath = Path.GetFullPath(credentialsFilePath, AppContext.BaseDirectory);
         if (!File.Exists(resolvedPath))
         {
             throw new FileNotFoundException($"Firebase credentials file not found: {resolvedPath}", resolvedPath);
+        }
+
+        if (FirebaseApp.DefaultInstance == null)
+        {
+            var credential = GoogleCredential.FromFile(resolvedPath);
+            FirebaseApp.Create(new AppOptions
+            {
+                Credential = credential,
+                ProjectId = projectId   // ← bắt buộc để VerifyIdTokenAsync hoạt động
+            });
         }
 
         var firestoreCredential = GoogleCredential.FromFile(resolvedPath);
