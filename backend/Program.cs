@@ -27,9 +27,6 @@ FirebaseApp.Create(new AppOptions()
     ProjectId = projectId
 });
 
-
-var builder = WebApplication.CreateBuilder(args);
-
 builder.Host.UseSerilog((ctx, config) => config
     .ReadFrom.Configuration(ctx.Configuration)
     .Enrich.FromLogContext()
@@ -73,6 +70,8 @@ builder.Services.AddSingleton(sp =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+
 
 var app = builder.Build();
 
