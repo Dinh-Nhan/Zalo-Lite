@@ -1,4 +1,4 @@
-﻿name: frontend
+name: frontend
 description: "A new Flutter project."
 publish_to: "none"
 
@@ -13,13 +13,21 @@ dependencies:
 
   go_router: ^17.1.0
   cupertino_icons: ^1.0.8
-  firebase_core: ^2.24.0
+
+  firebase_core: ^2.31.0
+  firebase_auth: ^4.19.0
   cloud_firestore: ^4.17.5
+
+  bloc: ^9.2.0
+  flutter_bloc: ^9.1.1
+
+  http: ^1.6.0
+  dio: ^5.7.0
 
   provider: ^6.1.1
   camera: ^0.10.5+5
   permission_handler: ^11.0.1
-  flutter_ringtone_player: ^3.2.0 # Để tạo tiếng chuông
+  flutter_ringtone_player: ^4.0.0+4
 dev_dependencies:
   flutter_test:
     sdk: flutter
