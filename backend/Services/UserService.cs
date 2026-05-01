@@ -33,20 +33,26 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger)
             .ToList();
     }
 
-    public async Task<UserResponse> CreateAsync(CreateUserRequest request)
+    public async Task<UserResponse> CreateAsync(string uid, CreateUserRequest req)
     {
-        var existing = await db.Collection(Collection)
-            .WhereEqualTo("email", request.Email)
-            .GetSnapshotAsync();
+        var docRef = db.Collection(Collection).Document(uid); // ← uid từ token, không từ request body
 
-        if (existing.Count > 0)
-            throw new AppException(ErrorCode.EMAIL_ALREADY_EXISTS);
+        var snapshot = await docRef.GetSnapshotAsync();
+        if (snapshot.Exists)
+            return snapshot.ConvertTo<User>().Adapt<UserResponse>();
 
-        var user = request.Adapt<User>();
-        var docRef = await db.Collection(Collection).AddAsync(user);
-        user.Id = docRef.Id;
+        var user = new User
+        {
+            Id = uid,          // ← uid từ Firebase token
+            Email = req.Email,
+            FirstName = req.FirstName,
+            LastName = req.LastName,
+            DateOfBirth = req.DateOfBirth,
+            Bio = req.Bio
+        };
 
-        logger.LogInformation("User created: {UserId}", user.Id);
+        await docRef.SetAsync(user);
+        logger.LogInformation("User created: {UserId}", uid);
         return user.Adapt<UserResponse>();
     }
 

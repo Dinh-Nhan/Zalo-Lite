@@ -28,6 +28,10 @@ dependencies:
   camera: ^0.10.5+5
   permission_handler: ^11.0.1
   flutter_ringtone_player: ^4.0.0+4
+  signalr_netcore: ^1.4.4
+
+  intl: ^0.19.0
+  image_picker: ^1.1.2
 dev_dependencies:
   flutter_test:
     sdk: flutter
