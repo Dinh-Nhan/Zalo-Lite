@@ -3,11 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:frontend/apps/app_locale.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/config/dark_mode_config.dart';
+import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/utils/app_localizations.dart';
 import 'package:frontend/views/chat/chat_detail_view.dart';
 import 'package:frontend/views/contacts/contacts_view.dart';
 import 'package:frontend/views/settings/settings_dialog.dart';
-import 'package:go_router/go_router.dart';
 
 /// Man hinh danh sach tin nhan - Thiet ke giong Zalo Web
 class ChatListView extends StatefulWidget {
@@ -167,7 +167,8 @@ class _ChatListViewState extends State<ChatListView> {
   }
 
   void _logout() {
-    context.go('/');
+    AuthService.logout();
+    // context.go('/');
   }
 
   @override

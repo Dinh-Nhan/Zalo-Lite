@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend/apps/app_locale.dart';
+import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/utils/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/app_colors.dart';
@@ -44,8 +45,10 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
     );
     _startCountdown();
 
-    // TODO: [Backend] Gọi API gửi OTP đến số điện thoại widget.phone
-    // Ví dụ: AuthService.sendOtp(widget.phone);
+    // Tự động gọi gửi OTP khi vừa vào trang
+    AuthService.sendOtp(widget.phone).catchError((e) {
+      setState(() => _errorMessage = e.toString());
+    });
   }
 
   // ================= COUNTDOWN =================
@@ -77,11 +80,41 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
   // ================= ACTION =================
 
   void _onOtpChanged(int index, String value) {
-    if (value.length == 1 && index < 5) {
-      // Tự động chuyển sang ô tiếp theo
-      _focusNodes[index + 1].requestFocus();
+    if (value.isEmpty) return;
+
+    // Nếu paste chuỗi dài (vd: 123456)
+    if (value.length > 1) {
+      String cleanValue = value.replaceAll(RegExp(r'[^0-9]'), '');
+      if (cleanValue.length > 6) cleanValue = cleanValue.substring(0, 6);
+
+      for (int i = 0; i < cleanValue.length; i++) {
+        if (index + i < 6) {
+          _otpControllers[index + i].text = cleanValue[i];
+        }
+      }
+      
+      // Focus vào ô cuối cùng sau khi điền
+      int lastFilledIndex = (index + cleanValue.length - 1).clamp(0, 5);
+      _focusNodes[lastFilledIndex].requestFocus();
+    } else {
+      // Nhập thủ công 1 số -> nhảy sang ô kế tiếp
+      if (index < 5) {
+        _focusNodes[index + 1].requestFocus();
+      }
     }
     _updateButtonState();
+  }
+
+  // --- LOGIC XỬ LÝ PHÍM XÓA (BACKSPACE) ---
+  void _handleKeyEvent(int index, KeyEvent event) {
+    if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.backspace) {
+      if (_otpControllers[index].text.isEmpty && index > 0) {
+        // Nếu ô hiện tại đang trống mà nhấn xóa -> về ô trước và xóa số đó
+        _otpControllers[index - 1].clear();
+        _focusNodes[index - 1].requestFocus();
+        _updateButtonState();
+      }
+    }
   }
 
   void _onOtpKeyDown(int index, RawKeyEvent event) {
@@ -96,7 +129,7 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
     }
   }
 
-  void _onContinuePressed() {
+  Future<void> _onContinuePressed() async {
     final otp = _otpControllers.map((c) => c.text).join();
 
     if (otp.length != 6) return;
@@ -106,73 +139,63 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
       _errorMessage = null;
     });
 
-    // TODO: [Backend] Gọi API xác thực OTP
-    // Ví dụ:
-    // try {
-    //   final result = await AuthService.verifyOtp(widget.phone, otp);
-    //   if (result.success) {
-    //     context.go('/home'); // hoặc trang tiếp theo
-    //   } else {
-    //     setState(() {
-    //       _errorMessage = t.get('otpInvalid');
-    //       _isLoading = false;
-    //     });
-    //   }
-    // } catch (e) {
-    //   setState(() {
-    //     _errorMessage = t.get('otpError');
-    //     _isLoading = false;
-    //   });
-    // }
+    try {
+      // Gọi API Verify từ AuthService
+      bool isValid = await AuthService.verifyOtp(widget.phone, otp);
 
-    // ========================================================
-    // NOTE cho Backend Team:
-    // Cần implement API xác thực OTP với logic sau:
-    // - Endpoint: POST /api/auth/verify-otp
-    // - Input: { phone: String, otp: String }
-    // - Output: { success: bool, token?: String, message?: String }
-    // - Logic: Kiểm tra OTP có đúng với mã đã gửi cho SĐT này không
-    // - Xử lý các trường hợp: OTP sai, OTP hết hạn, OTP đúng
-    // ========================================================
-
-    // === Tạm thời: Giả lập xác thực (Frontend only - XÓA khi có backend) ===
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-
-      // TEMPORARY: Chấp nhận bất kỳ mã OTP nào để test frontend
-      // Backend cần replace logic này bằng API verify-otp thực sự
-      if (otp.length == 6) {
-        // TODO: [Backend] Navigate đến trang phù hợp sau khi xác thực thành công
-        // context.go('/home');
-        _showSuccessDialog();
+      if (isValid) {
+        _showSuccessDialog(); // Nếu đúng, hiện thông báo thành công
       } else {
-        setState(() {
-          _errorMessage =
-              AppLocalizations(localeNotifier.value).get('otpInvalid');
-        });
+        setState(() => _errorMessage = "Mã xác thực không chính xác.");
       }
-    });
+    } catch (e) {
+      // Nếu sai mã hoặc lỗi mạng, API sẽ trả về lỗi và hiển thị tại đây
+      setState(() => _errorMessage = e.toString().replaceAll("Exception: ", ""));
+      
+      // Tùy chọn: Xóa trắng các ô OTP để user nhập lại nếu sai
+      for (var controller in _otpControllers) {
+        controller.clear();
+      }
+      _focusNodes[0].requestFocus();
+      _updateButtonState();
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
-  void _onResendOtp() {
+  // === Hàm gửi lại mã OTP ===
+  void _onResendOtp() async {
     if (!_canResend) return;
 
-    // TODO: [Backend] Gọi API gửi lại OTP
-    // Ví dụ: AuthService.sendOtp(widget.phone);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-    _startCountdown();
-
-    // Xóa OTP cũ
-    for (final controller in _otpControllers) {
-      controller.clear();
+    try {
+      await AuthService.sendOtp(widget.phone);
+      _startCountdown();
+      
+      // Clear input cũ
+      for (final controller in _otpControllers) {
+        controller.clear();
+      }
+      _focusNodes[0].requestFocus();
+      _updateButtonState();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Mã OTP mới đã được gửi!")),
+      );
+    } catch (e) {
+      setState(() => _errorMessage = "Không thể gửi lại mã. Vui lòng thử lại.");
+    } finally {
+      setState(() => _isLoading = false);
     }
-    _focusNodes[0].requestFocus();
-    _updateButtonState();
   }
 
-  void _onBackPressed() {
-    context.go('/login');
+  Future<void> _onBackPressed() async {
+    await AuthService.deleteAccountAndData();
+    context.go('/sign-up', extra: widget.phone); // Truyền số điện thoại hiện tại vào extra để điền sẵn
   }
 
   void _showSuccessDialog() {
@@ -199,9 +222,10 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.pop(context);
+              // Navigator.pop(context);
               // Navigate đến trang tin nhắn sau khi xác thực thành công
-              context.go('/chat-list');
+              context.go('/reset-password', extra: widget.phone); // Truyền số điện thoại vào trang reset-password
+              // Navigator.pushReplacementNamed(context, '/reset-password');
             },
             child: Text(t.get('continue_')),
           ),
@@ -236,8 +260,7 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
           body: SafeArea(
             child: Column(
               children: [
-                Expanded(
-                  child: SingleChildScrollView(
+                SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -253,13 +276,13 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
                       ],
                     ),
                   ),
-                ),
+                SizedBox(height: 4),
                 Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
                       _buildContinueButton(t),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 24),
                       _buildResendRow(t),
                     ],
                   ),
@@ -278,7 +301,7 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
       elevation: 0,
       leading: IconButton(
         onPressed: _onBackPressed,
-        icon: const Icon(Icons.arrow_back_ios,
+        icon: const Icon(Icons.arrow_back_outlined,
             size: 20, color: AppColors.textPrimary),
       ),
     );
@@ -295,7 +318,7 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
             t.get('otpTitle'),
             textAlign: TextAlign.center,
             style: const TextStyle(
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: FontWeight.w700,
               color: AppColors.textPrimary,
             ),
@@ -329,78 +352,47 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
     );
   }
 
-  /// 6 ô nhập OTP
   Widget _buildOtpFields() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Responsive: tính kích thước ô theo chiều rộng
-        final maxWidth = constraints.maxWidth;
-        final spacing = maxWidth > 400 ? 12.0 : 8.0;
-        final boxSize = ((maxWidth - spacing * 5) / 6).clamp(40.0, 56.0);
-
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(6, (index) {
-            final hasError = _errorMessage != null;
-            return Container(
-              width: boxSize,
-              height: boxSize * 1.15,
-              margin: EdgeInsets.symmetric(horizontal: spacing / 2),
-              child: RawKeyboardListener(
-                focusNode: FocusNode(),
-                onKey: (event) => _onOtpKeyDown(index, event),
-                child: TextFormField(
-                  controller: _otpControllers[index],
-                  focusNode: _focusNodes[index],
-                  keyboardType: TextInputType.number,
-                  textAlign: TextAlign.center,
-                  maxLength: 1,
-                  style: TextStyle(
-                    fontSize: boxSize * 0.45,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(1),
-                  ],
-                  onChanged: (value) => _onOtpChanged(index, value),
-                  decoration: InputDecoration(
-                    counterText: '',
-                    filled: true,
-                    fillColor: hasError
-                        ? Colors.red.withValues(alpha: 0.04)
-                        : AppColors.backgroundGray,
-                    contentPadding: EdgeInsets.symmetric(
-                      vertical: boxSize * 0.25,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: hasError
-                            ? Colors.red.withValues(alpha: 0.3)
-                            : AppColors.borderGray,
-                        width: 1,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color:
-                            hasError ? Colors.red : AppColors.primaryBlue,
-                        width: 1.5,
-                      ),
-                    ),
-                  ),
+    return Row(
+      // Thay đổi sang center để các ô chụm vào giữa
+      mainAxisAlignment: MainAxisAlignment.center, 
+      children: List.generate(6, (index) {
+        return Container(
+          // Thêm margin hoặc dùng SizedBox để tạo khoảng cách nhỏ (vd: 8px)
+          margin: const EdgeInsets.symmetric(horizontal: 8), 
+          width: 45, // Giảm nhẹ chiều rộng để khít hơn nếu cần
+          child: KeyboardListener(
+            focusNode: FocusNode(),
+            onKeyEvent: (event) => _handleKeyEvent(index, event),
+            child: TextFormField(
+              controller: _otpControllers[index],
+              focusNode: _focusNodes[index],
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              onChanged: (value) => _onOtpChanged(index, value),
+              decoration: InputDecoration(
+                counterText: "",
+                filled: true,
+                fillColor: AppColors.backgroundGray,
+                // Giảm padding nội bộ để số nằm chính giữa ô
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8), // Bo góc nhẹ lại cho thanh thoát
+                  borderSide: const BorderSide(color: AppColors.borderGray),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.primaryBlue, width: 2),
                 ),
               ),
-            );
-          }),
+            ),
+          ),
         );
-      },
+      }),
     );
   }
-
   /// Thông báo lỗi
   Widget _buildErrorMessage() {
     return Text(
@@ -419,6 +411,7 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
       width: double.infinity,
       height: 50,
       child: ElevatedButton(
+        // onPressed: (_isButtonEnabled && !_isLoading) ? () => context.go('/reset-password') : _onContinuePressed,
         onPressed: (_isButtonEnabled && !_isLoading) ? _onContinuePressed : null,
         style: ElevatedButton.styleFrom(
           backgroundColor: _isButtonEnabled

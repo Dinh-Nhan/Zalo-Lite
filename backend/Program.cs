@@ -28,6 +28,9 @@ FirebaseApp.Create(new AppOptions()
     ProjectId = projectId
 });
 
+
+//var builder = WebApplication.CreateBuilder(args);
+
 builder.Host.UseSerilog((ctx, config) => config
     .ReadFrom.Configuration(ctx.Configuration)
     .Enrich.FromLogContext()
@@ -87,7 +90,8 @@ builder.Services.AddCors(opt =>
 });
 
 var app = builder.Build();
-
+app.UseCors("AllowAll");
+app.UseAuthorization();
 app.UseMiddleware<GlobalExceptionHandler>();
 
 // Configure the HTTP request pipeline.
