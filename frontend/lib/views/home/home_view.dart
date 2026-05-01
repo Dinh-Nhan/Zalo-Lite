@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend/apps/app_locale.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../config/app_colors.dart';
 import '../../utils/app_localizations.dart';
 
@@ -97,8 +98,7 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
       setState(() {
         _selectedLanguage = value;
         // _t = AppLocalizations(AppLocalizations.localeFromDisplayName(value));
-        localeNotifier.value =
-        AppLocalizations.localeFromDisplayName(value);
+        localeNotifier.value = AppLocalizations.localeFromDisplayName(value);
       });
     }
   }
@@ -109,34 +109,34 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
     super.dispose();
   }
 
- @override
-Widget build(BuildContext context) {
-  return ValueListenableBuilder(
-    valueListenable: localeNotifier,
-    builder: (context, locale, _) {
-      final t = AppLocalizations(locale);
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: localeNotifier,
+      builder: (context, locale, _) {
+        final t = AppLocalizations(locale);
 
-      return AnimatedBuilder(
-        animation: _contentController,
-        builder: (context, child) {
-          return Scaffold(
-            backgroundColor: AppColors.backgroundWhite,
-            body: SafeArea(
-              child: Column(
-                children: [
-                  _buildLanguageSelector(),
-                  Expanded(child: _buildLogo(t)),
-                  _buildButtons(t),
-                  const SizedBox(height: 32),
-                ],
+        return AnimatedBuilder(
+          animation: _contentController,
+          builder: (context, child) {
+            return Scaffold(
+              backgroundColor: AppColors.backgroundWhite,
+              body: SafeArea(
+                child: Column(
+                  children: [
+                    _buildLanguageSelector(),
+                    Expanded(child: _buildLogo(t)),
+                    _buildButtons(t),
+                    const SizedBox(height: 32),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
-      );
-    },
-  );
-}
+            );
+          },
+        );
+      },
+    );
+  }
 
   /// Mở bottom sheet chọn ngôn ngữ
   void _showLanguageBottomSheet() {
@@ -180,8 +180,9 @@ Widget build(BuildContext context) {
                     lang,
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.w400,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w400,
                       color: isSelected
                           ? AppColors.primaryBlue
                           : AppColors.textPrimary,
@@ -216,15 +217,14 @@ Widget build(BuildContext context) {
             GestureDetector(
               onTap: _showLanguageBottomSheet,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: AppColors.borderGray,
-                    width: 1,
-                  ),
+                  border: Border.all(color: AppColors.borderGray, width: 1),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.04),
@@ -340,6 +340,7 @@ Widget build(BuildContext context) {
                 child: OutlinedButton(
                   onPressed: () {
                     // TODO: Điều hướng sang trang đăng ký
+                    context.go('/register');
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.textPrimary,

@@ -1,9 +1,11 @@
 import 'package:frontend/views/auth/login_view.dart';
 import 'package:frontend/views/auth/otp_verify_view.dart';
+import 'package:frontend/views/auth/register_view.dart';
 import 'package:frontend/views/call/call_receiver_view.dart';
 import 'package:frontend/views/call/call_view.dart';
 import 'package:frontend/views/chat/chat_list_view.dart';
 import 'package:go_router/go_router.dart';
+
 import '../views/home/home_view.dart';
 import '../views/home/load_view.dart';
 
@@ -11,23 +13,14 @@ import '../views/home/load_view.dart';
 /// Cấu trúc: home/ (load, welcome) → auth/ (login, otp, register)
 GoRouter createRouter() {
   return GoRouter(
-    initialLocation: '/chat-list', // Mặc định vào thẳng chat list sau khi load
+    initialLocation: '/', // Mặc định vào thẳng chat list sau khi load
     routes: [
       // === HOME ===
-      GoRoute(
-        path: '/load',
-        builder: (context, state) => const LoadView(),
-      ),
-      GoRoute(
-        path: '/',
-        builder: (context, state) => const HomeView(),
-      ),
+      GoRoute(path: '/load', builder: (context, state) => const LoadView()),
+      GoRoute(path: '/', builder: (context, state) => const HomeView()),
 
       // === AUTH ===
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginView(),
-      ),
+      GoRoute(path: '/login', builder: (context, state) => const LoginView()),
       GoRoute(
         path: '/otp',
         builder: (context, state) {
@@ -42,12 +35,8 @@ GoRouter createRouter() {
         builder: (context, state) => const ChatListView(),
       ),
 
-      
       // === CALL ===
-      GoRoute(
-        path: '/call',
-        builder: (context, state) => CallView(),
-      ),
+      GoRoute(path: '/call', builder: (context, state) => CallView()),
       GoRoute(
         path: '/call-receiver',
         builder: (context, state) => const CallReceiverView(),
@@ -61,12 +50,10 @@ GoRouter createRouter() {
       //     return ChatDetailView(conversationId: conversationId);
       //   },
       // ),
-
-      // TODO: [Backend] Thêm route đăng ký khi có RegisterView
-      // GoRoute(
-      //   path: '/register',
-      //   builder: (context, state) => const RegisterView(),
-      // ),
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => const RegisterView(),
+      ),
       // TODO: [Backend] Thêm route quên mật khẩu
       // GoRoute(
       //   path: '/forgot-password',
