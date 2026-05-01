@@ -11,6 +11,7 @@ namespace backend.Controllers
 {
     [ApiController]
     [Route("/api/[controller]")]
+    [FirebaseAuthorize]
     public class FeedController(FeedService feedService)
     {
         [HttpPost]
