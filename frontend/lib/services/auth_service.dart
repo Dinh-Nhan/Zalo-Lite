@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:frontend/services/dio_client.dart';
 
@@ -71,19 +72,18 @@ class AuthService {
         password: req.password,
       );
 
-      final user = credential.user!;
+      final uid = credential.user!.uid;
 
       // Bước 2: Gọi backend lưu thông tin chi tiết
       // Token tự động được gắn bởi DioClient/AuthInterceptor
       await DioClient.instance.post(
         '/api/user',
         data: {
-          'id': user.uid,
           'email': req.email,
+          'password': req.password,
           'firstName': req.firstName,
           'lastName': req.lastName,
           'dateOfBirth': req.dateOfBirth,
-          'password': req.password,
           'bio': req.bio ?? '',
           'role': 'client',
           'status': true,
@@ -91,6 +91,16 @@ class AuthService {
       );
     } on FirebaseAuthException catch (e) {
       throw Exception(_mapFirebaseError(e.code));
+    } on DioException catch (e) {
+      // Backend trả về lỗi có cấu trúc JSON: { code, message, result: { errorCode } }
+      // → xoá account Firebase để tránh trạng thái không đồng bộ
+      if (credential != null) {
+        await credential.user?.delete();
+      }
+      final errorCode = e.response?.data?['result']?['errorCode'] as String?;
+      throw Exception(
+        _mapBackendErrorCode(errorCode, e.response?.data?['message']),
+      );
     } catch (e) {
       // Nếu backend thất bại sau khi Firebase đã tạo account
       // → xoá account Firebase để tránh trạng thái không đồng bộ
@@ -110,6 +120,10 @@ class AuthService {
         return 'Sai mật khẩu';
       case 'invalid-email':
         return 'Email không hợp lệ';
+      case 'email-already-in-use':
+        return 'Email này đã được đăng ký. Vui lòng dùng email khác.';
+      case 'weak-password':
+        return 'Mật khẩu phải có ít nhất 8 ký tự, gồm chữ thường và chữ hoa.';
       case 'user-disabled':
         return 'Tài khoản đã bị vô hiệu hóa';
       case 'too-many-requests':
@@ -120,6 +134,29 @@ class AuthService {
         return 'Email hoặc mật khẩu không đúng';
       default:
         return 'Lỗi: $code';
+    }
+  }
+
+  /// Chuyển backend errorCode sang tiếng Việt
+  static String _mapBackendErrorCode(
+    String? errorCode,
+    dynamic fallbackMessage,
+  ) {
+    switch (errorCode) {
+      case 'EMAIL_ALREADY_EXISTS':
+        return 'Email này đã được đăng ký. Vui lòng dùng email khác.';
+      case 'INVALID_EMAIL':
+        return 'Địa chỉ email không hợp lệ.';
+      case 'PASSWORD_TOO_SHORT':
+      case 'WEAK_PASSWORD':
+        return 'Mật khẩu phải có ít nhất 8 ký tự, gồm chữ thường và chữ hoa.';
+      case 'PASSWORD_NO_UPPERCASE':
+        return 'Mật khẩu phải có ít nhất 1 chữ hoa (A-Z).';
+      case 'PASSWORD_NO_LOWERCASE':
+        return 'Mật khẩu phải có ít nhất 1 chữ thường (a-z).';
+      default:
+        return fallbackMessage?.toString() ??
+            'Đăng ký thất bại. Vui lòng thử lại.';
     }
   }
 }

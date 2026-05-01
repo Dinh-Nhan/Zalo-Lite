@@ -1,3 +1,5 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:frontend/views/auth/login_view.dart';
 import 'package:frontend/views/auth/otp_verify_view.dart';
 import 'package:frontend/views/auth/register_view.dart';
@@ -9,11 +11,32 @@ import 'package:go_router/go_router.dart';
 import '../views/home/home_view.dart';
 import '../views/home/load_view.dart';
 
+class RouterNotifier extends ChangeNotifier {
+  RouterNotifier() {
+    FirebaseAuth.instance.authStateChanges().listen((_) => notifyListeners());
+  }
+}
+
 /// Cấu hình router cho ứng dụng Zalo Lite
 /// Cấu trúc: home/ (load, welcome) → auth/ (login, otp, register)
 GoRouter createRouter() {
   return GoRouter(
-    initialLocation: '/', // Mặc định vào thẳng chat list sau khi load
+    initialLocation: '/load', // Mặc định vào thẳng chat list sau khi load
+    refreshListenable: RouterNotifier(),
+    redirect: (context, state) {
+      final user = FirebaseAuth.instance.currentUser;
+      final isLoggedIn = user != null;
+      final isOnLoad = state.matchedLocation == '/load';
+      final isAuthRoute =
+          state.matchedLocation == '/login' ||
+          state.matchedLocation == '/register' ||
+          state.matchedLocation == '/';
+
+      if (isOnLoad) return null;
+      if (!isLoggedIn && !isAuthRoute) return '/';
+      if (isLoggedIn && isAuthRoute) return '/chat-list';
+      return null;
+    },
     routes: [
       // === HOME ===
       GoRoute(path: '/load', builder: (context, state) => const LoadView()),

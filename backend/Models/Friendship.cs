@@ -35,4 +35,7 @@ public class Friendship
 
     [FirestoreProperty("updated_at")]
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    [FirestoreProperty("addressee_name")]
+    public string? AddresseeName { get; set; }
 }

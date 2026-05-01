@@ -79,8 +79,9 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(msg),
-                  backgroundColor:
-                      isSuccess ? const Color(0xFF4CAF50) : const Color(0xFF0068FF),
+                  backgroundColor: isSuccess
+                      ? const Color(0xFF4CAF50)
+                      : const Color(0xFF0068FF),
                   behavior: SnackBarBehavior.floating,
                   duration: const Duration(seconds: 4),
                   shape: RoundedRectangleBorder(
@@ -292,9 +293,12 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
     final bg = isDark ? AppColors.darkSurface : Colors.white;
     final isLoading = provider.isActionLoading(f.senderId);
     // Uu tien senderName từ API (enriched), fallback ve senderId
-    final displayName =
-        (f.senderName?.isNotEmpty == true) ? f.senderName! : f.senderId;
-    final avatarUrl = (f.senderAvatar?.isNotEmpty == true) ? f.senderAvatar : null;
+    final displayName = (f.senderName?.isNotEmpty == true)
+        ? f.senderName!
+        : f.senderId;
+    final avatarUrl = (f.senderAvatar?.isNotEmpty == true)
+        ? f.senderAvatar
+        : null;
 
     return Container(
       color: bg,
@@ -392,14 +396,14 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
           children: [
-            FriendAvatar(name: f.addresseeId, radius: 24),
+            FriendAvatar(name: f.addresseeName, radius: 24),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    f.addresseeId,
+                    f.addresseeName,
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
