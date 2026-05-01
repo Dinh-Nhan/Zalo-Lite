@@ -1,13 +1,8 @@
+using System.Security.Claims;
 using FirebaseAdmin.Auth;
 
-public class FirebaseAuthMiddleware
+public class FirebaseAuthMiddleware(RequestDelegate _next, ILogger<FirebaseAuthMiddleware> logger)
 {
-    private readonly RequestDelegate _next;
-
-    public FirebaseAuthMiddleware(RequestDelegate next)
-    {
-        _next = next;
-    }
 
     public async Task Invoke(HttpContext context)
     {
@@ -22,7 +17,18 @@ public class FirebaseAuthMiddleware
                 var decoded = await FirebaseAuth.DefaultInstance
                     .VerifyIdTokenAsync(token, true);
 
-                context.Items["User"] = decoded;
+                context.User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, decoded.Uid),
+                    new Claim(ClaimTypes.Email, decoded.Claims
+                        .GetValueOrDefault("email")?.ToString() ?? "")
+                }, "Firebase"));
+
+                logger.LogInformation("INFORMATION MiddleWare Auth");
+                logger.LogInformation("Decoded: {decoded}", decoded);
+                logger.LogInformation("User Id in Subject: {subject}", decoded.Subject);
+                logger.LogInformation("User id in Uid: {uid}", decoded.Uid);
+
             }
             catch
             {

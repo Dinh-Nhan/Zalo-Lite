@@ -4,27 +4,32 @@ using System.Linq;
 using System.Threading.Tasks;
 using backend.dtos.Request;
 using backend.dtos.Response;
+using backend.Extensions;
 using backend.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers
 {
     [ApiController]
     [Route("/api/[controller]")]
-    public class FeedController(FeedService feedService)
+    [FirebaseAuthorize]
+    public class FeedController(FeedService feedService) : ControllerBase
     {
         [HttpPost]
-        public async Task<ApiResponse<FeedResponse>> createFeed(string userId, CreateFeedRequest request)
+        public async Task<ApiResponse<FeedResponse>> CreateFeed(CreateFeedRequest request)
         {
+            var currentUserId = User.GetUid();
             return new ApiResponse<FeedResponse>
             {
-                Result = await feedService.createFeed(userId, request)
+                Result = await feedService.createFeed(currentUserId, request)
             };
         }
 
-        [HttpGet("/{feedId}")]
-        public async Task<ApiResponse<FeedResponse>> getFeed(string feedId, string currentUserId)
+        [HttpGet("{feedId}")]
+        public async Task<ApiResponse<FeedResponse>> GetFeed(string feedId)
         {
+            var currentUserId = User.GetUid();
             return new ApiResponse<FeedResponse>
             {
                 Result = await feedService.GetByIdAsync(feedId, currentUserId)

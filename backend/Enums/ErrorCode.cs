@@ -48,8 +48,12 @@ namespace backend.Enums
     [ErrorMeta(9999, "Internal server error", HttpStatusCode.InternalServerError)]
     INTERNAL_ERROR,
 
+    //Feed - 5xxx
     [ErrorMeta(5000, "Feed not found", HttpStatusCode.NotFound)]
     FEED_NOT_FOUND,
+
+    [ErrorMeta(5001, "feed is expired", HttpStatusCode.Gone)]
+    FEED_EXPIRED,
     }
 
     [AttributeUsage(AttributeTargets.Field)]
