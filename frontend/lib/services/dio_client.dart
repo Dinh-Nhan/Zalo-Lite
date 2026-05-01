@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:frontend/config/api_config.dart';
 
 /// Interceptor tự động gắn Firebase ID Token vào Header Authorization
 /// của mọi request. Token được refresh tự động khi hết hạn.
@@ -68,7 +69,7 @@ class DioClient {
     final dio = Dio(
       BaseOptions(
         // Thay bằng base URL thực tế của backend
-        baseUrl: 'http://10.0.2.2:5244',
+        baseUrl: ApiConfig.baseUrl,
         connectTimeout: const Duration(seconds: 15),
         receiveTimeout: const Duration(seconds: 15),
         headers: {'Content-Type': 'application/json'},
