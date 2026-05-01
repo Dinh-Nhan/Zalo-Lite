@@ -1,6 +1,11 @@
+import 'package:frontend/views/auth/enter_name_view.dart';
 import 'package:frontend/views/auth/login_view.dart';
 import 'package:frontend/views/auth/otp_verify_view.dart';
+import 'package:frontend/views/auth/personal_info_view.dart';
 import 'package:frontend/views/auth/register_view.dart';
+import 'package:frontend/views/auth/reset_password_view.dart';
+import 'package:frontend/views/auth/sign_up_view.dart';
+import 'package:frontend/views/auth/update_avatar.dart';
 import 'package:frontend/views/call/call_receiver_view.dart';
 import 'package:frontend/views/call/call_view.dart';
 import 'package:frontend/views/chat/chat_list_view.dart';
@@ -13,7 +18,7 @@ import '../views/home/load_view.dart';
 /// Cấu trúc: home/ (load, welcome) → auth/ (login, otp, register)
 GoRouter createRouter() {
   return GoRouter(
-    initialLocation: '/', // Mặc định vào thẳng chat list sau khi load
+    initialLocation: '/sign-up', // Mặc định vào thẳng chat list sau khi load
     routes: [
       // === HOME ===
       GoRoute(path: '/load', builder: (context, state) => const LoadView()),
@@ -59,6 +64,14 @@ GoRouter createRouter() {
       //   path: '/forgot-password',
       //   builder: (context, state) => const ForgotPasswordView(),
       // ),
+      GoRoute(
+        path: '/sign-up',
+        builder: (context, state) => const SignUpView(),
+      ),
+      GoRoute(path: '/enter-name', builder: (context, state) => const EnterNameView()),
+      GoRoute(path: '/personal-info', builder: (context, state) => const PersonalInfoView()),
+      GoRoute(path: '/update-avatar', builder: (context, state) => const UpdateAvatarView()),
+      GoRoute(path: '/reset-password', builder: (context, state) => const ResetPasswordView()),
     ],
   );
 }

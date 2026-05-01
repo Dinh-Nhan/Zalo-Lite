@@ -340,7 +340,7 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
                 child: OutlinedButton(
                   onPressed: () {
                     // TODO: Điều hướng sang trang đăng ký
-                    context.go('/register');
+                    context.go('/sign-up');
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.textPrimary,

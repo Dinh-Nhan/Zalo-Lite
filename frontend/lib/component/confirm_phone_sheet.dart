@@ -6,11 +6,13 @@ import 'package:frontend/utils/app_localizations.dart';
 class ConfirmPhoneSheet extends StatelessWidget {
   final String phone;
   final VoidCallback onContinue;
+  final VoidCallback onCancel;
 
   const ConfirmPhoneSheet({
     super.key,
     required this.phone,
     required this.onContinue,
+    required this.onCancel,
   });
 
   @override
@@ -26,8 +28,8 @@ class ConfirmPhoneSheet extends StatelessWidget {
         : (screenWidth * 0.82).clamp(280.0, 360.0);
 
     // Responsive font sizes
-    final titleSize = isWideScreen ? 17.0 : 15.0;
-    final descSize = isWideScreen ? 14.0 : 13.0;
+    final titleSize = isWideScreen ? 16.0 : 16.0;
+    final descSize = isWideScreen ? 14.0 : 14.0;
     final buttonSize = isWideScreen ? 16.0 : 15.0;
     final verticalPadding = isWideScreen ? 28.0 : 22.0;
 
@@ -118,7 +120,7 @@ class ConfirmPhoneSheet extends StatelessWidget {
                   bottomLeft: Radius.circular(16),
                   bottomRight: Radius.circular(16),
                 ),
-                onTap: () => Navigator.pop(context),
+                onTap: onCancel,
                 child: Container(
                   width: double.infinity,
                   padding: EdgeInsets.symmetric(
@@ -130,7 +132,7 @@ class ConfirmPhoneSheet extends StatelessWidget {
                       style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: buttonSize,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
