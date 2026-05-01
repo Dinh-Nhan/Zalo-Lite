@@ -80,9 +80,10 @@ class AuthService {
         data: {
           'id': user.uid,
           'email': req.email,
-          'first_name': req.firstName,
-          'last_name': req.lastName,
-          'dob': req.dateOfBirth,
+          'firstName': req.firstName,
+          'lastName': req.lastName,
+          'dateOfBirth': req.dateOfBirth,
+          'password': req.password,
           'bio': req.bio ?? '',
           'role': 'client',
           'status': true,

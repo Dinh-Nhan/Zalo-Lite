@@ -9,6 +9,7 @@ namespace backend.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[FirebaseAuthorize]
 public class UserController(UserService userService) : ControllerBase
 {
     [HttpGet("{id}")]
