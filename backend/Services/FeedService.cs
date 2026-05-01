@@ -5,144 +5,537 @@ using System.Threading.Tasks;
 using backend.Attributes;
 using backend.dtos.Request;
 using backend.dtos.Response;
+using backend.dtos.Response.Feeds;
 using backend.Enums;
 using backend.Exceptions;
 using backend.Models;
 using Google.Cloud.Firestore;
 using Mapster;
+using MapsterMapper;
 
 namespace backend.Services
 {
     [ScopedService]
-    public class FeedService(FirestoreDb db, ILogger<FeedService> logger)
+    public class FeedService(FirestoreDb db, IMapper mapper, ILogger<FeedService> logger)
     {
-        private static string COLLECTION = "feeds";
-        public async Task<FeedResponse> createFeed(string userId, CreateFeedRequest request)
+        // get story bar 
+        public async Task<List<FeedResponse>> GetStoriesAsync(string userId)
         {
-            var feed = request.Adapt<Feeds>();
+            var friendIdsTask = GetFriendIdsAsync(userId);
+            var mutedStoryIdsTask = GetMutedStoryUserIdsAsync(userId);
+            await Task.WhenAll(friendIdsTask, mutedStoryIdsTask);
 
-            feed.UserId = userId;           // lấy từ token
-            feed.CreateAt = DateTime.UtcNow;
-            feed.DeletedAt = null;
-            feed.Type = request.Type;
-            feed.Settings = new Settings
+            var friendIds = friendIdsTask.Result;
+            var mutedStoryIds = mutedStoryIdsTask.Result;
+
+            if (friendIds.Count == 0)
             {
-                IsExpired = false,
-                ExpiresAt = request.Type == "story"
-                    ? DateTime.UtcNow.AddHours(24)  // story hết hạn sau 24h
-                    : null
-            };
-            feed.Stats = new Stats
-            {
-                Views = [],
-                Likes = []
-            };
+                logger.LogInformation("[FeedService] User {UserId} has no friends, returning empty stories", userId);
+                return [];
+            }
 
-            var docRef = await db.Collection(COLLECTION).AddAsync(feed);
-            feed.Id = docRef.Id;
+            var now = Timestamp.FromDateTime(DateTime.UtcNow);
 
-            logger.LogInformation("[{UserId}] Feed created: {FeedId}", userId, feed.Id);
+            var stories = await QueryFeedsByBatchAsync(db, friendIds, "story",
+                (col, batch) => col
+                    .WhereEqualTo("type", "story")
+                    .WhereIn("user_id", batch)
+                    .WhereGreaterThan("settings.expires_at", now)
+                    .WhereEqualTo("deleted_at", null)
+                    .OrderByDescending("create_at"));
 
-            // Map Feeds → FeedResponse
-            // Stats.IsLiked cần biết current user → tính thêm sau khi map
-            var response = feed.Adapt<FeedResponse>();
-            return response;
+            return stories
+                .Where(s => !mutedStoryIds.Contains(s.UserId))
+                .Select(s => ToResponse(s, userId))
+                .ToList();
         }
 
 
-        public async Task<FeedResponse> GetByIdAsync(string id, string currentUserId)
+        //get new feeds
+        public async Task<List<FeedResponse>> GetNewsfeedAsync(string userId)
         {
-            // 1. Lấy feed
-            var snapshot = await db.Collection(COLLECTION).Document(id).GetSnapshotAsync();
-            if (!snapshot.Exists)
+            var friendIdsTask = GetFriendIdsAsync(userId);
+            var mutedUserIdsTask = GetMutedUserIdsAsync(userId);
+            var hiddenPostIdsTask = GetHiddenPostIdsAsync(userId);
+            await Task.WhenAll(friendIdsTask, mutedUserIdsTask, hiddenPostIdsTask);
+
+            var friendIds = friendIdsTask.Result;
+            var mutedUserIds = mutedUserIdsTask.Result;
+            var hiddenPostIds = hiddenPostIdsTask.Result;
+
+            var targetIds = friendIds.Append(userId).Distinct().ToList();
+
+            var posts = await QueryFeedsByBatchAsync(db, targetIds, "post",
+                (col, batch) => col
+                    .WhereEqualTo("type", "post")
+                    .WhereIn("user_id", batch)
+                    .WhereNotEqualTo("privacy", "private")
+                    .WhereEqualTo("deleted_at", null)
+                    .OrderByDescending("create_at"));
+
+            return posts
+                .Where(p => !mutedUserIds.Contains(p.UserId))
+                .Where(p => !hiddenPostIds.Contains(p.Id))
+                .Select(p => ToResponse(p, userId))
+                .ToList();
+        }
+
+        // create feed (story or post)
+        public async Task<FeedResponse> CreateFeedAsync(string userId, CreateFeedRequest request)
+        {
+            var now = Timestamp.FromDateTime(DateTime.UtcNow);
+
+            var data = new Dictionary<string, object?>
+            {
+                ["user_id"] = userId,
+                ["type"] = request.Type,
+                ["content"] = new Dictionary<string, object>
+                {
+                    ["caption"] = request.Content.Caption,
+                    ["media"] = request.Content.Media.Select(m => new Dictionary<string, object>
+                    {
+                        ["url"] = m.Url,
+                        ["type"] = m.Type
+                    }).ToList<object>()
+                },
+                ["privacy"] = request.Privacy,
+                ["settings"] = new Dictionary<string, object?>
+                {
+                    ["is_expired"] = false,
+                    ["expires_at"] = request.Type == "story"
+                        ? Timestamp.FromDateTime(DateTime.UtcNow.AddHours(24))
+                        : null
+                },
+                ["stats"] = new Dictionary<string, object>
+                {
+                    ["views"] = new List<string>(),
+                    ["likes"] = new List<string>()
+                },
+                ["create_at"] = now,
+                ["deleted_at"] = null
+            };
+
+            logger.LogInformation("[FeedService] Creating {Type} for user {UserId}", request.Type, userId);
+
+            var docRef = await db.Collection("feeds").AddAsync(data);
+            var snap = await docRef.GetSnapshotAsync();
+
+            if (!snap.Exists)
+                throw new AppException(ErrorCode.INTERNAL_ERROR);
+
+            var feed = snap.ConvertTo<Feeds>();
+            logger.LogInformation("[FeedService] Created feed {FeedId}", feed.Id);
+
+            return ToResponse(feed, userId);
+        }
+
+        // get feed by id 
+
+        public async Task<FeedResponse> GetByIdAsync(string feedId, string userId)
+        {
+            var snap = await db.Collection("feeds").Document(feedId).GetSnapshotAsync();
+
+            if (!snap.Exists || snap.GetValue<object>("deleted_at") != null)
                 throw new AppException(ErrorCode.FEED_NOT_FOUND);
 
-            var feed = snapshot.ConvertTo<Feeds>();
+            var feed = snap.ConvertTo<Feeds>();
 
-            // 2. Story hết hạn
-            if (feed.Type == "story" && feed.Settings?.ExpiresAt < DateTime.UtcNow)
-                throw new AppException(ErrorCode.FEED_EXPIRED); // 410
+            if (feed.Type == "story" &&
+                feed.Settings.ExpiresAt.HasValue &&
+                feed.Settings.ExpiresAt.Value < DateTime.UtcNow)
+                throw new AppException(ErrorCode.FEED_EXPIRED);
 
-            // 3. Kiểm tra privacy
-            await CheckPrivacyAsync(feed, currentUserId);
+            return ToResponse(feed, userId);
+        }
 
-            // 4. Track view
-            await TrackViewAsync(feed, id, currentUserId);
+        // update feed
+        public async Task<FeedResponse> UpdateFeedAsync(string feedId, string userId, UpdateFeedRequest request)
+        {
+            var docRef = db.Collection("feeds").Document(feedId);
+            var snap = await docRef.GetSnapshotAsync();
 
-            // 5. Map response
-            var response = feed.Adapt<FeedResponse>();
-            return response with
-            {
-                Stats = new StatsResponse
+            // Kiểm tra tồn tại
+            if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
+                throw new AppException(ErrorCode.FEED_NOT_FOUND);
+
+            var feed = snap.ConvertTo<Feeds>();
+
+            // Chỉ chủ bài mới được sửa
+            if (feed.UserId != userId)
+                throw new AppException(ErrorCode.FORBIDDEN);
+
+            // Chỉ post mới được sửa, story không cho sửa
+            if (feed.Type != "post")
+                throw new AppException(ErrorCode.FEED_STORY_NOT_EDITABLE);
+
+            // Chỉ update các field được gửi lên (partial update)
+            var updates = new Dictionary<string, object>();
+
+            if (request.Caption != null)
+                updates["content.caption"] = request.Caption;
+
+            if (request.Privacy != null)
+                updates["privacy"] = request.Privacy;
+
+            if (request.Media != null)
+                updates["content.media"] = request.Media.Select(m => new Dictionary<string, object>
                 {
-                    ViewCount = feed.Stats.Views.Count,
-                    LikeCount = feed.Stats.Likes.Count,
-                    // Story không có like
-                    IsLiked = feed.Type == "post" && feed.Stats.Likes.Contains(currentUserId)
-                }
-            };
+                    ["url"] = m.Url,
+                    ["type"] = m.Type
+                }).ToList<object>();
+
+            if (updates.Count == 0)
+                throw new AppException(ErrorCode.FEED_NOTHING_TO_UPDATE);
+
+            updates["updated_at"] = Timestamp.FromDateTime(DateTime.UtcNow);
+
+            logger.LogInformation("[FeedService] Updating feed {FeedId} by user {UserId}", feedId, userId);
+
+            await docRef.UpdateAsync(updates);
+
+            var updated = await docRef.GetSnapshotAsync();
+            return ToResponse(updated.ConvertTo<Feeds>(), userId);
         }
 
-        private async Task CheckPrivacyAsync(Feeds feed, string currentUserId)
+        // soft delete (set deletedAt = now)
+        public async Task DeleteFeedAsync(string feedId, string userId)
         {
-            // Author luôn xem được feed của chính mình
-            if (feed.UserId == currentUserId) return;
+            var docRef = db.Collection("feeds").Document(feedId);
+            var snap = await docRef.GetSnapshotAsync();
 
-            switch (feed.Privacy)
+            // Kiểm tra tồn tại
+            if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
+                throw new AppException(ErrorCode.FEED_NOT_FOUND);
+
+            var feed = snap.ConvertTo<Feeds>();
+
+            // Chỉ chủ bài mới được xóa
+            if (feed.UserId != userId)
+                throw new AppException(ErrorCode.FORBIDDEN);
+
+            logger.LogInformation("[FeedService] Soft deleting feed {FeedId} by user {UserId}", feedId, userId);
+
+            await docRef.UpdateAsync(new Dictionary<string, object>
             {
-                case "public":
-                    return; // Cho phép tất cả
-
-                case "private":
-                    throw new AppException(ErrorCode.FORBIDDEN); // Chỉ author
-
-                case "friends":
-                    var areFriends = await AreFriendsAsync(feed.UserId, currentUserId);
-                    if (!areFriends)
-                        throw new AppException(ErrorCode.FORBIDDEN);
-                    break;
-            }
+                ["deleted_at"] = Timestamp.FromDateTime(DateTime.UtcNow)
+            });
         }
 
-        private async Task<bool> AreFriendsAsync(string userId1, string userId2)
+        // ── Like / Unlike ────────────────────────────────────────────────
+
+        public async Task<LikeResponse> ToggleLikeAsync(string feedId, string userId)
         {
-            // Friend 2 chiều: check cả 2 phía trong collection "friends"
-            var friendDoc = await db.Collection("friends")
-                .Document($"{userId1}_{userId2}")
-                .GetSnapshotAsync();
+            var docRef = db.Collection("feeds").Document(feedId);
+            var snap = await docRef.GetSnapshotAsync();
 
-            if (friendDoc.Exists) return true;
+            if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
+                throw new AppException(ErrorCode.FEED_NOT_FOUND);
 
-            // Hoặc chiều ngược lại
-            var friendDocReverse = await db.Collection("friends")
-                .Document($"{userId2}_{userId1}")
-                .GetSnapshotAsync();
+            var feed = snap.ConvertTo<Feeds>();
 
-            return friendDocReverse.Exists;
-        }
+            // Story đã hết hạn không thể like
+            if (feed.Type == "story" &&
+                feed.Settings.ExpiresAt.HasValue &&
+                feed.Settings.ExpiresAt.Value < DateTime.UtcNow)
+                throw new AppException(ErrorCode.FEED_EXPIRED);
 
-        private async Task TrackViewAsync(Feeds feed, string feedId, string currentUserId)
-        {
-            var docRef = db.Collection(COLLECTION).Document(feedId);
+            var isLiked = feed.Stats.Likes.Contains(userId);
 
-            if (feed.Type == "story")
+            if (isLiked)
             {
-                // Story: chỉ đếm 1 lần / user
-                if (!feed.Stats.Views.Contains(currentUserId))
+                // Unlike → xóa userId khỏi mảng
+                await docRef.UpdateAsync(new Dictionary<string, object>
                 {
-                    await docRef.UpdateAsync("Stats.Views",
-                        FieldValue.ArrayUnion(currentUserId));
-                }
+                    ["stats.likes"] = FieldValue.ArrayRemove(userId)
+                });
+                logger.LogInformation("[FeedService] User {UserId} unliked feed {FeedId}", userId, feedId);
             }
             else
             {
-                // Post: đếm mỗi lần xem (lưu count thay vì array nếu muốn)
-                await docRef.UpdateAsync("Stats.Views",
-                    FieldValue.ArrayUnion(currentUserId));
+                // Like → thêm userId vào mảng
+                await docRef.UpdateAsync(new Dictionary<string, object>
+                {
+                    ["stats.likes"] = FieldValue.ArrayUnion(userId)
+                });
+                logger.LogInformation("[FeedService] User {UserId} liked feed {FeedId}", userId, feedId);
+            }
+
+            // Lấy lại số like sau khi update
+            var updated = await docRef.GetSnapshotAsync();
+            var updatedFeed = updated.ConvertTo<Feeds>();
+
+            return new LikeResponse
+            {
+                IsLiked = !isLiked,
+                LikeCount = updatedFeed.Stats.Likes.Count
+            };
+        }
+
+        public async Task<LikesListResponse> GetLikesAsync(string feedId, string userId)
+        {
+            var snap = await db.Collection("feeds").Document(feedId).GetSnapshotAsync();
+
+            if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
+                throw new AppException(ErrorCode.FEED_NOT_FOUND);
+
+            var feed = snap.ConvertTo<Feeds>();
+
+            return new LikesListResponse
+            {
+                FeedId = feedId,
+                LikeCount = feed.Stats.Likes.Count,
+                IsLiked = feed.Stats.Likes.Contains(userId),
+                UserIds = feed.Stats.Likes
+            };
+        }
+
+        // helper method for feeds
+        private async Task<List<string>> GetFriendIdsAsync(string userId)
+        {
+            logger.LogInformation("[FeedService] Fetching friends for user {UserId}", userId);
+
+            // Query cả 2 chiều: user là sender hoặc là addressee
+            var asSenderTask = db.Collection("friendships")
+                .WhereEqualTo("sender_id", userId)
+                .WhereEqualTo("status", "accepted")
+                .GetSnapshotAsync();
+
+            var asAddresseeTask = db.Collection("friendships")
+                .WhereEqualTo("addressee_id", userId)
+                .WhereEqualTo("status", "accepted")
+                .GetSnapshotAsync();
+
+            await Task.WhenAll(asSenderTask, asAddresseeTask);
+
+            var friendIds = new List<string>();
+
+            // Khi user là sender → lấy addressee_id
+            friendIds.AddRange(asSenderTask.Result.Documents
+                .Select(d => d.GetValue<string>("addressee_id")));
+
+            // Khi user là addressee → lấy sender_id
+            friendIds.AddRange(asAddresseeTask.Result.Documents
+                .Select(d => d.GetValue<string>("sender_id")));
+
+            return friendIds.Distinct().ToList();
+        }
+
+        private async Task<List<string>> GetMutedStoryUserIdsAsync(string userId)
+        {
+            var snap = await db.Collection("muted_stories")
+                .WhereEqualTo("user_id", userId)
+                .GetSnapshotAsync();
+
+            return snap.Documents
+                .Select(d => d.GetValue<string>("muted_user_id"))
+                .ToList();
+        }
+
+        // muted story or post with a users 
+        private async Task<List<string>> GetMutedUserIdsAsync(string userId)
+        {
+            var snap = await db.Collection("muted_users")
+                .WhereEqualTo("user_id", userId)
+                .GetSnapshotAsync();
+
+            return snap.Documents
+                .Select(d => d.GetValue<string>("muted_user_id"))
+                .ToList();
+        }
+
+        private async Task<List<string>> GetHiddenPostIdsAsync(string userId)
+        {
+            var snap = await db.Collection("hidden_posts")
+                .WhereEqualTo("viewer_id", userId)
+                .GetSnapshotAsync();
+
+            return snap.Documents
+                .Select(d => d.GetValue<string>("post_id"))
+                .ToList();
+        }
+
+        private FeedResponse ToResponse(Feeds feed, string currentUserId)
+        {
+            var response = mapper.Map<FeedResponse>(feed);
+            response.Stats.IsLiked = feed.Stats.Likes.Contains(currentUserId);
+            return response;
+        }
+
+        private static async Task<List<Feeds>> QueryFeedsByBatchAsync(
+            FirestoreDb db,
+            List<string> userIds,
+            string type,
+            Func<CollectionReference, IEnumerable<string>, Query> buildQuery)
+        {
+            var results = new List<Feeds>();
+
+            foreach (var batch in userIds.Chunk(30))
+            {
+                var query = buildQuery(db.Collection("feeds"), batch);
+                var snap = await query.GetSnapshotAsync();
+                results.AddRange(snap.Documents.Select(d => d.ConvertTo<Feeds>()));
+            }
+
+            return results;
+        }
+
+        // ── Track View ──────────────────────────────────────────────────
+
+        public async Task<ViewResponse> TrackViewAsync(string feedId, string userId)
+        {
+            var docRef = db.Collection("feeds").Document(feedId);
+            var snap = await docRef.GetSnapshotAsync();
+
+            if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
+                throw new AppException(ErrorCode.FEED_NOT_FOUND);
+
+            var feed = snap.ConvertTo<Feeds>();
+
+            // Chỉ story mới track view
+            if (feed.Type != "story")
+                throw new AppException(ErrorCode.FEED_VIEW_NOT_ALLOWED);
+
+            // Story đã hết hạn
+            if (feed.Settings.ExpiresAt.HasValue &&
+                feed.Settings.ExpiresAt.Value < DateTime.UtcNow)
+                throw new AppException(ErrorCode.FEED_EXPIRED);
+
+            var hasViewed = feed.Stats.Views.Contains(userId);
+
+            // Chỉ thêm nếu chưa xem, tránh duplicate
+            if (!hasViewed)
+            {
+                await docRef.UpdateAsync(new Dictionary<string, object>
+                {
+                    ["stats.views"] = FieldValue.ArrayUnion(userId)
+                });
+
+                logger.LogInformation("[FeedService] User {UserId} viewed story {FeedId}", userId, feedId);
+            }
+
+            var updated = await docRef.GetSnapshotAsync();
+            var updatedFeed = updated.ConvertTo<Feeds>();
+
+            return new ViewResponse
+            {
+                ViewCount = updatedFeed.Stats.Views.Count,
+                HasViewed = true
+            };
+        }
+
+        public async Task<ViewersListResponse> GetViewersAsync(string feedId, string userId)
+        {
+            var snap = await db.Collection("feeds").Document(feedId).GetSnapshotAsync();
+
+            if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
+                throw new AppException(ErrorCode.FEED_NOT_FOUND);
+
+            var feed = snap.ConvertTo<Feeds>();
+
+            // Chỉ story mới có viewers
+            if (feed.Type != "story")
+                throw new AppException(ErrorCode.FEED_VIEW_NOT_ALLOWED);
+
+            // Chỉ chủ story mới xem được danh sách viewers
+            if (feed.UserId != userId)
+                throw new AppException(ErrorCode.FORBIDDEN);
+
+            return new ViewersListResponse
+            {
+                FeedId = feedId,
+                ViewCount = feed.Stats.Views.Count,
+                HasViewed = feed.Stats.Views.Contains(userId),
+                UserIds = feed.Stats.Views
+            };
+        }
+
+        // ── Hide / Unhide Post ──────────────────────────────────────────
+
+        public async Task<HideResponse> ToggleHidePostAsync(string feedId, string userId)
+        {
+            var snap = await db.Collection("feeds").Document(feedId).GetSnapshotAsync();
+
+            if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
+                throw new AppException(ErrorCode.FEED_NOT_FOUND);
+
+            var feed = snap.ConvertTo<Feeds>();
+
+            // Chỉ ẩn post, không ẩn story
+            if (feed.Type != "post")
+                throw new AppException(ErrorCode.FEED_HIDE_NOT_ALLOWED);
+
+            // Không thể ẩn bài của chính mình
+            if (feed.UserId == userId)
+                throw new AppException(ErrorCode.FEED_CANNOT_HIDE_OWN);
+
+            var hiddenRef = db.Collection("hidden_posts")
+                .WhereEqualTo("viewer_id", userId)
+                .WhereEqualTo("post_id", feedId);
+
+            var existingSnap = await hiddenRef.GetSnapshotAsync();
+            var isHidden = existingSnap.Count > 0;
+
+            if (isHidden)
+            {
+                // Bỏ ẩn → xóa document
+                await existingSnap.Documents[0].Reference.DeleteAsync();
+                logger.LogInformation("[FeedService] User {UserId} unhid post {FeedId}", userId, feedId);
+
+                return new HideResponse { IsHidden = false };
+            }
+            else
+            {
+                // Ẩn → tạo document mới
+                await db.Collection("hidden_posts").AddAsync(new Dictionary<string, object>
+                {
+                    ["viewer_id"] = userId,
+                    ["post_id"] = feedId,
+                    ["created_at"] = Timestamp.FromDateTime(DateTime.UtcNow)
+                });
+                logger.LogInformation("[FeedService] User {UserId} hid post {FeedId}", userId, feedId);
+
+                return new HideResponse { IsHidden = true };
             }
         }
 
+        // ── Feed By UserId ──────────────────────────────────────────────
 
+        public async Task<List<FeedResponse>> GetFeedsByUserIdAsync(string targetUserId, string currentUserId)
+        {
+            var query = db.Collection("feeds")
+                .WhereEqualTo("user_id", targetUserId)
+                .WhereEqualTo("type", "post")
+                .OrderByDescending("create_at");
+
+            // Nếu xem profile người khác → chỉ thấy public và friends
+            // Nếu xem profile của chính mình → thấy tất cả trừ đã xóa
+            if (targetUserId != currentUserId)
+                query = query.WhereNotEqualTo("privacy", "private");
+
+            var snap = await query.GetSnapshotAsync();
+
+            return snap.Documents
+                .Select(d => d.ConvertTo<Feeds>())
+                .Where(f => f.DeletedAt == null)
+                .Select(f => ToResponse(f, currentUserId))
+                .ToList();
+        }
+
+        // get feeds are deleted to display story or post stored
+        public async Task<List<FeedResponse>> getAllFeedDeleted(string currentUserId, string type)
+        {
+            var query = db.Collection("feeds")
+            .WhereEqualTo("user_id", currentUserId)
+            .WhereEqualTo("type", type)
+            .OrderByDescending("create_at");
+
+            var snapshot = await query.GetSnapshotAsync();
+            return snapshot.Documents
+            .Select(d => d.ConvertTo<Feeds>())
+            .Where(f => f.DeletedAt != null)
+            .Select(f => ToResponse(f, currentUserId))
+            .ToList();
+        }
     }
 
 }

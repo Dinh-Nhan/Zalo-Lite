@@ -31,7 +31,7 @@ namespace backend.Models
     public Stats Stats { get; set; } = null!;
 
     [FirestoreProperty("create_at")]
-    public DateTime CreateAt { get; set; }
+    public DateTime CreatedAt { get; set; }
 
     [FirestoreProperty("deleted_at")]
     public DateTime? DeletedAt { get; set; }

@@ -11,6 +11,6 @@ namespace backend.dtos.Request
 
         public CreateContentRequest Content { get; set; } = null!;
 
-        public string Privacy { get; set; } = string.Empty;
+        public string Privacy { get; set; } = string.Empty; // public | private | friends
     }
 }

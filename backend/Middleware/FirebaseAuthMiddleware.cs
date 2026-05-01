@@ -11,27 +11,20 @@ public class FirebaseAuthMiddleware(RequestDelegate _next, ILogger<FirebaseAuthM
         if (!string.IsNullOrEmpty(header) && header.StartsWith("Bearer "))
         {
             var token = header.Substring("Bearer ".Length);
-
+            logger.LogInformation("[MiddleWare Auth: {token}]", token);
             try
             {
                 var decoded = await FirebaseAuth.DefaultInstance
                     .VerifyIdTokenAsync(token, true);
 
-                context.User = new ClaimsPrincipal(new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, decoded.Uid),
-                    new Claim(ClaimTypes.Email, decoded.Claims
-                        .GetValueOrDefault("email")?.ToString() ?? "")
-                }, "Firebase"));
+                logger.LogInformation("[FirebaseAuth] Authenticated uid={Uid}", decoded.Uid);
 
-                logger.LogInformation("INFORMATION MiddleWare Auth");
-                logger.LogInformation("Decoded: {decoded}", decoded);
-                logger.LogInformation("User Id in Subject: {subject}", decoded.Subject);
-                logger.LogInformation("User id in Uid: {uid}", decoded.Uid);
-
+                context.Items["User"] = decoded;
             }
-            catch
+            catch (Exception ex)
             {
+                logger.LogWarning("[FirebaseAuth] Token invalid: {Message}", ex.Message);
+
                 // Token sai → không set user
                 context.Items["User"] = null;
             }
