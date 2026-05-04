@@ -143,11 +143,13 @@ class _RegisterViewState extends State<RegisterView>
 
   Future<void> _pickDob() async {
     final now = DateTime.now();
+    // Người dùng phải íd nhất 16 tuổi
+    final maxDate = DateTime(now.year - 16, now.month, now.day);
     final picked = await showDatePicker(
       context: context,
       initialDate: _selectedDob ?? DateTime(now.year - 18, now.month, now.day),
       firstDate: DateTime(1920),
-      lastDate: DateTime(now.year - 13, now.month, now.day),
+      lastDate: maxDate,
       helpText: 'Chọn ngày sinh',
       confirmText: 'Xác nhận',
       cancelText: 'Hủy',
@@ -165,6 +167,17 @@ class _RegisterViewState extends State<RegisterView>
     if (picked != null) {
       setState(() => _selectedDob = picked);
     }
+  }
+
+  /// Tính tuổi dựa trên ngày sinh
+  int _calculateAge(DateTime dob) {
+    final now = DateTime.now();
+    int age = now.year - dob.year;
+    if (now.month < dob.month ||
+        (now.month == dob.month && now.day < dob.day)) {
+      age--;
+    }
+    return age;
   }
 
   Future<void> _handleRegister() async {
@@ -198,12 +211,50 @@ class _RegisterViewState extends State<RegisterView>
       _showSuccessAndNavigate();
     } catch (e) {
       if (!mounted) return;
+      final rawMessage = e.toString().replaceFirst('Exception: ', '');
       setState(() {
         _isLoading = false;
-        _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        _errorMessage = _mapBackendError(rawMessage);
       });
       _shakeCtrl.forward(from: 0);
     }
+  }
+
+  /// Chuyển đổi thông báo lỗi từ backend sang tiếng Việt thân thiện.
+  String _mapBackendError(String message) {
+    final lower = message.toLowerCase();
+    // Backend trả về lỗi mật khẩu phải đủ 8 ký tự
+    if (lower.contains('password') &&
+        (lower.contains('8') ||
+            lower.contains('least') ||
+            lower.contains('minimum') ||
+            lower.contains('characters') ||
+            lower.contains('ký tự'))) {
+      return 'Mật khẩu phải có ít nhất 8 ký tự.';
+    }
+    // Backend trả về lỗi mật khẩu cần chữ hoa
+    if (lower.contains('password') &&
+        (lower.contains('uppercase') ||
+            lower.contains('upper case') ||
+            lower.contains('capital') ||
+            lower.contains('chữ hoa'))) {
+      return 'Mật khẩu phải có ít nhất 1 chữ hoa (A-Z).';
+    }
+    // Backend trả về lỗi mật khẩu cần chữ thường
+    if (lower.contains('password') &&
+        (lower.contains('lowercase') ||
+            lower.contains('lower case') ||
+            lower.contains('letter') ||
+            lower.contains('chữ thường'))) {
+      return 'Mật khẩu phải có ít nhất 1 chữ thường (a-z).';
+    }
+    if (lower.contains('email') && lower.contains('exist')) {
+      return 'Email này đã được sử dụng. Vui lòng dùng email khác.';
+    }
+    if (lower.contains('invalid') && lower.contains('email')) {
+      return 'Địa chỉ email không hợp lệ.';
+    }
+    return message;
   }
 
   void _showSuccessAndNavigate() {
@@ -506,12 +557,19 @@ class _RegisterViewState extends State<RegisterView>
         child: TextFormField(
           readOnly: true,
           decoration: _fieldDecoration(
-            label: 'Ngày sinh (tùy chọn)',
+            label: 'Ngày sinh',
             hint: 'DD/MM/YYYY',
             prefixIcon: Icons.cake_outlined,
             suffixIcon: Icons.calendar_today_outlined,
           ),
           controller: TextEditingController(text: dobText ?? ''),
+          validator: (_) {
+            if (_selectedDob == null) return 'Vui lòng nhập ngày sinh';
+            if (_calculateAge(_selectedDob!) < 16) {
+              return 'Bạn phải đủ 16 tuổi để đăng ký';
+            }
+            return null;
+          },
         ),
       ),
     );
@@ -527,7 +585,9 @@ class _RegisterViewState extends State<RegisterView>
       onFieldSubmitted: (_) => _confirmFocus.requestFocus(),
       validator: (v) {
         if (v == null || v.isEmpty) return 'Vui lòng nhập mật khẩu';
-        if (v.length < 6) return 'Mật khẩu ít nhất 6 ký tự';
+        if (v.length < 8) return 'Mật khẩu phải có ít nhất 8 ký tự';
+        if (!RegExp(r'[a-z]').hasMatch(v)) return 'Mật khẩu phải có ít nhất 1 chữ thường';
+        if (!RegExp(r'[A-Z]').hasMatch(v)) return 'Mật khẩu phải có ít nhất 1 chữ hoa';
         return null;
       },
       decoration:

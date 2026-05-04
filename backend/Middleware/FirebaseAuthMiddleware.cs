@@ -1,13 +1,8 @@
+using System.Security.Claims;
 using FirebaseAdmin.Auth;
 
-public class FirebaseAuthMiddleware
+public class FirebaseAuthMiddleware(RequestDelegate _next, ILogger<FirebaseAuthMiddleware> logger)
 {
-    private readonly RequestDelegate _next;
-
-    public FirebaseAuthMiddleware(RequestDelegate next)
-    {
-        _next = next;
-    }
 
     public async Task Invoke(HttpContext context)
     {
@@ -16,16 +11,20 @@ public class FirebaseAuthMiddleware
         if (!string.IsNullOrEmpty(header) && header.StartsWith("Bearer "))
         {
             var token = header.Substring("Bearer ".Length);
-
+            logger.LogInformation("[MiddleWare Auth: {token}]", token);
             try
             {
                 var decoded = await FirebaseAuth.DefaultInstance
                     .VerifyIdTokenAsync(token, true);
 
+                logger.LogInformation("[FirebaseAuth] Authenticated uid={Uid}", decoded.Uid);
+
                 context.Items["User"] = decoded;
             }
-            catch
+            catch (Exception ex)
             {
+                logger.LogWarning("[FirebaseAuth] Token invalid: {Message}", ex.Message);
+
                 // Token sai → không set user
                 context.Items["User"] = null;
             }

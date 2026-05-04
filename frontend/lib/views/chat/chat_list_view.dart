@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend/apps/app_locale.dart';
-import 'package:frontend/utils/app_localizations.dart';
-import 'package:frontend/config/dark_mode_config.dart';
-import 'package:frontend/views/settings/settings_dialog.dart';
-import 'package:frontend/views/chat/chat_detail_view.dart';
-import 'package:go_router/go_router.dart';
 import 'package:frontend/config/app_colors.dart';
+import 'package:frontend/config/dark_mode_config.dart';
+import 'package:frontend/services/auth_service.dart';
+import 'package:frontend/utils/app_localizations.dart';
+import 'package:frontend/views/chat/chat_detail_view.dart';
 import 'package:frontend/views/contacts/contacts_view.dart';
+import 'package:frontend/views/settings/settings_dialog.dart';
 
 /// Man hinh danh sach tin nhan - Thiet ke giong Zalo Web
 class ChatListView extends StatefulWidget {
@@ -167,7 +167,8 @@ class _ChatListViewState extends State<ChatListView> {
   }
 
   void _logout() {
-    context.go('/');
+    AuthService.logout();
+    // context.go('/');
   }
 
   @override
@@ -185,9 +186,10 @@ class _ChatListViewState extends State<ChatListView> {
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final isWideScreen = constraints.maxWidth >= 700;
-                    
+
                     // Convert index when screen size changes
-                    if (_wasWideScreen != null && _wasWideScreen != isWideScreen) {
+                    if (_wasWideScreen != null &&
+                        _wasWideScreen != isWideScreen) {
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         if (isWideScreen) {
                           // Mobile → Wide conversion
@@ -220,7 +222,7 @@ class _ChatListViewState extends State<ChatListView> {
                       });
                     }
                     _wasWideScreen = isWideScreen;
-                    
+
                     if (isWideScreen) {
                       return Row(
                         children: [
@@ -233,7 +235,8 @@ class _ChatListViewState extends State<ChatListView> {
                                   : ChatDetailView(
                                       conversationId:
                                           _selectedConversation!['id'],
-                                      contactName: _selectedConversation!['name'],
+                                      contactName:
+                                          _selectedConversation!['name'],
                                       avatarColor:
                                           _selectedConversation!['avatarColor'],
                                       isGroup:
@@ -257,7 +260,8 @@ class _ChatListViewState extends State<ChatListView> {
                                   : ChatDetailView(
                                       conversationId:
                                           _selectedConversation!['id'],
-                                      contactName: _selectedConversation!['name'],
+                                      contactName:
+                                          _selectedConversation!['name'],
                                       avatarColor:
                                           _selectedConversation!['avatarColor'],
                                       isGroup:
@@ -382,11 +386,19 @@ class _ChatListViewState extends State<ChatListView> {
     );
   }
 
-  Widget _buildSearchHeader(AppLocalizations t, bool isDark, {bool isMobile = false}) {
+  Widget _buildSearchHeader(
+    AppLocalizations t,
+    bool isDark, {
+    bool isMobile = false,
+  }) {
     if (isMobile) {
       // Mobile: blue background (dark mode: black) with white search bar and white icons
-      final Color mobileHeaderBg = isDark ? const Color(0xFF1A1A1A) : AppColors.primaryBlue;
-      final searchBg = isDark ? const Color(0xFF2A2A2A) : Colors.white.withValues(alpha: 0.25);
+      final Color mobileHeaderBg = isDark
+          ? const Color(0xFF1A1A1A)
+          : AppColors.primaryBlue;
+      final searchBg = isDark
+          ? const Color(0xFF2A2A2A)
+          : Colors.white.withValues(alpha: 0.25);
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         color: mobileHeaderBg,
@@ -402,7 +414,11 @@ class _ChatListViewState extends State<ChatListView> {
                 child: Row(
                   children: [
                     const SizedBox(width: 14),
-                    Icon(Icons.search, color: Colors.white.withValues(alpha: 0.8), size: 20),
+                    Icon(
+                      Icons.search,
+                      color: Colors.white.withValues(alpha: 0.8),
+                      size: 20,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextField(
@@ -430,8 +446,18 @@ class _ChatListViewState extends State<ChatListView> {
               ),
             ),
             const SizedBox(width: 8),
-            _buildHeaderIconButton(Icons.qr_code_scanner, isDark, () {}, iconColor: Colors.white),
-            _buildHeaderIconButton(Icons.add, isDark, () {}, iconColor: Colors.white),
+            _buildHeaderIconButton(
+              Icons.qr_code_scanner,
+              isDark,
+              () {},
+              iconColor: Colors.white,
+            ),
+            _buildHeaderIconButton(
+              Icons.add,
+              isDark,
+              () {},
+              iconColor: Colors.white,
+            ),
           ],
         ),
       );
@@ -454,7 +480,11 @@ class _ChatListViewState extends State<ChatListView> {
               child: Row(
                 children: [
                   const SizedBox(width: 14),
-                  Icon(Icons.search, color: AppColors.getTextSecondary(isDark), size: 20),
+                  Icon(
+                    Icons.search,
+                    color: AppColors.getTextSecondary(isDark),
+                    size: 20,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: TextField(
@@ -752,7 +782,7 @@ class _ChatListViewState extends State<ChatListView> {
                 trailing: Switch(
                   value: isDark,
                   onChanged: (value) => isDarkModeNotifier.value = value,
-                  activeColor: AppColors.primaryBlue,
+                  activeThumbColor: AppColors.primaryBlue,
                 ),
               ),
               const SizedBox(height: 16),
@@ -838,7 +868,7 @@ class _ChatListViewState extends State<ChatListView> {
                 ],
               ),
             ),
-            if (trailing != null) trailing,
+            ?trailing,
           ],
         ),
       ),
@@ -1041,9 +1071,17 @@ class _ChatListViewState extends State<ChatListView> {
               // Tab 1: Contacts
               const ContactsView(isWideScreen: false),
               // Tab 2: Discover (placeholder)
-              _buildPlaceholderTab(t.get('discover'), Icons.explore_outlined, isDark),
+              _buildPlaceholderTab(
+                t.get('discover'),
+                Icons.explore_outlined,
+                isDark,
+              ),
               // Tab 3: Profile (placeholder)
-              _buildPlaceholderTab(t.get('profile'), Icons.person_outline, isDark),
+              _buildPlaceholderTab(
+                t.get('profile'),
+                Icons.person_outline,
+                isDark,
+              ),
             ],
           ),
         ),
@@ -1078,7 +1116,9 @@ class _ChatListViewState extends State<ChatListView> {
               'Coming soon...',
               style: TextStyle(
                 fontSize: 13,
-                color: AppColors.getTextSecondary(isDark).withValues(alpha: 0.6),
+                color: AppColors.getTextSecondary(
+                  isDark,
+                ).withValues(alpha: 0.6),
               ),
             ),
           ],
@@ -1102,10 +1142,30 @@ class _ChatListViewState extends State<ChatListView> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildBottomNavItem(Icons.chat_bubble, Icons.chat_bubble_outline, 0, isDark),
-              _buildBottomNavItem(Icons.contacts, Icons.contacts_outlined, 1, isDark),
-              _buildBottomNavItem(Icons.auto_stories, Icons.auto_stories_outlined, 2, isDark),
-              _buildBottomNavItem(Icons.person, Icons.person_outline, 3, isDark),
+              _buildBottomNavItem(
+                Icons.chat_bubble,
+                Icons.chat_bubble_outline,
+                0,
+                isDark,
+              ),
+              _buildBottomNavItem(
+                Icons.contacts,
+                Icons.contacts_outlined,
+                1,
+                isDark,
+              ),
+              _buildBottomNavItem(
+                Icons.auto_stories,
+                Icons.auto_stories_outlined,
+                2,
+                isDark,
+              ),
+              _buildBottomNavItem(
+                Icons.person,
+                Icons.person_outline,
+                3,
+                isDark,
+              ),
             ],
           ),
         ),

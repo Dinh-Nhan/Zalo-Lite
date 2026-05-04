@@ -11,22 +11,30 @@ using Mapster;
 using MapsterMapper;
 using Serilog;
 using StackExchange.Redis;
+using Microsoft.OpenApi.Models;
+using backend.swagger;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var firebaseConfig = builder.Configuration.GetSection("Firebase");
-var projectId = firebaseConfig["ProjectId"];
-var credentialPath = firebaseConfig["CredentialsFilePath"];
+// var firebaseConfig = builder.Configuration.GetSection("Firebase");
+// var projectId = firebaseConfig["ProjectId"];
+// var credentialPath = firebaseConfig["CredentialsFilePath"];
 
-var credential = CredentialFactory
-    .FromFile<ServiceAccountCredential>(credentialPath)
-    .ToGoogleCredential();
+// var credential = CredentialFactory
+//     .FromFile<ServiceAccountCredential>(credentialPath)
+//     .ToGoogleCredential();
 
-FirebaseApp.Create(new AppOptions()
-{
-    Credential = credential,
-    ProjectId = projectId
-});
+// FirebaseApp.Create(new AppOptions()
+// {
+//     Credential = credential,
+//     ProjectId = projectId
+// });
+
+// background service 
+builder.Services.AddHostedService<StoryExpirationService>();
+
+
+//var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.UseSerilog((ctx, config) => config
     .ReadFrom.Configuration(ctx.Configuration)
@@ -64,13 +72,36 @@ builder.Services.AddTransient<GlobalExceptionHandler>();
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddSingleton<FirebaseService>();
-builder.Services.AddSingleton(sp => 
+builder.Services.AddSingleton(sp =>
     sp.GetRequiredService<FirebaseService>().FirestoreDb);
 
-// builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<UserService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// add options using bearer token to verify access token when request api
+builder.Services.AddSwaggerGen(
+    options =>
+{
+    // config xml for comment in controller to explain api 
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    options.IncludeXmlComments(xmlPath);
+
+
+    //require bearer token for per request in backend
+    options.OperationFilter<AuthorizeCheckOperationFilter>();
+
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Nhập token theo định dạng: Bearer {token}"
+    });
+}
+);
 
 // ── SignalR ──────────────────────────────────────
 builder.Services.AddSignalR();
@@ -87,7 +118,8 @@ builder.Services.AddCors(opt =>
 });
 
 var app = builder.Build();
-
+app.UseCors("AllowAll");
+app.UseAuthorization();
 app.UseMiddleware<GlobalExceptionHandler>();
 
 // Configure the HTTP request pipeline.
