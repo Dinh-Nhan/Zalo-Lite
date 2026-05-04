@@ -2,6 +2,7 @@ using backend.dtos.Request;
 using backend.dtos.Response;
 using backend.Models;
 using backend.Services;
+using FirebaseAdmin.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,7 +10,7 @@ namespace backend.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[FirebaseAuthorize]
+[AllowAnonymous]
 public class UserController(UserService userService) : ControllerBase
 {
     [HttpGet("{id}")]
@@ -29,12 +30,24 @@ public class UserController(UserService userService) : ControllerBase
         });
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateUserRequest request) =>
-        Ok(new ApiResponse<UserResponse>
+    public async Task<IActionResult> Create([FromBody] CreateUserRequest request)
+    {
+        // Dùng HttpContext.Items["User"] — đúng pattern của project
+        var firebaseToken = HttpContext.Items["User"] as FirebaseToken;
+
+        if (firebaseToken == null)
+            return Unauthorized(new ApiResponse<object>
+            {
+                Code = 401,
+                Message = "Unauthorized"
+            });
+
+        return Ok(new ApiResponse<UserResponse>
         {
             Code = 200,
-            Result = await userService.CreateAsync(request)
+            Result = await userService.CreateAsync(firebaseToken.Uid, request)
         });
+    }
 
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(string id, [FromBody] UpdateUserRequest request) =>

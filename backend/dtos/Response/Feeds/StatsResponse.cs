@@ -7,8 +7,8 @@ namespace backend.dtos.Response
 {
     public class StatsResponse
     {
-        public int ViewCount { get; init; }
-        public int LikeCount { get; init; }
-        public bool IsLiked { get; init; }
+        public int ViewCount { get; set; }
+        public int LikeCount { get; set; }
+        public bool IsLiked { get; set; }
     }
 }

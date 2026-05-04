@@ -18,7 +18,7 @@ namespace backend.dtos.Response
 
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public SettingResponse Settings { get; init; } = null!;
-        public DateTime CreateAt { get; init; }
+        public DateTime CreatedAt { get; init; }
         public DateTime? DeletedAt { get; init; }
     }
 }
