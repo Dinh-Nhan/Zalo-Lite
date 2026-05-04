@@ -50,12 +50,14 @@ class _LoginViewState extends State<LoginView> {
     if (!mounted) return;
 
     if (result.isSuccess) {
-      await _testProfileApi();
+      // await _testProfileApi();
+      await AuthService.login(_emailController.text.trim(), _passwordController.text);
+      if (mounted) context.go('/chat-list');
     } else {
       setState(() {
         _isLoading = false;
         _apiSuccess = false;
-        _apiStatus = '❌ Login thất bại';
+        _apiStatus = 'Login thất bại';
         _apiBody = result.errorMessage ??
             (result.errorCode != null ? 'Code: ${result.errorCode}' : null);
       });
@@ -198,12 +200,12 @@ class _LoginViewState extends State<LoginView> {
                       ),
                     ),
                     child: _isLoading
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-                          )
-                        : const Text('Đăng nhập', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                        )
+                      : const Text('Đăng nhập', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                   ),
                 ),
               ),

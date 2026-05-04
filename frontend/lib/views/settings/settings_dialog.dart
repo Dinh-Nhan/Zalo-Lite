@@ -3,19 +3,19 @@ import 'package:frontend/apps/app_locale.dart';
 import 'package:frontend/utils/app_localizations.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/config/dark_mode_config.dart';
-import 'package:go_router/go_router.dart';
 
 /// Dialog cài đặt giống Zalo Web
 class SettingsDialog extends StatefulWidget {
   final int initialTabIndex;
-  
-  const SettingsDialog({super.key, this.initialTabIndex = 0});
+  final VoidCallback? onLogout;
 
-  static void show(BuildContext context, {int initialTabIndex = 0}) {
+  const SettingsDialog({super.key, this.initialTabIndex = 0, this.onLogout});
+
+  static void show(BuildContext context, {int initialTabIndex = 0, VoidCallback? onLogout}) {
     showDialog(
       context: context,
       barrierColor: Colors.black54,
-      builder: (context) => SettingsDialog(initialTabIndex: initialTabIndex),
+      builder: (context) => SettingsDialog(initialTabIndex: initialTabIndex, onLogout: onLogout),
     );
   }
   
@@ -155,7 +155,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
             isLogout: true,
             onTap: () {
               Navigator.pop(context);
-              context.go('/');
+
+              if (widget.onLogout != null) {
+                widget.onLogout!();
+              }
             },
           ),
         ],

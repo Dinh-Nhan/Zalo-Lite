@@ -81,8 +81,9 @@ class _SignUpViewState extends State<SignUpView> with SingleTickerProviderStateM
     ) == null;
 
     setState(() {
-      _isButtonEnabled = isEmailValid && _agreeTerms && _agreeSocialPolicy;
-    });
+    _isButtonEnabled = isEmailValid && _agreeTerms && _agreeSocialPolicy;
+    if (_errorMessage != null) _errorMessage = null; 
+  });
   }
 
   void _onAgreeTermsChanged(bool? value) {
@@ -112,72 +113,49 @@ class _SignUpViewState extends State<SignUpView> with SingleTickerProviderStateM
     });
 
     try {
-      // Gọi register với các thông số mặc định như yêu cầu
-      await AuthService.register(
-        RegisterRequest(
-          email: _emailController.text.trim(),
-          password: "Aa@123456",       
-          firstName: "User",      
-          lastName: "Test",       
-          dateOfBirth: "1990-01-01", 
-        ),
-      );
+      // BƯỚC 1: Kiểm tra email có tồn tại trong Firestore/Auth hay chưa
+      final String email = _emailController.text.trim();
+      final bool isExists = await AuthService.checkEmailExists(email);
 
-      if (!mounted) return;
-      
-      // Nếu không lỗi (email chưa tồn tại), hiện Sheet xác nhận
-      _showConfirmSheet();
+      if (isExists) {
+        // Nếu đã tồn tại, hiển thị lỗi ngay dưới field và rung
+        setState(() {
+          _errorMessage = "Email này đã được đăng ký. Vui lòng sử dụng email khác.";
+        });
+        _shakeCtrl.forward(from: 0);
+      } else {
+        // BƯỚC 2: Nếu email chưa tồn tại, hiển thị ConfirmSheet
+        _showConfirmSheet();
+      }
     } catch (e) {
-      if (!mounted) return;
       setState(() {
-        _errorMessage = e.toString().replaceFirst('Exception: ', '');
+        _errorMessage = "Lỗi kiểm tra hệ thống: $e";
       });
-      _shakeCtrl.forward(from: 0);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _onCancelRegistration() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
-
-      // Gọi service xóa dữ liệu tạm
-      await AuthService.deleteAccountAndData();
-
-      if (!mounted) return;
-      
-      // Chuyển hướng về trang chủ/login
-      context.go('/'); 
-      
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = "Không thể hủy đăng ký: ${e.toString()}";
-      });
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
 
   void _showConfirmSheet() {
     showDialog(
       context: context,
-      barrierDismissible: false, // Ngăn chặn tắt bằng cách chạm ra ngoài để đảm bảo quy trình xóa
+      barrierDismissible: false, 
       barrierColor: Colors.black54,
       builder: (_) => ConfirmPhoneSheet(
-        phone: _emailController.text,
+        // Ở đây truyền Email vào thay vì Phone vì app dùng Email
+        phone: _emailController.text, 
         onContinue: () {
-          Navigator.pop(context);
-          // context.go('/otp', extra: _emailController.text);
-          context.push('/reset-password', extra: _emailController.text);
+          Navigator.pop(context); // Đóng Dialog
+          
+          // Chuyển sang trang OTP và truyền email đi
+          // Lưu ý: Không gọi AuthService.register ở đây
+          // context.go('/otp', extra: _emailController.text.trim());
+          context.push('/otp', extra: _emailController.text.trim());
+
         },
-        onCancel: () async {
-          Navigator.pop(context); // 1. Đóng cái sheet trước
-          await AuthService.deleteAccountAndData(); // 2. Gọi hàm xóa dữ liệu và về trang chủ/sign-up
+        onCancel: () {
+          Navigator.pop(context);
         },
       ),
     );
@@ -187,43 +165,107 @@ class _SignUpViewState extends State<SignUpView> with SingleTickerProviderStateM
     final t = AppLocalizations(localeNotifier.value);
     
     showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(
-            "Hủy đăng ký?", // Hoặc t.get('cancelConfirmTitle')
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          content: const Text(
-            "Bạn có chắc chắn muốn hủy đăng ký không? Toàn bộ dữ liệu đã nhập sẽ bị xóa.",
-          ),
-          actions: [
-            // Nút Tiếp tục (Đóng dialog và ở lại)
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                "Tiếp tục đăng ký", // Hoặc t.get('continueRegistration')
-                style: TextStyle(color: Colors.grey.shade600),
-              ),
+  context: context,
+  barrierDismissible: false, // Bắt buộc người dùng phải chọn
+  builder: (BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 0,
+      child: Column(
+        mainAxisSize: MainAxisSize.min, // Chỉ chiếm chiều cao cần thiết
+        children: [
+          // Phần Text (Tiêu đề và Nội dung)
+          Padding(
+            padding: const EdgeInsets.only(top: 24, left: 20, right: 20, bottom: 20),
+            child: Column(
+              children: [
+                const Text(
+                  "Hủy đăng ký?",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  "Bạn có chắc chắn muốn hủy đăng ký không? Toàn bộ dữ liệu đã nhập sẽ bị xóa.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Colors.grey.shade600,
+                    height: 1.4,
+                  ),
+                ),
+              ],
             ),
-            // Nút Chắc chắn (Gọi hàm xóa và thoát)
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context); // Đóng dialog
-                _onCancelRegistration(); // Gọi hàm xóa tài khoản
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                foregroundColor: Colors.white,
-                elevation: 0,
-              ),
-              child: const Text("Chắc chắn"),
+          ),
+          
+          // Đường kẻ ngang ngăn cách nội dung và nút
+          Divider(height: 1, thickness: 1, color: Colors.grey.shade200),
+          
+          // Phần Nút bấm (Hàng ngang)
+          SizedBox(
+            height: 50,
+            child: Row(
+              children: [
+                // Nút "Tiếp tục đăng ký" (Hủy thao tác)
+                Expanded(
+                  child: InkWell(
+                    onTap: () => Navigator.pop(context),
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(16),
+                    ),
+                    child: Center(
+                      child: Text(
+                        "Tiếp tục", 
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.blue.shade600, // Màu xanh đặc trưng Zalo
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                
+                // Đường kẻ dọc ngăn cách 2 nút
+                VerticalDivider(width: 1, thickness: 1, color: Colors.grey.shade200),
+                
+                // Nút "Chắc chắn" (Xác nhận hủy)
+                Expanded(
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.pop(context);
+                      context.go('/'); // Hoặc logic điều hướng của bạn
+                    },
+                    borderRadius: const BorderRadius.only(
+                      bottomRight: Radius.circular(16),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        "Hủy đăng ký",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.redAccent, 
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
     );
+  },
+);
   }
 
   void _clearEmail() {
@@ -259,21 +301,21 @@ class _SignUpViewState extends State<SignUpView> with SingleTickerProviderStateM
                             _buildEmailField(t),
                             
                             // Banner hiển thị lỗi từ Server (ví dụ: Email tồn tại)
-                            if (_errorMessage != null) ...[
-                              const SizedBox(height: 12),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.shade50,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  _errorMessage!,
-                                  style: const TextStyle(color: Colors.red, fontSize: 13),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            ],
+                            // if (_errorMessage != null) ...[
+                            //   const SizedBox(height: 12),
+                            //   Container(
+                            //     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            //     decoration: BoxDecoration(
+                            //       color: Colors.red.shade50,
+                            //       borderRadius: BorderRadius.circular(8),
+                            //     ),
+                            //     child: Text(
+                            //       _errorMessage!,
+                            //       style: const TextStyle(color: Colors.red, fontSize: 13),
+                            //       textAlign: TextAlign.center,
+                            //     ),
+                            //   ),
+                            // ],
 
                             const SizedBox(height: 20),
                             _buildCheckbox(
@@ -359,6 +401,7 @@ class _SignUpViewState extends State<SignUpView> with SingleTickerProviderStateM
                 onPressed: _clearEmail,
               )
             : null,
+        errorText: _errorMessage,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.blue.shade100),
@@ -367,6 +410,7 @@ class _SignUpViewState extends State<SignUpView> with SingleTickerProviderStateM
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Color(0xFF0068FF), width: 1.5),
         ),
+        errorStyle: const TextStyle(color: Colors.red, fontSize: 12),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Colors.red, width: 1),
@@ -375,7 +419,6 @@ class _SignUpViewState extends State<SignUpView> with SingleTickerProviderStateM
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Colors.red, width: 1.5),
         ),
-        errorStyle: const TextStyle(color: Colors.red, fontSize: 12), 
       ),
     );
   }
