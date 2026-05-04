@@ -53,6 +53,16 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger)
 
         await docRef.SetAsync(user);
         logger.LogInformation("User created: {UserId}", uid);
+        // if (existing.Count > 0)
+        //     throw new AppException(ErrorCode.EMAIL_ALREADY_EXISTS);
+
+        // var user = request.Adapt<User>();
+        // var docRef = await db.Collection(Collection)
+        //                 .Document(request.Id)
+        //                 .SetAsync(user);
+        // // user.Id = docRef.Id;
+
+        // logger.LogInformation("User created: {UserId}", user.Id);
         return user.Adapt<UserResponse>();
     }
 
