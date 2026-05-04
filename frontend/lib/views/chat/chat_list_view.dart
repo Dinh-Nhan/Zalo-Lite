@@ -8,6 +8,7 @@ import 'package:frontend/utils/app_localizations.dart';
 import 'package:frontend/views/chat/chat_detail_view.dart';
 import 'package:frontend/views/contacts/contacts_view.dart';
 import 'package:frontend/views/settings/settings_dialog.dart';
+import 'package:go_router/go_router.dart';
 
 /// Man hinh danh sach tin nhan - Thiet ke giong Zalo Web
 class ChatListView extends StatefulWidget {
@@ -159,16 +160,26 @@ class _ChatListViewState extends State<ChatListView> {
   }
 
   void _openSettings() {
-    SettingsDialog.show(context);
-  }
+  SettingsDialog.show(
+    context,
+    onLogout: () async {
+      await _logout();
+    },
+  );
+}
 
   void _openAppearanceSettings() {
     SettingsDialog.showAppearance(context);
   }
 
-  void _logout() {
-    AuthService.logout();
-    // context.go('/');
+  Future<void> _logout() async {
+     print("LOGOUT CLICKED");
+  await AuthService.logout();
+  print("LOGOUT DONE");
+
+  if (!mounted) return;
+  context.go('/');
+
   }
 
   @override
@@ -343,8 +354,12 @@ class _ChatListViewState extends State<ChatListView> {
         child: IconButton(
           onPressed: () {
             if (index == 1) {
-              // Settings - show dialog
-              SettingsDialog.show(context);
+              SettingsDialog.show(
+                context,
+                onLogout: () async {
+                  await _logout();
+                },
+              );
             } else {
               setState(() {
                 _selectedNavIndex = index;
@@ -803,7 +818,9 @@ class _ChatListViewState extends State<ChatListView> {
                 title: t.get('logout'),
                 subtitle: t.get('logoutSubtitle'),
                 isDark: isDark,
-                onTap: _logout,
+                onTap: () async {
+                  await _logout();
+                },
                 trailing: Icon(
                   Icons.chevron_right,
                   color: AppColors.getTextSecondary(isDark),

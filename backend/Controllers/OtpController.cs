@@ -7,7 +7,6 @@ namespace backend.Controllers
 {
     [Route("api/otp")]
     [ApiController]
-    [FirebaseAuthorize]
     public class OtpController(OtpService otpService) : ControllerBase
     {
         //private readonly OtpService otpService;
