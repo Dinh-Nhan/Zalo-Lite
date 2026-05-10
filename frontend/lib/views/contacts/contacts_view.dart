@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:frontend/apps/app_locale.dart';
 import 'package:frontend/config/app_colors.dart';
@@ -23,6 +25,8 @@ class _ContactsViewState extends State<ContactsView>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   int _selectedMenuIndex = 0;
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
 
   // NOTE: _mockContacts đã được thay bằng FriendListScreen (API thật).
   // Chỉ giữ _mockGroups vì tab Nhóm chưa có API.
@@ -54,7 +58,17 @@ class _ContactsViewState extends State<ContactsView>
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose();
+    _searchDebounce?.cancel();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 500), () {
+      // TODO: Call backend search API when available
+      debugPrint('Search query: $value');
+    });
   }
 
   @override
@@ -104,6 +118,9 @@ class _ContactsViewState extends State<ContactsView>
     final Color headerBg = isDark
         ? const Color(0xFF1A1A1A)
         : AppColors.primaryBlue;
+    final searchBg = isDark
+        ? const Color(0xFF2A2A2A)
+        : Colors.white.withValues(alpha: 0.25);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       color: headerBg,
@@ -111,31 +128,48 @@ class _ContactsViewState extends State<ContactsView>
         children: [
           Expanded(
             child: Container(
-              height: 32,
+              height: 40,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.25),
-                borderRadius: BorderRadius.circular(4),
+                color: searchBg,
+                borderRadius: BorderRadius.circular(6),
               ),
-              child: TextField(
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-                decoration: InputDecoration(
-                  hintText: t.get('searchPlaceholder'),
-                  hintStyle: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    fontSize: 13,
-                  ),
-                  prefixIcon: Icon(
+              child: Row(
+                children: [
+                  const SizedBox(width: 14),
+                  Icon(
                     Icons.search,
                     color: Colors.white.withValues(alpha: 0.8),
-                    size: 18,
+                    size: 20,
                   ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: _onSearchChanged,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: t.get('searchPlaceholder'),
+                        hintStyle: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.7),
+                          fontSize: 14,
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                ],
               ),
             ),
           ),
           const SizedBox(width: 8),
+          _buildIconBtn(
+            Icons.qr_code_scanner,
+            Colors.white,
+            () {},
+          ),
           _buildIconBtn(
             Icons.person_add_outlined,
             Colors.white,
@@ -409,6 +443,8 @@ class _ContactsViewState extends State<ContactsView>
                         const SizedBox(width: 12),
                         Expanded(
                           child: TextField(
+                            controller: _searchController,
+                            onChanged: _onSearchChanged,
                             style: TextStyle(
                               color: AppColors.getTextPrimary(isDark),
                               fontSize: 14,

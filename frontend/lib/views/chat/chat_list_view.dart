@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend/apps/app_locale.dart';
@@ -8,6 +10,7 @@ import 'package:frontend/utils/app_localizations.dart';
 import 'package:frontend/views/chat/chat_detail_view.dart';
 import 'package:frontend/views/contacts/contacts_view.dart';
 import 'package:frontend/views/settings/settings_dialog.dart';
+import 'package:frontend/features/personal_page/screens/personal_page_screen.dart';
 import 'package:go_router/go_router.dart';
 
 /// Man hinh danh sach tin nhan - Thiet ke giong Zalo Web
@@ -25,6 +28,7 @@ class _ChatListViewState extends State<ChatListView> {
   int _selectedNavIndex = 0;
   Map<String, dynamic>? _selectedConversation;
   bool? _wasWideScreen; // Track previous screen size
+  Timer? _searchDebounce;
 
   final List<Map<String, dynamic>> _mockConversations = [
     {
@@ -110,6 +114,7 @@ class _ChatListViewState extends State<ChatListView> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchDebounce?.cancel();
     super.dispose();
   }
 
@@ -130,7 +135,10 @@ class _ChatListViewState extends State<ChatListView> {
   }
 
   void _onSearchChanged(String value) {
-    setState(() => _searchQuery = value);
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 500), () {
+      setState(() => _searchQuery = value);
+    });
   }
 
   void _onConversationTap(Map<String, dynamic> conversation) {
@@ -210,10 +218,8 @@ class _ChatListViewState extends State<ChatListView> {
                             } else if (_selectedNavIndex == 1) {
                               _selectedNavIndex = 2; // Contacts → Contacts
                             } else {
-                              _selectedNavIndex = 0; // Discover/Profile → Chat
+                              _selectedNavIndex = 0; // Tường nhà/Settings → Chat
                             }
-                            // Keep selected conversation when switching to wide
-                            _selectedConversation = _selectedConversation;
                           });
                         } else {
                           // Wide → Mobile conversion
@@ -225,9 +231,6 @@ class _ChatListViewState extends State<ChatListView> {
                             } else {
                               _selectedNavIndex = 0; // Settings → Chat
                             }
-                            // Clear selected conversation when switching to mobile
-                            // because mobile uses full-screen navigation
-                            _selectedConversation = null;
                           });
                         }
                       });
@@ -261,6 +264,10 @@ class _ChatListViewState extends State<ChatListView> {
                           ] else if (_selectedNavIndex == 2)
                             const Expanded(
                               child: ContactsView(isWideScreen: true),
+                            )
+                          else if (_selectedNavIndex == 3)
+                            const Expanded(
+                              child: PersonalPageScreen(),
                             )
                           else ...[
                             // Default to chat panel for any other index
@@ -329,6 +336,7 @@ class _ChatListViewState extends State<ChatListView> {
           ),
           const SizedBox(height: 20),
           _buildSidebarItem(Icons.chat_bubble, 0, isDark),
+          _buildSidebarItem(Icons.auto_stories_outlined, 3, isDark),
           _buildSidebarItem(Icons.contacts_outlined, 2, isDark),
           const Spacer(),
           _buildSidebarItem(Icons.settings_outlined, 1, isDark),
@@ -360,6 +368,11 @@ class _ChatListViewState extends State<ChatListView> {
                   await _logout();
                 },
               );
+            } else if (index == 3) {
+              setState(() {
+                _selectedNavIndex = index;
+                _selectedConversation = null;
+              });
             } else {
               setState(() {
                 _selectedNavIndex = index;
@@ -1087,12 +1100,8 @@ class _ChatListViewState extends State<ChatListView> {
               _buildChatListPanel(t, isDark),
               // Tab 1: Contacts
               const ContactsView(isWideScreen: false),
-              // Tab 2: Discover (placeholder)
-              _buildPlaceholderTab(
-                t.get('discover'),
-                Icons.explore_outlined,
-                isDark,
-              ),
+              // Tab 2: Tường nhà
+              const PersonalPageScreen(isWideScreen: false),
               // Tab 3: Profile (placeholder)
               _buildPlaceholderTab(
                 t.get('profile'),
