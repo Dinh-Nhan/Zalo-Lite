@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:frontend/component/loading_dialog.dart';
 import 'package:go_router/go_router.dart';
 import 'package:frontend/config/app_colors.dart';
 
 class EnterNameView extends StatefulWidget {
-  const EnterNameView({super.key});
+  const EnterNameView({
+    super.key,
+    required this.email,
+    required this.password,
+    this.name,
+  });
+
+  final String email;
+  final String password;
+  final String? name; // Biến lưu tên để truyền vào API register
 
   @override
   State<EnterNameView> createState() => _EnterNameViewState();
@@ -13,7 +21,7 @@ class EnterNameView extends StatefulWidget {
 
 class _EnterNameViewState extends State<EnterNameView> {
   final TextEditingController _nameController = TextEditingController();
-  
+
   // Các biến trạng thái điều kiện
   bool _isLongEnough = false;
   bool _hasNoNumbers = true;
@@ -27,14 +35,14 @@ class _EnterNameViewState extends State<EnterNameView> {
 
   void _validateName() {
     final text = _nameController.text.trim();
-    
+
     setState(() {
       // 1. Kiểm tra độ dài 2-40
       _isLongEnough = text.length >= 2 && text.length <= 40;
-      
+
       // 2. Kiểm tra không chứa số
       _hasNoNumbers = !RegExp(r'\d').hasMatch(text);
-      
+
       // Nút sáng khi thỏa mãn tất cả (và không để trống)
       _isButtonEnabled = text.isNotEmpty && _isLongEnough && _hasNoNumbers;
     });
@@ -77,7 +85,7 @@ class _EnterNameViewState extends State<EnterNameView> {
               ),
             ),
             const SizedBox(height: 30),
-            
+
             // TextField nhập tên
             TextField(
               controller: _nameController,
@@ -86,14 +94,21 @@ class _EnterNameViewState extends State<EnterNameView> {
               decoration: InputDecoration(
                 hintText: "Nguyễn Văn A",
                 hintStyle: TextStyle(color: Colors.grey.shade300),
-                contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 15),
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 15,
+                  horizontal: 15,
+                ),
                 // Thêm đoạn này để hiện nút X xóa nhanh
                 suffixIcon: _nameController.text.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.cancel, color: Colors.grey, size: 20),
+                        icon: const Icon(
+                          Icons.cancel,
+                          color: Colors.grey,
+                          size: 20,
+                        ),
                         onPressed: () {
                           _nameController.clear();
-                          _validateName(); 
+                          _validateName();
                         },
                       )
                     : null,
@@ -107,7 +122,10 @@ class _EnterNameViewState extends State<EnterNameView> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.primaryBlue, width: 1.5),
+                  borderSide: const BorderSide(
+                    color: AppColors.primaryBlue,
+                    width: 1.5,
+                  ),
                 ),
               ),
             ),
@@ -116,10 +134,14 @@ class _EnterNameViewState extends State<EnterNameView> {
             // Các dòng điều kiện
             _buildConditionItem("Dài từ 2 đến 40 ký tự", _isLongEnough),
             _buildConditionItem("Không chứa số", _hasNoNumbers),
-            _buildConditionItem("Tuân thủ các quy định đặt tên Zalo", true, isLink: true),
+            _buildConditionItem(
+              "Tuân thủ các quy định đặt tên Zalo",
+              true,
+              isLink: true,
+            ),
 
             const Spacer(),
-            
+
             // Nút Tiếp tục
             SizedBox(
               width: double.infinity,
@@ -140,13 +162,21 @@ class _EnterNameViewState extends State<EnterNameView> {
 
                         // 4. Chuyển trang
                         if (context.mounted) {
-                          context.go('/personal-info');
+                          context.push(
+                            '/personal-info',
+                            extra: {
+                              'email': widget.email,
+                              'password': widget.password,
+                              'name': _nameController.text.trim(),
+                            },
+                          );
                         }
                       }
                     : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryBlue,
-                  disabledBackgroundColor: Colors.grey.shade200, // Màu khi chưa đủ điều kiện
+                  disabledBackgroundColor:
+                      Colors.grey.shade200, // Màu khi chưa đủ điều kiện
                   elevation: 0,
                   shape: const StadiumBorder(), // Bo góc tròn chuẩn Zalo
                 ),
@@ -156,7 +186,9 @@ class _EnterNameViewState extends State<EnterNameView> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: _isButtonEnabled ? Colors.white : Colors.grey.shade400,
+                    color: _isButtonEnabled
+                        ? Colors.white
+                        : Colors.grey.shade400,
                   ),
                 ),
               ),
@@ -172,22 +204,20 @@ class _EnterNameViewState extends State<EnterNameView> {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Text(
-            "• ",
-            style: TextStyle(color: isMet ? Colors.grey : Colors.red),
-          ),
+          Text("• ", style: TextStyle(color: isMet ? Colors.grey : Colors.red)),
           Expanded(
             child: RichText(
               text: TextSpan(
                 style: const TextStyle(fontSize: 14, color: Colors.grey),
                 children: [
-                  TextSpan(
-                    text: text.replaceAll("quy định đặt tên Zalo", ""),
-                  ),
+                  TextSpan(text: text.replaceAll("quy định đặt tên Zalo", "")),
                   if (isLink)
                     const TextSpan(
                       text: "quy định đặt tên Zalo",
-                      style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                 ],
               ),

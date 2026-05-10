@@ -6,7 +6,6 @@ import 'package:frontend/providers/call_provider.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'config/app_theme.dart';
-import 'firebase_options.dart';
 
 /// Điểm khởi chạy ứng dụng Zalo Lite
 void main() async {
