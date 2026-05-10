@@ -22,11 +22,22 @@ var credential = CredentialFactory
     .FromFile<ServiceAccountCredential>(credentialPath)
     .ToGoogleCredential();
 
+<<<<<<< HEAD
 FirebaseApp.Create(new AppOptions()
 {
     Credential = credential,
     ProjectId = projectId
 });
+=======
+// FirebaseApp.Create(new AppOptions()
+// {
+//     Credential = credential,
+//     ProjectId = projectId
+// });
+
+// background service
+builder.Services.AddHostedService<StoryExpirationService>();
+>>>>>>> 6c973c6 (feature conversation)
 
 
 //var builder = WebApplication.CreateBuilder(args);
@@ -73,7 +84,34 @@ builder.Services.AddSingleton(sp =>
 // builder.Services.AddScoped<UserService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+<<<<<<< HEAD
 builder.Services.AddSwaggerGen();
+=======
+// add options using bearer token to verify access token when request api
+builder.Services.AddSwaggerGen(
+    options =>
+{
+    // config xml for comment in controller to explain api
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    options.IncludeXmlComments(xmlPath);
+
+
+    //require bearer token for per request in backend
+    options.OperationFilter<AuthorizeCheckOperationFilter>();
+
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Nhập token theo định dạng: Bearer {token}"
+    });
+}
+);
+>>>>>>> 6c973c6 (feature conversation)
 
 // ── SignalR ──────────────────────────────────────
 builder.Services.AddSignalR();
@@ -109,5 +147,6 @@ app.UseMiddleware<FirebaseAuthMiddleware>();
 
 app.MapControllers();
 app.MapHub<FriendHub>("/hubs/friend");
+app.MapHub<ChatHub>("/hubs/chat");
 
 app.Run();

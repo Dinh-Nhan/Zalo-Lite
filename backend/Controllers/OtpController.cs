@@ -1,4 +1,5 @@
-﻿using backend.dtos.Response;
+﻿using backend.common;
+using backend.dtos.Response;
 using backend.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -23,49 +24,30 @@ namespace backend.Controllers
             //validate email format
             if (!email.Contains("@"))
             {
-                return BadRequest(new ApiResponse<object>
-                {
-                    Code = 400,
-                    Message = "Invalid email format",
-                    Result = false,
-                });
+                return BadRequest(ApiResponse<object>.ErrorResponse(400, "Invalid email format"));
             }
 
             var generatedOtp = await otpService.GenerateOtpAsync(email);
 
-            return Ok(new ApiResponse<OtpResponse>
+            return Ok(ApiResponse<OtpResponse>.SuccessResponse(new OtpResponse
             {
-                Code = 200,
-                Result = new OtpResponse
-                {
-                    Otp = generatedOtp,
-                    Email = email
-                }
-            });
+                Otp = generatedOtp,
+                Email = email
+            }));
         }
 
         [HttpPost("verify")]
         public async Task<IActionResult> VerifyOtp(string email, string otp)
         {
             var result = await otpService.VerifyOtpAsync(email, otp);
-            
+
             if(!result)
             {
                 var message = await otpService.MessageVerifyOtpAsync(email, otp);
-                return BadRequest(new ApiResponse<object>
-                {
-                    Code = 400,
-                    Message = message,
-                    Result = false,
-                });
+                return BadRequest(ApiResponse<object>.ErrorResponse(400, message));
             }
 
-            return Ok(new ApiResponse<object>
-            {
-                Code = 200,
-                Message = "OTP verified successfully",
-                Result = true,            
-            });
+            return Ok(ApiResponse<object>.SuccessResponse(true, "OTP verified successfully"));
         }
     }
 }
