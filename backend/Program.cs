@@ -15,19 +15,7 @@ using StackExchange.Redis;
 var builder = WebApplication.CreateBuilder(args);
 
 // ── Firebase ───────────────────────────────────────────────
-var firebaseConfig = builder.Configuration.GetSection("Firebase");
-var projectId = firebaseConfig["ProjectId"];
-var credentialPath = firebaseConfig["CredentialsFilePath"];
-
-var credential = CredentialFactory
-    .FromFile<ServiceAccountCredential>(credentialPath)
-    .ToGoogleCredential();
-
-FirebaseApp.Create(new AppOptions()
-{
-    Credential = credential,
-    ProjectId = projectId
-});
+// Firebase initialization is handled by FirebaseService (registered below)
 
 // ── Serilog ────────────────────────────────────────────────
 builder.Host.UseSerilog((ctx, config) => config
@@ -92,6 +80,10 @@ builder.Services.AddCors(opt =>
 // ══════════════════════════════════════════════════════════
 var app = builder.Build();
 
+// ── Warm-up Firebase ───────────────────────────────────────
+// Initialize FirebaseService immediately to ensure FirebaseApp.DefaultInstance is ready
+app.Services.GetRequiredService<FirebaseService>();
+
 // 1. Bắt exception toàn cục — phải đứng đầu tiên
 app.UseMiddleware<GlobalExceptionHandler>();
 
@@ -116,6 +108,7 @@ app.UseCors();
 app.UseMiddleware<FirebaseAuthMiddleware>();
 
 // 7. Authorization
+app.UseAuthentication();
 app.UseAuthorization();
 
 // 8. Endpoints

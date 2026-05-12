@@ -1,12 +1,15 @@
 using FirebaseAdmin.Auth;
+using Microsoft.Extensions.Logging;
 
 public class FirebaseAuthMiddleware
 {
     private readonly RequestDelegate _next;
+    private readonly ILogger<FirebaseAuthMiddleware> _logger;
 
-    public FirebaseAuthMiddleware(RequestDelegate next)
+    public FirebaseAuthMiddleware(RequestDelegate next, ILogger<FirebaseAuthMiddleware> logger)
     {
         _next = next;
+        _logger = logger;
     }
 
     public async Task Invoke(HttpContext context)
@@ -15,20 +18,27 @@ public class FirebaseAuthMiddleware
 
         if (!string.IsNullOrEmpty(header) && header.StartsWith("Bearer "))
         {
-            var token = header.Substring("Bearer ".Length);
+            var token = header.Substring("Bearer ".Length).Trim();
 
             try
             {
+                _logger.LogInformation("Verifying Firebase token (length={Length})...", token.Length);
+
                 var decoded = await FirebaseAuth.DefaultInstance
-                    .VerifyIdTokenAsync(token, true);
+                    .VerifyIdTokenAsync(token);  // ← Bỏ checkRevoked: true
 
                 context.Items["User"] = decoded;
+                _logger.LogInformation("Token verified OK — uid={Uid}", decoded.Uid);
             }
-            catch
+            catch (Exception ex)
             {
-                // Token sai → không set user
                 context.Items["User"] = null;
+                _logger.LogWarning("Token verification FAILED: [{Type}] {Message}", ex.GetType().Name, ex.Message);
             }
+        }
+        else
+        {
+            _logger.LogWarning("No Bearer token in request to {Path}", context.Request.Path);
         }
 
         await _next(context);

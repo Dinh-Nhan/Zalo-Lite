@@ -7,6 +7,7 @@ namespace backend.dtos.Request
 {
     public class CreateUserRequest
     {
+    public string? Id { get; set; }  // ← Optional: dùng cho register flow (khi chưa có token)
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;

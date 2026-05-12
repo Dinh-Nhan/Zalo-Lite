@@ -1,16 +1,19 @@
-using Google.Cloud.Firestore;
-using backend.Models;
 using backend.Attributes;
-using backend.dtos.Response;
-using backend.Exceptions;
-using backend.Enums;
-using Mapster;
 using backend.dtos.Request;
+using backend.dtos.Response;
+using backend.Enums;
+using backend.Exceptions;
+using backend.Models;
+using Google.Cloud.Firestore;
+using Google.Cloud.Firestore.V1;
+using Mapster;
+using StackExchange.Redis;
+using System.Text.Json;
 
 namespace backend.Services;
 
 [ScopedService]
-public class UserService(FirestoreDb db, ILogger<UserService> logger)
+public class UserService(FirestoreDb db, ILogger<UserService> logger, RedisService _redis)
 {
     private const string Collection = "users";
 
@@ -81,5 +84,44 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger)
 
         await docRef.DeleteAsync();
         logger.LogInformation("User deleted: {UserId}", id);
+    }
+
+    public async Task<List<UserRequestDto>> SearchUser(string keyword)
+    {
+        string cacheKey = $"search:user:{keyword.ToLower()}";
+
+        var cached = await _redis.GetAsync(cacheKey);
+
+        if (!string.IsNullOrEmpty(cached))
+        {
+            return JsonSerializer.Deserialize<List<UserRequestDto>>(cached)!;
+        }
+
+        var snapshot = await db
+            .Collection("users")
+            .WhereGreaterThanOrEqualTo("email", keyword)
+            .WhereLessThanOrEqualTo("email", keyword + "\uf8ff")
+            .Limit(10)
+            .GetSnapshotAsync();
+
+        var users = snapshot.Documents
+            .Select(x => {
+                var user = x.ConvertTo<User>();
+                return new UserRequestDto
+                {
+                    Email = user.Email,
+                    FullName = $"{user.FirstName} {user.LastName}".Trim(),
+                    Avatar = user.Avatar,
+                    Id = user.Id
+                };
+            })
+            .ToList();
+
+        await _redis.SetAsync(
+            cacheKey,
+            JsonSerializer.Serialize(users),
+            TimeSpan.FromMinutes(1));
+
+        return users;
     }
 }

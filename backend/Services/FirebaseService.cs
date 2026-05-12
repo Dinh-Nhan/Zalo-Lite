@@ -29,26 +29,36 @@ public class FirebaseService
             throw new InvalidOperationException("Missing Firebase:ProjectId in appsettings.json.");
         }
 
-        if (FirebaseApp.DefaultInstance == null)
-        {
-            var credential = GoogleCredential.FromFile(credentialsFilePath);
-            FirebaseApp.Create(new AppOptions
-            {
-                Credential = credential
-            });
-        }
-
+        // Resolve full path
         var resolvedPath = Path.GetFullPath(credentialsFilePath, AppContext.BaseDirectory);
         if (!File.Exists(resolvedPath))
         {
             throw new FileNotFoundException($"Firebase credentials file not found: {resolvedPath}", resolvedPath);
         }
 
-        var firestoreCredential = GoogleCredential.FromFile(resolvedPath);
+        // Create credential using CredentialFactory (non-deprecated method)
+        var credential = CredentialFactory
+            .FromFile<ServiceAccountCredential>(resolvedPath)
+            .ToGoogleCredential();
+
+        // Initialize FirebaseApp once
+        if (FirebaseApp.DefaultInstance == null)
+        {
+            FirebaseApp.Create(new AppOptions
+            {
+                Credential = credential,
+                ProjectId = projectId
+            });
+        }
+
+        // Set environment variable for Firestore to use the same credentials
+        Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", resolvedPath);
+
+        // Initialize Firestore
         FirestoreDb = new FirestoreDbBuilder
         {
             ProjectId = projectId,
-            Credential = firestoreCredential
+            Credential = credential
         }.Build();
     }
 
