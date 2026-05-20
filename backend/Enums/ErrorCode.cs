@@ -84,6 +84,7 @@ namespace backend.Enums
 
     [ErrorMeta(6010, "You have already blocked this user", HttpStatusCode.Conflict)]
     ALREADY_BLOCKED,
+        USER_ALREADY_EXISTS,
     }
 
     [AttributeUsage(AttributeTargets.Field)]

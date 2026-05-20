@@ -17,10 +17,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -28,15 +25,9 @@ class DefaultFirebaseOptions {
       case TargetPlatform.iOS:
         return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -64,5 +55,32 @@ class DefaultFirebaseOptions {
     projectId: 'zalo-lite-47899',
     storageBucket: 'zalo-lite-47899.firebasestorage.app',
     iosBundleId: 'com.example.frontend',
+  );
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyCifnV49y6chIf-5Tfsyrh_jC6nurNe3UU',
+    appId: '1:1040826455699:web:85f34a5d6dd3fec8675f66',
+    messagingSenderId: '1040826455699',
+    projectId: 'zalo-lite-47899',
+    authDomain: 'zalo-lite-47899.firebaseapp.com',
+    storageBucket: 'zalo-lite-47899.firebasestorage.app',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyD_a8AxTDvB13GAmu8gXvNMr6eqXDnl2n8',
+    appId: '1:1040826455699:ios:a2fffd080e40e3c7675f66',
+    messagingSenderId: '1040826455699',
+    projectId: 'zalo-lite-47899',
+    storageBucket: 'zalo-lite-47899.firebasestorage.app',
+    iosBundleId: 'com.example.frontend',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyCifnV49y6chIf-5Tfsyrh_jC6nurNe3UU',
+    appId: '1:1040826455699:web:8b009046c857e19e675f66',
+    messagingSenderId: '1040826455699',
+    projectId: 'zalo-lite-47899',
+    authDomain: 'zalo-lite-47899.firebaseapp.com',
+    storageBucket: 'zalo-lite-47899.firebasestorage.app',
   );
 }

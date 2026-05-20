@@ -45,14 +45,15 @@ namespace backend.Middleware
             var meta = ex.ErrorCode.GetMeta();
             context.Response.StatusCode = (int)meta.HttpStatus;
 
-            logger.LogWarning("[{TraceId}] {ErrorCode}: {Message}", 
+            logger.LogWarning("[{TraceId}] {ErrorCode}: {Message}",
                 traceId, ex.ErrorCode, ex.Message);
 
             return new ApiResponse<ErrorDetail>
             {
+                Success = false,
                 Code = meta.Code,
                 Message = meta.Message,
-                Result = new ErrorDetail
+                Data = new ErrorDetail
                 {
                     ErrorCode = ex.ErrorCode.ToString(),
                     TraceId = traceId
@@ -72,9 +73,10 @@ namespace backend.Middleware
 
             return new ApiResponse<ErrorDetail>
             {
+                Success = false,
                 Code = meta.Code,
                 Message = meta.Message,
-                Result = new ErrorDetail
+                Data = new ErrorDetail
                 {
                     ErrorCode = ErrorCode.VALIDATION_ERROR.ToString(),
                     TraceId = traceId,
@@ -86,7 +88,7 @@ namespace backend.Middleware
         private ApiResponse<ErrorDetail> HandleUnknown(
             Exception ex, string traceId, HttpContext context)
         {
-            logger.LogError(ex, "[{TraceId}] Unhandled exception: {Message}", 
+            logger.LogError(ex, "[{TraceId}] Unhandled exception: {Message}",
                 traceId, ex.Message);
 
             var meta = ErrorCode.INTERNAL_ERROR.GetMeta();
@@ -94,9 +96,10 @@ namespace backend.Middleware
 
             return new ApiResponse<ErrorDetail>
             {
+                Success = false,
                 Code = meta.Code,
                 Message = meta.Message,
-                Result = new ErrorDetail
+                Data = new ErrorDetail
                 {
                     ErrorCode = ErrorCode.INTERNAL_ERROR.ToString(),
                     TraceId = traceId,

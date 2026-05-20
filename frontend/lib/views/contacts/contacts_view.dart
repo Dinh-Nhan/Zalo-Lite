@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/apps/app_locale.dart';
-import 'package:frontend/utils/app_localizations.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/config/dark_mode_config.dart';
+import 'package:frontend/features/friends/screens/add_friend_screen.dart';
 import 'package:frontend/features/friends/screens/friend_list_screen.dart';
 import 'package:frontend/features/friends/screens/friend_requests_screen.dart';
-import 'package:frontend/features/friends/screens/add_friend_screen.dart';
+import 'package:frontend/utils/app_localizations.dart';
 
 /// Màn hình Danh bạ - Contacts View
 /// Giao diện nhỏ (mobile): hiển thị tabs Bạn bè / Nhóm
@@ -101,8 +101,9 @@ class _ContactsViewState extends State<ContactsView>
   }
 
   Widget _buildMobileHeader(AppLocalizations t, bool isDark) {
-    final Color headerBg =
-        isDark ? const Color(0xFF1A1A1A) : AppColors.primaryBlue;
+    final Color headerBg = isDark
+        ? const Color(0xFF1A1A1A)
+        : AppColors.primaryBlue;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       color: headerBg,
@@ -158,8 +159,10 @@ class _ContactsViewState extends State<ContactsView>
         indicatorColor: AppColors.primaryBlue,
         indicatorWeight: 2,
         labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-        unselectedLabelStyle:
-            const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
+        unselectedLabelStyle: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+        ),
         tabs: [
           Tab(text: t.get('friends')),
           Tab(text: t.get('groups')),
@@ -179,9 +182,7 @@ class _ContactsViewState extends State<ContactsView>
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          ..._mockGroups.map(
-            (group) => _buildGroupTile(group, t, isDark),
-          ),
+          ..._mockGroups.map((group) => _buildGroupTile(group, t, isDark)),
         ],
       ),
     );
@@ -222,11 +223,7 @@ class _ContactsViewState extends State<ContactsView>
       color: isDark ? AppColors.darkSurface : Colors.white,
       child: Row(
         children: [
-          _buildChip(
-            '${t.get('allContacts')} 0',
-            true,
-            isDark,
-          ),
+          _buildChip('${t.get('allContacts')} 0', true, isDark),
           const SizedBox(width: 8),
           _buildChip(t.get('recentAccess'), false, isDark),
         ],
@@ -240,13 +237,15 @@ class _ContactsViewState extends State<ContactsView>
       decoration: BoxDecoration(
         color: isSelected
             ? (isDark
-                ? AppColors.primaryBlue.withValues(alpha: 0.2)
-                : AppColors.primaryBlue.withValues(alpha: 0.1))
+                  ? AppColors.primaryBlue.withValues(alpha: 0.2)
+                  : AppColors.primaryBlue.withValues(alpha: 0.1))
             : (isDark ? AppColors.darkCard : AppColors.backgroundGray),
         borderRadius: BorderRadius.circular(16),
         border: isSelected
             ? Border.all(
-                color: AppColors.primaryBlue.withValues(alpha: 0.3), width: 1)
+                color: AppColors.primaryBlue.withValues(alpha: 0.3),
+                width: 1,
+              )
             : null,
       ),
       child: Text(
@@ -307,7 +306,11 @@ class _ContactsViewState extends State<ContactsView>
     );
   }
 
-  Widget _buildGroupTile(Map<String, dynamic> group, AppLocalizations t, bool isDark) {
+  Widget _buildGroupTile(
+    Map<String, dynamic> group,
+    AppLocalizations t,
+    bool isDark,
+  ) {
     return Container(
       color: isDark ? AppColors.darkSurface : Colors.white,
       child: ListTile(
@@ -390,13 +393,19 @@ class _ContactsViewState extends State<ContactsView>
                   child: Container(
                     height: 40,
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF5F5F5),
+                      color: isDark
+                          ? const Color(0xFF2A2A2A)
+                          : const Color(0xFFF5F5F5),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Row(
                       children: [
                         const SizedBox(width: 14),
-                        Icon(Icons.search, color: AppColors.getTextSecondary(isDark), size: 20),
+                        Icon(
+                          Icons.search,
+                          color: AppColors.getTextSecondary(isDark),
+                          size: 20,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: TextField(
@@ -438,15 +447,18 @@ class _ContactsViewState extends State<ContactsView>
               child: Material(
                 color: isSelected
                     ? (isDark
-                        ? const Color(0xFF2A2A2A)
-                        : const Color(0xFFE8F0FE))
+                          ? const Color(0xFF2A2A2A)
+                          : const Color(0xFFE8F0FE))
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(4),
                 child: InkWell(
                   onTap: () => setState(() => _selectedMenuIndex = index),
                   borderRadius: BorderRadius.circular(4),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     child: Row(
                       children: [
                         Icon(
@@ -462,8 +474,9 @@ class _ContactsViewState extends State<ContactsView>
                             item['label'] as String,
                             style: TextStyle(
                               fontSize: 14,
-                              fontWeight:
-                                  isSelected ? FontWeight.w600 : FontWeight.w400,
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
                               color: isSelected
                                   ? AppColors.primaryBlue
                                   : AppColors.getTextPrimary(isDark),
@@ -494,17 +507,15 @@ class _ContactsViewState extends State<ContactsView>
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF242424) : Colors.white,
               border: Border(
-                bottom:
-                    BorderSide(color: AppColors.getDivider(isDark), width: 1),
+                bottom: BorderSide(
+                  color: AppColors.getDivider(isDark),
+                  width: 1,
+                ),
               ),
             ),
             child: Row(
               children: [
-                Icon(
-                  _getContentIcon(),
-                  size: 20,
-                  color: AppColors.primaryBlue,
-                ),
+                Icon(_getContentIcon(), size: 20, color: AppColors.primaryBlue),
                 const SizedBox(width: 10),
                 Text(
                   _getContentTitle(t),
@@ -596,7 +607,9 @@ class _ContactsViewState extends State<ContactsView>
               child: Container(
                 height: 34,
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF0F2F5),
+                  color: isDark
+                      ? const Color(0xFF2A2A2A)
+                      : const Color(0xFFF0F2F5),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: TextField(
@@ -632,7 +645,9 @@ class _ContactsViewState extends State<ContactsView>
                 height: 34,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF0F2F5),
+                  color: isDark
+                      ? const Color(0xFF2A2A2A)
+                      : const Color(0xFFF0F2F5),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Row(
@@ -668,7 +683,9 @@ class _ContactsViewState extends State<ContactsView>
                 height: 34,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF0F2F5),
+                  color: isDark
+                      ? const Color(0xFF2A2A2A)
+                      : const Color(0xFFF0F2F5),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Row(
@@ -758,14 +775,15 @@ class _ContactsViewState extends State<ContactsView>
 
     return Container(
       color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: items,
-      ),
+      child: ListView(padding: EdgeInsets.zero, children: items),
     );
   }
 
-  Widget _buildWideContactTile(Map<String, dynamic> contact, bool isDark, {bool isNew = false}) {
+  Widget _buildWideContactTile(
+    Map<String, dynamic> contact,
+    bool isDark, {
+    bool isNew = false,
+  }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -830,7 +848,11 @@ class _ContactsViewState extends State<ContactsView>
     );
   }
 
-  Widget _buildWideGroupTile(Map<String, dynamic> group, AppLocalizations t, bool isDark) {
+  Widget _buildWideGroupTile(
+    Map<String, dynamic> group,
+    AppLocalizations t,
+    bool isDark,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -924,10 +946,7 @@ class _ContactsViewState extends State<ContactsView>
           const SizedBox(height: 8),
           Text(
             'Khi nào tôi nhận được lời mời?',
-            style: TextStyle(
-              fontSize: 13,
-              color: AppColors.primaryBlue,
-            ),
+            style: TextStyle(fontSize: 13, color: AppColors.primaryBlue),
           ),
         ],
       ),

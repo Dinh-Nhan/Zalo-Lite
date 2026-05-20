@@ -14,6 +14,7 @@ class FriendshipModel {
   // Enriched fields (có trong received requests)
   final String? senderName;
   final String? senderAvatar;
+  final String addresseeName;
 
   const FriendshipModel({
     required this.id,
@@ -23,6 +24,7 @@ class FriendshipModel {
     required this.sourceType,
     required this.createdAt,
     required this.updatedAt,
+    required this.addresseeName,
     this.senderName,
     this.senderAvatar,
   });
@@ -38,6 +40,7 @@ class FriendshipModel {
         updatedAt: DateTime.tryParse(json['updatedAt'] ?? '') ?? DateTime.now(),
         senderName: json['senderName'] as String?,
         senderAvatar: json['senderAvatar'] as String?,
+        addresseeName: json['addresseeName'] as String,
       );
 }
 

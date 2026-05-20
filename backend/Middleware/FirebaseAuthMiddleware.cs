@@ -1,4 +1,5 @@
 using FirebaseAdmin.Auth;
+using System.Security.Claims;
 
 public class FirebaseAuthMiddleware
 {
@@ -27,11 +28,16 @@ public class FirebaseAuthMiddleware
                     .VerifyIdTokenAsync(token);
 
                 context.Items["User"] = decoded;
+                context.User = new ClaimsPrincipal(new ClaimsIdentity(
+                    new[] { new Claim(ClaimTypes.NameIdentifier, decoded.Uid) },
+                    "Firebase"));
+
                 _logger.LogInformation("Token verified OK — uid={Uid}", decoded.Uid);
             }
             catch (Exception ex)
             {
                 context.Items["User"] = null;
+                context.User = new ClaimsPrincipal();
                 _logger.LogWarning("Token verification FAILED: [{Type}] {Message}", ex.GetType().Name, ex.Message);
             }
         }

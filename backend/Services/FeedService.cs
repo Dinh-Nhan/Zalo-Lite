@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -11,6 +11,7 @@ using backend.Models;
 using Google.Cloud.Firestore;
 using Mapster;
 using MapsterMapper;
+using Microsoft.Extensions.Logging;
 
 namespace backend.Services
 {
@@ -18,11 +19,12 @@ namespace backend.Services
     public class FeedService(FirestoreDb db, ILogger<FeedService> logger)
     {
         private static string COLLECTION = "feeds";
-        public async Task<FeedResponse> createFeed(String userId, CreateFeedRequest request)
+
+        public async Task<FeedResponse> CreateFeedAsync(string userId, CreateFeedRequest request)
         {
             var feed = request.Adapt<Feeds>();
 
-            feed.UserId = userId;           // lấy từ token
+            feed.UserId = userId;
             feed.CreateAt = DateTime.UtcNow;
             feed.DeletedAt = null;
             feed.Type = request.Type;
@@ -30,13 +32,13 @@ namespace backend.Services
             {
                 IsExpired = false,
                 ExpiresAt = request.Type == "story"
-                    ? DateTime.UtcNow.AddHours(24)  // story hết hạn sau 24h
+                    ? DateTime.UtcNow.AddHours(24)
                     : null
             };
             feed.Stats = new Stats
             {
-                Views = [],
-                Likes = []
+                Views = new List<string>(),
+                Likes = new List<string>()
             };
 
             var docRef = await db.Collection(COLLECTION).AddAsync(feed);
@@ -44,12 +46,8 @@ namespace backend.Services
 
             logger.LogInformation("[{UserId}] Feed created: {FeedId}", userId, feed.Id);
 
-            // Map Feeds → FeedResponse
-            // Stats.IsLiked cần biết current user → tính thêm sau khi map
-            var response = feed.Adapt<FeedResponse>();
-            return response;
+            return feed.Adapt<FeedResponse>();
         }
-
 
         public async Task<FeedResponse> GetByIdAsync(string id, string currentUserId)
         {
@@ -61,8 +59,6 @@ namespace backend.Services
             var feed = snapshot.ConvertTo<Feeds>();
             var response = feed.Adapt<FeedResponse>();
 
-            // IsLiked không map được trong config vì cần currentUserId
-            // → dùng with expression để set thêm sau khi map
             return response with
             {
                 Stats = new StatsResponse
@@ -74,7 +70,37 @@ namespace backend.Services
             };
         }
 
-        
-    }
+        public Task<List<FeedResponse>> GetStoriesAsync(string currentUserId)
+            => Task.FromResult(new List<FeedResponse>());
 
+        public Task<List<FeedResponse>> GetNewsfeedAsync(string currentUserId)
+            => Task.FromResult(new List<FeedResponse>());
+
+        public Task<LikeResponse> ToggleLikeAsync(string feedId, string currentUserId)
+            => Task.FromResult(new LikeResponse { LikeCount = 0, IsLiked = false });
+
+        public Task<LikesListResponse> GetLikesAsync(string feedId, string currentUserId)
+            => Task.FromResult(new LikesListResponse { TotalLikes = 0, UserIds = new List<string>() });
+
+        public Task<ViewResponse> TrackViewAsync(string feedId, string currentUserId)
+            => Task.FromResult(new ViewResponse { ViewCount = 0 });
+
+        public Task<ViewersListResponse> GetViewersAsync(string feedId, string currentUserId)
+            => Task.FromResult(new ViewersListResponse { ViewerCount = 0, ViewerIds = new List<string>() });
+
+        public Task<HideResponse> ToggleHidePostAsync(string feedId, string currentUserId)
+            => Task.FromResult(new HideResponse { IsHidden = true });
+
+        public Task<FeedResponse> UpdateFeedAsync(string feedId, string currentUserId, UpdateFeedRequest request)
+            => Task.FromResult(new FeedResponse());
+
+        public Task DeleteFeedAsync(string feedId, string currentUserId)
+            => Task.CompletedTask;
+
+        public Task<List<FeedResponse>> GetFeedsByUserIdAsync(string userId, string currentUserId)
+            => Task.FromResult(new List<FeedResponse>());
+
+        public Task<List<FeedResponse>> GetAllFeedDeletedAsync(string currentUserId, string type)
+            => Task.FromResult(new List<FeedResponse>());
+    }
 }

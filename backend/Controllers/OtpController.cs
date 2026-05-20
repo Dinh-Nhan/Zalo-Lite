@@ -1,4 +1,5 @@
-﻿using backend.dtos.Response;
+﻿using backend.common;
+using backend.dtos.Response;
 using backend.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -20,16 +21,19 @@ namespace backend.Controllers
         [HttpPost("generate")]
         public async Task<IActionResult> GenerateOtp(string email)
         {
-            var generatedOtp = await otpService.GenerateOtpAsync(email);
-            return Ok(new ApiResponse<OtpResponse>
+            //validate email format
+            if (!email.Contains("@"))
             {
-                Code = 200,
-                Result = new OtpResponse
-                {
-                    Otp = generatedOtp,
-                    Email = email
-                }
-            });
+                return BadRequest(ApiResponse<object>.ErrorResponse(400, "Invalid email format"));
+            }
+
+            var generatedOtp = await otpService.GenerateOtpAsync(email);
+
+            return Ok(ApiResponse<OtpResponse>.SuccessResponse(new OtpResponse
+            {
+                Otp = generatedOtp,
+                Email = email
+            }));
         }
 
         [HttpPost("verify")]
@@ -39,20 +43,11 @@ namespace backend.Controllers
 
             if(!result)
             {
-                return BadRequest(new ApiResponse<object>
-                {
-                    Code = 400,
-                    Message = "Not implemented",
-                    Result = false,
-                });
+                var message = await otpService.MessageVerifyOtpAsync(email, otp);
+                return BadRequest(ApiResponse<object>.ErrorResponse(400, message));
             }
 
-            return Ok(new ApiResponse<object>
-            {
-                Code = 200,
-                Message = "Verify Otp Success",
-                Result = true,            
-            });
+            return Ok(ApiResponse<object>.SuccessResponse(true, "OTP verified successfully"));
         }
     }
 }

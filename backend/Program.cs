@@ -3,6 +3,8 @@ using backend.Attributes;
 using backend.Hubs;
 using backend.Middleware;
 using backend.Services;
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Mapster;
@@ -12,15 +14,17 @@ using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Firebase được khởi tạo bởi FirebaseService (singleton) — không khởi tạo lại ở đây
+// ── Firebase ───────────────────────────────────────────────
+// Firebase initialization is handled by FirebaseService (registered below)
 
+// ── Serilog ────────────────────────────────────────────────
 builder.Host.UseSerilog((ctx, config) => config
     .ReadFrom.Configuration(ctx.Configuration)
     .Enrich.FromLogContext()
     .WriteTo.Console(outputTemplate:
         "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext} | {Message}{NewLine}{Exception}"));
 
-// ── Redis ────────────────────────────────────────────────
+// ── Redis ──────────────────────────────────────────────────
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
     var config = builder.Configuration["Redis:ConnectString"]!;
@@ -47,52 +51,67 @@ builder.Services.Scan(scan => scan
 // ── Middleware ─────────────────────────────────────────────
 builder.Services.AddTransient<GlobalExceptionHandler>();
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+// ── Firebase & Firestore ───────────────────────────────────
 builder.Services.AddSingleton<FirebaseService>();
-builder.Services.AddSingleton(sp => 
+builder.Services.AddSingleton(sp =>
     sp.GetRequiredService<FirebaseService>().FirestoreDb);
 
-// builder.Services.AddScoped<UserService>();
+// ── Controllers, Swagger ───────────────────────────────────
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// ── SignalR ──────────────────────────────────────
+// ── SignalR ────────────────────────────────────────────────
 builder.Services.AddSignalR();
 
-// ── CORS (cần thiết cho Flutter Web / dev) ────────────────
+// ── CORS ───────────────────────────────────────────────────
 builder.Services.AddCors(opt =>
 {
     opt.AddDefaultPolicy(policy =>
         policy
             .AllowAnyHeader()
             .AllowAnyMethod()
-            .SetIsOriginAllowed(_ => true) // dev only
+            .SetIsOriginAllowed(_ => true) // dev only — thu hẹp lại khi lên production
             .AllowCredentials());
 });
 
+// ══════════════════════════════════════════════════════════
+//  PIPELINE — đúng thứ tự ASP.NET Core
+// ══════════════════════════════════════════════════════════
 var app = builder.Build();
 
-// ── Warm-up: khởi tạo FirebaseService ngay khi app start
-// để FirebaseApp.DefaultInstance sẵn sàng trước khi có request
+// ── Warm-up Firebase ───────────────────────────────────────
+// Initialize FirebaseService immediately to ensure FirebaseApp.DefaultInstance is ready
 app.Services.GetRequiredService<FirebaseService>();
 
+// 1. Bắt exception toàn cục — phải đứng đầu tiên
 app.UseMiddleware<GlobalExceptionHandler>();
 
-// Configure the HTTP request pipeline.
+// 2. HTTPS redirect
+app.UseHttpsRedirection();
+
+// 3. Swagger (chỉ dev)
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseCors();
-app.UseHttpsRedirection();
+// 4. Routing — phải trước CORS & Auth
 app.UseRouting();
 
+// 5. CORS — sau Routing, trước Auth
+app.UseCors();
+
+// 6. Firebase Auth Middleware — parse & validate token,
+//    gắn claims vào HttpContext trước khi UseAuthorization chạy
 app.UseMiddleware<FirebaseAuthMiddleware>();
 
+// 7. Authorization
+app.UseAuthentication();
+app.UseAuthorization();
+
+// 8. Endpoints
 app.MapControllers();
 app.MapHub<FriendHub>("/hubs/friend");
 

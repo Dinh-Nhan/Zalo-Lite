@@ -21,4 +21,7 @@ public class FriendshipResponse
 
     /// <summary>Avatar URL của người gửi lời mời (nullable)</summary>
     public string? SenderAvatar { get; init; }
+
+    /// <summary>Tên của người nhận lời mời (nullable)</summary>
+    public string? AddresseeName { get; init; }
 }

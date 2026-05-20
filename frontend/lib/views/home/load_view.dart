@@ -1,7 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../config/app_colors.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../config/app_colors.dart';
+
 /// Màn hình splash (loading) - Hiển thị logo Zalo trên nền xanh
 /// Tự động chuyển sang HomeView sau 5 giây với hiệu ứng chuyển cảnh mượt mà
 class LoadView extends StatefulWidget {
@@ -27,6 +30,16 @@ class _LoadViewState extends State<LoadView> with TickerProviderStateMixin {
   late Animation<double> _transitionScaleAnimation;
 
   bool _navigated = false;
+
+  Future<void> _checkAuth() async {
+    // chờ animation hoặc init xong...
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    user != null ? context.go('/chat-list') : context.go('/');
+  }
 
   @override
   void initState() {
@@ -79,16 +92,10 @@ class _LoadViewState extends State<LoadView> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 800),
     );
     _transitionFadeAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
-      CurvedAnimation(
-        parent: _transitionController,
-        curve: Curves.easeInOut,
-      ),
+      CurvedAnimation(parent: _transitionController, curve: Curves.easeInOut),
     );
     _transitionScaleAnimation = Tween<double>(begin: 1.0, end: 1.3).animate(
-      CurvedAnimation(
-        parent: _transitionController,
-        curve: Curves.easeIn,
-      ),
+      CurvedAnimation(parent: _transitionController, curve: Curves.easeIn),
     );
   }
 
@@ -117,10 +124,9 @@ class _LoadViewState extends State<LoadView> with TickerProviderStateMixin {
     await _transitionController.forward();
     if (!mounted || _navigated) return;
 
-    // 5. Chuyển sang HomeView với hiệu ứng mượt mà
+    // 5. Chuyển sang màn hình phù hợp dựa theo trạng thái đăng nhập
     _navigated = true;
-    
-    context.go('/');
+    await _checkAuth();
   }
 
   @override

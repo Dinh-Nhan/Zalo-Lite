@@ -91,6 +91,26 @@ public class FriendshipService(
         }
 
         // Tạo lời mời mới
+        var senderSnap = await db.Collection(UsersCol).Document(senderId).GetSnapshotAsync();
+        var addresseeSnap = await db.Collection(UsersCol).Document(addresseeId).GetSnapshotAsync();
+
+        string senderName = "";
+        string senderAvatar = "";
+        string addresseeName = "";
+
+        if (senderSnap.Exists)
+        {
+            var su = senderSnap.ConvertTo<User>();
+            senderName   = $"{su.FirstName} {su.LastName}".Trim();
+            senderAvatar = su.Avatar;
+        }
+
+        if (addresseeSnap.Exists)
+        {
+            var au = addresseeSnap.ConvertTo<User>();
+            addresseeName = $"{au.FirstName} {au.LastName}".Trim();
+        }
+
         var friendship = new Friendship
         {
             SenderId    = senderId,
@@ -98,7 +118,8 @@ public class FriendshipService(
             Status      = "pending",
             SourceType  = dto.SourceType,
             CreatedAt   = DateTime.UtcNow,
-            UpdatedAt   = DateTime.UtcNow
+            UpdatedAt   = DateTime.UtcNow,
+            AddresseeName = addresseeName
         };
 
         var docRef = await db.Collection(Col).AddAsync(friendship);
@@ -108,16 +129,6 @@ public class FriendshipService(
             senderId, addresseeId, friendship.Id);
 
         // ── SignalR: notify người nhận có lời mời mới ─────────────
-        var senderSnap = await db.Collection(UsersCol).Document(senderId).GetSnapshotAsync();
-        string senderName = "";
-        string senderAvatar = "";
-        if (senderSnap.Exists)
-        {
-            var su = senderSnap.ConvertTo<User>();
-            senderName   = $"{su.FirstName} {su.LastName}".Trim();
-            senderAvatar = su.Avatar;
-        }
-
         var enriched = new FriendshipResponse
         {
             Id          = friendship.Id,
@@ -129,6 +140,7 @@ public class FriendshipService(
             UpdatedAt   = friendship.UpdatedAt,
             SenderName   = senderName,
             SenderAvatar = senderAvatar,
+            AddresseeName = addresseeName
         };
 
         await hubContext.Clients
@@ -259,6 +271,16 @@ public class FriendshipService(
 
             // Ghi đè thành blocked, đặt sender = blocker
             var blockedDoc = db.Collection(Col).Document(existing.Id);
+
+            // Enrich AddresseeName
+            var addresseeSnap = await db.Collection(UsersCol).Document(blockedId).GetSnapshotAsync();
+            string addresseeName = "";
+            if (addresseeSnap.Exists)
+            {
+                var u = addresseeSnap.ConvertTo<User>();
+                addresseeName = $"{u.FirstName} {u.LastName}".Trim();
+            }
+
             var updated = new Friendship
             {
                 Id          = existing.Id,
@@ -267,12 +289,22 @@ public class FriendshipService(
                 Status      = "blocked",
                 SourceType  = existing.SourceType,
                 CreatedAt   = existing.CreatedAt,
-                UpdatedAt   = DateTime.UtcNow
+                UpdatedAt   = DateTime.UtcNow,
+                AddresseeName = addresseeName
             };
             await blockedDoc.SetAsync(updated);
 
             logger.LogInformation("User {BlockerId} blocked {BlockedId} (existing doc updated)", blockerId, blockedId);
             return updated.Adapt<FriendshipResponse>();
+        }
+
+        // Enrich AddresseeName trước khi lưu
+        var snap = await db.Collection(UsersCol).Document(blockedId).GetSnapshotAsync();
+        string name = "";
+        if (snap.Exists)
+        {
+            var u = snap.ConvertTo<User>();
+            name = $"{u.FirstName} {u.LastName}".Trim();
         }
 
         // Tạo mới
@@ -283,7 +315,8 @@ public class FriendshipService(
             Status      = "blocked",
             SourceType  = "search",
             CreatedAt   = DateTime.UtcNow,
-            UpdatedAt   = DateTime.UtcNow
+            UpdatedAt   = DateTime.UtcNow,
+            AddresseeName = name
         };
 
         var docRef = await db.Collection(Col).AddAsync(friendship);
@@ -338,10 +371,15 @@ public class FriendshipService(
     /// <summary>Lấy danh sách lời mời kết bạn đang chờ MÀ người dùng NHẬN được (kèm SenderName/Avatar)</summary>
     public async Task<List<FriendshipResponse>> GetPendingReceivedAsync(string userId)
     {
+        userId = userId.Trim();
+        logger.LogInformation("GetPendingReceivedAsync: userId={UserId}", userId);
+
         var snapshot = await db.Collection(Col)
             .WhereEqualTo("addressee_id", userId)
             .WhereEqualTo("status", "pending")
             .GetSnapshotAsync();
+
+        logger.LogInformation("GetPendingReceivedAsync: found {Count} pending requests", snapshot.Documents.Count);
 
         var friendships = snapshot.Documents
             .Select(d => d.ConvertTo<Friendship>())
@@ -349,26 +387,37 @@ public class FriendshipService(
 
         if (friendships.Count == 0) return [];
 
-        // Enrich với thông tin sender song song
-        var senderTasks = friendships
-            .Select(f => db.Collection(UsersCol).Document(f.SenderId).GetSnapshotAsync())
-            .ToList();
+        // Enrich với thông tin sender và addressee song song
+        var userTasks = friendships.Select(f => new
+        {
+            SenderTask = db.Collection(UsersCol).Document(f.SenderId).GetSnapshotAsync(),
+            AddresseeTask = db.Collection(UsersCol).Document(f.AddresseeId).GetSnapshotAsync()
+        }).ToList();
 
-        var senderSnaps = await Task.WhenAll(senderTasks);
+        await Task.WhenAll(userTasks.SelectMany(x => new[] { x.SenderTask, x.AddresseeTask }));
         var result = new List<FriendshipResponse>();
 
         for (int i = 0; i < friendships.Count; i++)
         {
-            var f    = friendships[i];
-            var snap = senderSnaps[i];
-            string senderName   = f.SenderId;
-            string senderAvatar = "";
+            var f = friendships[i];
+            var senderSnap = userTasks[i].SenderTask.Result;
+            var addresseeSnap = userTasks[i].AddresseeTask.Result;
 
-            if (snap.Exists)
+            string senderName = f.SenderId;
+            string senderAvatar = "";
+            string addresseeName = "";
+
+            if (senderSnap.Exists)
             {
-                var u = snap.ConvertTo<User>();
-                senderName   = $"{u.FirstName} {u.LastName}".Trim();
+                var u = senderSnap.ConvertTo<User>();
+                senderName = $"{u.FirstName} {u.LastName}".Trim();
                 senderAvatar = u.Avatar;
+            }
+
+            if (addresseeSnap.Exists)
+            {
+                var u = addresseeSnap.ConvertTo<User>();
+                addresseeName = $"{u.FirstName} {u.LastName}".Trim();
             }
 
             result.Add(new FriendshipResponse
@@ -382,6 +431,7 @@ public class FriendshipService(
                 UpdatedAt    = f.UpdatedAt,
                 SenderName   = senderName,
                 SenderAvatar = senderAvatar,
+                AddresseeName = addresseeName
             });
         }
 
@@ -396,9 +446,46 @@ public class FriendshipService(
             .WhereEqualTo("status", "pending")
             .GetSnapshotAsync();
 
-        return snapshot.Documents
-            .Select(d => d.ConvertTo<Friendship>().Adapt<FriendshipResponse>())
+        var friendships = snapshot.Documents
+            .Select(d => d.ConvertTo<Friendship>())
             .ToList();
+
+        if (friendships.Count == 0) return [];
+
+        // Enrich với thông tin addressee
+        var addresseeTasks = friendships
+            .Select(f => db.Collection(UsersCol).Document(f.AddresseeId).GetSnapshotAsync())
+            .ToList();
+
+        var addresseeSnaps = await Task.WhenAll(addresseeTasks);
+        var result = new List<FriendshipResponse>();
+
+        for (int i = 0; i < friendships.Count; i++)
+        {
+            var f = friendships[i];
+            var snap = addresseeSnaps[i];
+            string addresseeName = "";
+
+            if (snap.Exists)
+            {
+                var u = snap.ConvertTo<User>();
+                addresseeName = $"{u.FirstName} {u.LastName}".Trim();
+            }
+
+            result.Add(new FriendshipResponse
+            {
+                Id           = f.Id,
+                SenderId     = f.SenderId,
+                AddresseeId  = f.AddresseeId,
+                Status       = f.Status,
+                SourceType   = f.SourceType,
+                CreatedAt    = f.CreatedAt,
+                UpdatedAt    = f.UpdatedAt,
+                AddresseeName = addresseeName
+            });
+        }
+
+        return result;
     }
 
     /// <summary>Lấy danh sách người đã bị block</summary>
@@ -409,16 +496,74 @@ public class FriendshipService(
             .WhereEqualTo("status", "blocked")
             .GetSnapshotAsync();
 
-        return snapshot.Documents
-            .Select(d => d.ConvertTo<Friendship>().Adapt<FriendshipResponse>())
+        var friendships = snapshot.Documents
+            .Select(d => d.ConvertTo<Friendship>())
             .ToList();
+
+        if (friendships.Count == 0) return [];
+
+        // Enrich với thông tin addressee
+        var addresseeTasks = friendships
+            .Select(f => db.Collection(UsersCol).Document(f.AddresseeId).GetSnapshotAsync())
+            .ToList();
+
+        var addresseeSnaps = await Task.WhenAll(addresseeTasks);
+        var result = new List<FriendshipResponse>();
+
+        for (int i = 0; i < friendships.Count; i++)
+        {
+            var f = friendships[i];
+            var snap = addresseeSnaps[i];
+            string addresseeName = "";
+
+            if (snap.Exists)
+            {
+                var u = snap.ConvertTo<User>();
+                addresseeName = $"{u.FirstName} {u.LastName}".Trim();
+            }
+
+            result.Add(new FriendshipResponse
+            {
+                Id           = f.Id,
+                SenderId     = f.SenderId,
+                AddresseeId  = f.AddresseeId,
+                Status       = f.Status,
+                SourceType   = f.SourceType,
+                CreatedAt    = f.CreatedAt,
+                UpdatedAt    = f.UpdatedAt,
+                AddresseeName = addresseeName
+            });
+        }
+
+        return result;
     }
 
     /// <summary>Lấy trạng thái quan hệ với một user cụ thể</summary>
     public async Task<FriendshipResponse?> GetRelationshipStatusAsync(string currentUserId, string targetUserId)
     {
         var rel = await GetRelationshipAsync(currentUserId, targetUserId);
-        return rel?.Adapt<FriendshipResponse>();
+        if (rel is null) return null;
+
+        // Enrich AddresseeName
+        var addresseeSnap = await db.Collection(UsersCol).Document(rel.AddresseeId).GetSnapshotAsync();
+        string addresseeName = "";
+        if (addresseeSnap.Exists)
+        {
+            var u = addresseeSnap.ConvertTo<User>();
+            addresseeName = $"{u.FirstName} {u.LastName}".Trim();
+        }
+
+        return new FriendshipResponse
+        {
+            Id = rel.Id,
+            SenderId = rel.SenderId,
+            AddresseeId = rel.AddresseeId,
+            Status = rel.Status,
+            SourceType = rel.SourceType,
+            CreatedAt = rel.CreatedAt,
+            UpdatedAt = rel.UpdatedAt,
+            AddresseeName = addresseeName
+        };
     }
 
     // ─────────────────────────────────────────────────────────────
