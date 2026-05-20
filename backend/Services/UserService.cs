@@ -131,6 +131,11 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, RedisServi
                 JsonSerializer.Serialize(users),
                 TimeSpan.FromSeconds(30));
         }
+        else
+        {
+            // Cache kết quả rỗng để tránh truy vấn DB nhiều lần với cùng 1 keyword không tồn tại
+            await _redis.SetAsync(cacheKey, "[]", TimeSpan.FromSeconds(30));
+        }
 
         return users;
     }
