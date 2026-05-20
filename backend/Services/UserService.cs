@@ -88,7 +88,12 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, RedisServi
 
     public async Task<List<UserRequestDto>> SearchUser(string keyword)
     {
-        string cacheKey = $"search:user:{keyword.ToLower()}";
+        keyword = keyword.Trim().ToLower();
+
+        if (keyword.Length < 2)
+            return new();
+
+        string cacheKey = $"search:user:{keyword}";
 
         var cached = await _redis.GetAsync(cacheKey);
 
@@ -105,8 +110,10 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, RedisServi
             .GetSnapshotAsync();
 
         var users = snapshot.Documents
-            .Select(x => {
+            .Select(x =>
+            {
                 var user = x.ConvertTo<User>();
+
                 return new UserRequestDto
                 {
                     Email = user.Email,
@@ -117,10 +124,13 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, RedisServi
             })
             .ToList();
 
-        await _redis.SetAsync(
-            cacheKey,
-            JsonSerializer.Serialize(users),
-            TimeSpan.FromMinutes(1));
+        if (users.Any())
+        {
+            await _redis.SetAsync(
+                cacheKey,
+                JsonSerializer.Serialize(users),
+                TimeSpan.FromSeconds(30));
+        }
 
         return users;
     }
