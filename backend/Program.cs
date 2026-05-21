@@ -13,6 +13,7 @@ using Serilog;
 using StackExchange.Redis;
 using Microsoft.OpenApi.Models;
 using backend.swagger;
+using backend.settings;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,7 +49,9 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     var config = builder.Configuration["Redis:ConnectString"]!;
     return ConnectionMultiplexer.Connect(config);
 });
-
+// ── Cloudinary ────────────────────────────────────────────────
+builder.Services.Configure<CloudinarySettings>(
+    builder.Configuration.GetSection("Cloudinary"));
 // ── Mapster ────────────────────────────────────────────────
 var mapsterConfig = TypeAdapterConfig.GlobalSettings;
 mapsterConfig.Scan(Assembly.GetExecutingAssembly());

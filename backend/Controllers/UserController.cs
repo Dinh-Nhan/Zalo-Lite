@@ -1,5 +1,8 @@
+using backend.dtos;
 using backend.dtos.Request;
 using backend.dtos.Response;
+using backend.Enums;
+using backend.Exceptions;
 using backend.Models;
 using backend.Services;
 using FirebaseAdmin.Auth;
@@ -13,6 +16,17 @@ namespace backend.Controllers;
 [AllowAnonymous]
 public class UserController(UserService userService) : ControllerBase
 {
+    private string CurrentUserId
+    {
+        get
+        {
+            var token = HttpContext.Items["User"] as FirebaseToken;
+            if (token == null)
+                throw new AppException(ErrorCode.UNAUTHENTICATED);
+            return token.Uid;
+        }
+    }
+
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(string id) =>
         Ok(new ApiResponse<UserResponse>
@@ -62,5 +76,16 @@ public class UserController(UserService userService) : ControllerBase
     {
         await userService.DeleteAsync(id);
         return Ok(new ApiResponse<object> { Code = 200 });
+    }
+
+    [HttpPatch("avatar")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UpdateAvatar([FromForm] UpdateAvatarRequest request)
+    {
+        return Ok(new ApiResponse<UserResponse>()
+        {
+            Result = await userService.UpdateAvatarAsync(CurrentUserId, request),
+            Message = "Cập nhật avatar thành công"
+        });
     }
 }

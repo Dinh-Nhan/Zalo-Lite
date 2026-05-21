@@ -14,5 +14,8 @@ namespace backend.Models
 
         [FirestoreProperty("type")]
         public string Type { get; set; } = null!; // image | video
+
+        [FirestoreProperty("public_id")]
+        public string? PublicId { get; set; }
     }
 }

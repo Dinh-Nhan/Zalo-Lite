@@ -6,11 +6,12 @@ using backend.Exceptions;
 using backend.Enums;
 using Mapster;
 using backend.dtos.Request;
+using backend.dtos;
 
 namespace backend.Services;
 
 [ScopedService]
-public class UserService(FirestoreDb db, ILogger<UserService> logger)
+public class UserService(FirestoreDb db, ILogger<UserService> logger, CloudinaryService cloudinaryService)
 {
     private const string Collection = "users";
 
@@ -85,11 +86,48 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger)
     {
         var docRef = db.Collection(Collection).Document(id);
         var snapshot = await docRef.GetSnapshotAsync();
+        if (!snapshot.Exists)
+            throw new AppException(ErrorCode.USER_NOT_FOUND);
+
+        var user = snapshot.ConvertTo<User>();
+        // xóa avatar trước
+        if (!string.IsNullOrEmpty(user.AvatarPublicId))
+            await cloudinaryService.DeleteAvatarAsync(user.AvatarPublicId);
+
+        // xóa folder
+        await cloudinaryService.DeleteUserFolderAsync(user.Id);
+        await docRef.DeleteAsync();
+        logger.LogInformation("User deleted: {UserId}", id);
+    }
+
+
+    public async Task<UserResponse> UpdateAvatarAsync(string userId, UpdateAvatarRequest request)
+    {
+        var docRef = db.Collection(Collection).Document(userId);
+        var snapshot = await docRef.GetSnapshotAsync();
 
         if (!snapshot.Exists)
             throw new AppException(ErrorCode.USER_NOT_FOUND);
 
-        await docRef.DeleteAsync();
-        logger.LogInformation("User deleted: {UserId}", id);
+        var user = snapshot.ConvertTo<User>();
+
+        // Xóa avatar cũ trên Cloudinary nếu có
+        if (!string.IsNullOrEmpty(user.AvatarPublicId))
+            await cloudinaryService.DeleteAvatarAsync(user.AvatarPublicId);
+
+        // Upload avatar mới
+        var (url, publicId) = await cloudinaryService.UploadAvatarAsync(request.File, userId);
+
+        // Cập nhật Firestore 
+        await docRef.UpdateAsync(new Dictionary<string, object>
+        {
+            ["avatar"] = url,
+            ["avatar_public_id"] = publicId
+        });
+
+        logger.LogInformation("[UserService] Updated avatar for user {UserId}", userId);
+
+        var updated = await docRef.GetSnapshotAsync();
+        return updated.ConvertTo<User>().Adapt<UserResponse>();
     }
 }
