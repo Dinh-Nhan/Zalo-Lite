@@ -40,7 +40,7 @@ namespace backend.Services
 
         var now = Timestamp.FromDateTime(DateTime.UtcNow);
 
-        logger.LogInformation("[StoryExpiration] Scanning expired stories at {Time}", DateTime.UtcNow);
+        logger.LogInformation("[StoryExpiration] Scanning expired stories at {Time}", DateTime.Now);
 
         // Retrieve stories that haven't been marked as expired but have already passed their expiration date.
         var snap = await db.Collection("feeds")

@@ -136,8 +136,13 @@ namespace backend.Controllers
         [ProducesResponseType(typeof(ApiResponse<FeedResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status422UnprocessableEntity)]
-        public async Task<IActionResult> CreateFeed([FromBody] CreateFeedRequest request)
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> CreateFeed([FromForm] CreateFeedRequest request, IFormFileCollection files)
         {
+            // Gán files vào request sau khi bind
+            request.Content.Media = files
+                .Select(f => new CreateMediaRequest { File = f })
+                .ToList();
             logger.LogInformation("[FeedController] CreateFeed | Type={Type} UserId={UserId}", request.Type, CurrentUserId);
             var result = await feedService.CreateFeedAsync(CurrentUserId, request);
             return CreatedAtAction(nameof(GetById), new { feedId = result.Id },
@@ -155,6 +160,8 @@ namespace backend.Controllers
         /// - `privacy` → quyền riêng tư
         /// </remarks>
         /// <param name="feedId">ID của post cần chỉnh sửa</param>
+        /// <param name="request"></param>
+        /// <param name="files"></param>
         /// <response code="200">Cập nhật thành công</response>
         /// <response code="400">Story không được phép sửa hoặc không có gì để update</response>
         /// <response code="401">Chưa xác thực</response>
@@ -168,8 +175,16 @@ namespace backend.Controllers
         [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status422UnprocessableEntity)]
-        public async Task<IActionResult> UpdateFeed(string feedId, [FromBody] UpdateFeedRequest request)
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UpdateFeed(
+            string feedId,
+            [FromForm] UpdateFeedRequest request,
+            IFormFileCollection files
+    )
         {
+            request.Media = files
+               .Select(f => new CreateMediaRequest { File = f })
+               .ToList();
             logger.LogInformation("[FeedController] UpdateFeed | FeedId={FeedId} UserId={UserId}",
                 feedId, CurrentUserId);
 
