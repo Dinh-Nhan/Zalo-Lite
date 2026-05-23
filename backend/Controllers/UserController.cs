@@ -1,5 +1,7 @@
 using backend.dtos.Request;
 using backend.dtos.Response;
+using backend.Enums;
+using backend.Exceptions;
 using backend.Models;
 using backend.Services;
 using FirebaseAdmin.Auth;
@@ -14,18 +16,30 @@ namespace backend.Controllers;
 public class UserController(UserService userService) : ControllerBase
 {
     /// <summary>
+    /// Lấy UId từ token
+    /// </summary>
+    private string GetUserIdFromToken()
+    {
+        var firebaseToken = HttpContext.Items["User"] as FirebaseToken;
+        if (firebaseToken == null)
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        return firebaseToken.Uid;
+    }
+
+
+    /// <summary>
     /// Lấy thông tin user hiện tại (từ token)
     /// GET /api/user/me
     /// </summary>
     [HttpGet("me")]
     public async Task<IActionResult> GetMe()
     {
-        var firebaseToken = (FirebaseToken)HttpContext.Items["User"]!;
+        var uid = GetUserIdFromToken();
         
         return Ok(new ApiResponse<UserResponse>
         {
             Code = 200,
-            Result = await userService.GetByIdAsync(firebaseToken.Uid)
+            Result = await userService.GetByIdAsync(uid)
         });
     }
 
@@ -67,8 +81,14 @@ public class UserController(UserService userService) : ControllerBase
     {
         // Nếu có token → dùng uid từ token
         // Nếu không có token → dùng uid từ request body (cho register flow)
-        var firebaseToken = HttpContext.Items["User"] as FirebaseToken;
-        var uid = firebaseToken?.Uid ?? request.Id;
+        // var firebaseToken = HttpContext.Items["User"] as FirebaseToken;
+        // var uid = firebaseToken?.Uid ?? request.Id;
+
+        var uid = GetUserIdFromToken(); // Cố gắng lấy UID từ token trước
+        if(uid == null)
+        {
+            uid = request.Id; // Cho phép lấy UID từ body nếu token không có (trường hợp register)
+        }
 
         if (string.IsNullOrEmpty(uid))
             return BadRequest(new ApiResponse<object>
@@ -91,12 +111,16 @@ public class UserController(UserService userService) : ControllerBase
     [HttpPut("me")]
     public async Task<IActionResult> UpdateMe([FromBody] UpdateUserRequest request)
     {
-        var firebaseToken = (FirebaseToken)HttpContext.Items["User"]!;
-        
+        var uid = GetUserIdFromToken();
+        if(uid == null)
+        {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
         return Ok(new ApiResponse<UserResponse>
         {
             Code = 200,
-            Result = await userService.UpdateAsync(firebaseToken.Uid, request)
+            Result = await userService.UpdateAsync(uid, request)
         });
     }
 
