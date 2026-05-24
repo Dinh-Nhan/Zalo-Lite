@@ -5,6 +5,8 @@ import 'chat_screen.dart';
 import 'new_conversation_screen.dart';
 
 class ConversationListScreen extends StatefulWidget {
+  const ConversationListScreen({super.key});
+
   @override
   _ConversationListScreenState createState() => _ConversationListScreenState();
 }
@@ -16,7 +18,7 @@ class _ConversationListScreenState extends State<ConversationListScreen>
   List<Conversation> _conversations = [];
   List<Conversation> _groups = [];
   bool _isLoading = true;
-  String _searchQuery = '';
+  final String _searchQuery = '';
 
   @override
   void initState() {

@@ -13,7 +13,7 @@ class MessageBubble extends StatelessWidget {
   final VoidCallback? onInfo;
 
   const MessageBubble({
-    Key? key,
+    super.key,
     required this.message,
     this.onReact,
     this.onReply,
@@ -22,7 +22,7 @@ class MessageBubble extends StatelessWidget {
     this.onEdit,
     this.onDelete,
     this.onInfo,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

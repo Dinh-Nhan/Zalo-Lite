@@ -93,7 +93,8 @@ GoRouter createRouter() {
       ),
       GoRoute(
         path: '/enter-name',
-        builder: (context, state) => const EnterNameView(),
+        builder: (context, state) =>
+            const EnterNameView(email: '', password: ''),
       ),
       GoRoute(
         path: '/personal-info',

@@ -207,9 +207,9 @@ class SignalRService {
         {
           'type': type,
           'participant_ids': participantIds,
-          if (groupName != null) 'group_name': groupName,
-          if (groupAvatarUrl != null) 'group_avatar_url': groupAvatarUrl,
-          if (groupDescription != null) 'group_description': groupDescription,
+          'group_name': ?groupName,
+          'group_avatar_url': ?groupAvatarUrl,
+          'group_description': ?groupDescription,
         },
         userId,
       ],
@@ -253,9 +253,9 @@ class SignalRService {
       args: [
         {
           'conversation_id': conversationId,
-          if (groupName != null) 'group_name': groupName,
-          if (groupAvatarUrl != null) 'group_avatar_url': groupAvatarUrl,
-          if (groupDescription != null) 'group_description': groupDescription,
+          'group_name': ?groupName,
+          'group_avatar_url': ?groupAvatarUrl,
+          'group_description': ?groupDescription,
         },
         userId,
       ],

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class TypingIndicator extends StatefulWidget {
   final String userName;
 
-  const TypingIndicator({Key? key, required this.userName}) : super(key: key);
+  const TypingIndicator({super.key, required this.userName});
 
   @override
   _TypingIndicatorState createState() => _TypingIndicatorState();

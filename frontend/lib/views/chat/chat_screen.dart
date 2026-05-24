@@ -10,7 +10,7 @@ import 'group_info_screen.dart';
 class ChatScreen extends StatefulWidget {
   final Conversation conversation;
 
-  const ChatScreen({Key? key, required this.conversation}) : super(key: key);
+  const ChatScreen({super.key, required this.conversation});
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -191,8 +191,8 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: FloatingActionButton(
                       mini: true,
                       backgroundColor: Colors.white,
-                      child: Icon(Icons.arrow_downward, color: Colors.blue),
                       onPressed: _scrollToBottom,
+                      child: Icon(Icons.arrow_downward, color: Colors.blue),
                     ),
                   ),
               ],
@@ -294,15 +294,15 @@ class _ChatScreenState extends State<ChatScreen> {
         PopupMenuButton(
           icon: Icon(Icons.more_vert, color: Colors.black),
           itemBuilder: (context) => [
-            PopupMenuItem(child: Text('Tìm kiếm'), value: 'search'),
+            PopupMenuItem(value: 'search', child: Text('Tìm kiếm')),
             PopupMenuItem(
+              value: 'mute',
               child: Text(
                 widget.conversation.isMuted ? 'Bật thông báo' : 'Tắt thông báo',
               ),
-              value: 'mute',
             ),
-            PopupMenuItem(child: Text('Xem ảnh/video'), value: 'media'),
-            PopupMenuItem(child: Text('Xóa lịch sử'), value: 'clear'),
+            PopupMenuItem(value: 'media', child: Text('Xem ảnh/video')),
+            PopupMenuItem(value: 'clear', child: Text('Xóa lịch sử')),
           ],
           onSelected: _handleMenuAction,
         ),

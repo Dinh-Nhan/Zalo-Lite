@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class NewConversationScreen extends StatefulWidget {
   final String type; // 'private' or 'group'
 
-  const NewConversationScreen({Key? key, required this.type}) : super(key: key);
+  const NewConversationScreen({super.key, required this.type});
 
   @override
   _NewConversationScreenState createState() => _NewConversationScreenState();
@@ -15,7 +15,7 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
 
   List<UserItem> _allUsers = [];
   List<UserItem> _filteredUsers = [];
-  List<UserItem> _selectedUsers = [];
+  final List<UserItem> _selectedUsers = [];
   bool _isLoading = true;
 
   @override

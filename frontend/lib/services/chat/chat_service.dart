@@ -35,10 +35,7 @@ class ChatService {
   }) async {
     final response = await _dio.get(
       '/api/chat/conversations/$conversationId/messages',
-      queryParameters: {
-        'limit': limit,
-        if (beforeMessageId != null) 'beforeMessageId': beforeMessageId,
-      },
+      queryParameters: {'limit': limit, 'beforeMessageId': ?beforeMessageId},
     );
     final data = response.data['data'] as List;
     return data.map((json) => Message.fromJson(json)).toList();
@@ -62,11 +59,11 @@ class ChatService {
         'conversation_id': conversationId,
         'type': type,
         'content': content,
-        if (mediaUrl != null) 'media_url': mediaUrl,
-        if (thumbnailUrl != null) 'thumbnail_url': thumbnailUrl,
-        if (fileName != null) 'file_name': fileName,
-        if (fileSize != null) 'file_size': fileSize,
-        if (replyToMessageId != null) 'reply_to_message_id': replyToMessageId,
+        'media_url': ?mediaUrl,
+        'thumbnail_url': ?thumbnailUrl,
+        'file_name': ?fileName,
+        'file_size': ?fileSize,
+        'reply_to_message_id': ?replyToMessageId,
         'is_forwarded': isForwarded,
       },
     );
@@ -86,9 +83,9 @@ class ChatService {
       data: {
         'type': type,
         'participant_ids': participantIds,
-        if (groupName != null) 'group_name': groupName,
-        if (groupAvatarUrl != null) 'group_avatar_url': groupAvatarUrl,
-        if (groupDescription != null) 'group_description': groupDescription,
+        'group_name': ?groupName,
+        'group_avatar_url': ?groupAvatarUrl,
+        'group_description': ?groupDescription,
       },
     );
     return Conversation.fromJson(response.data['data']);
@@ -159,9 +156,9 @@ class ChatService {
       '/api/chat/conversations/group',
       data: {
         'conversation_id': conversationId,
-        if (groupName != null) 'group_name': groupName,
-        if (groupAvatarUrl != null) 'group_avatar_url': groupAvatarUrl,
-        if (groupDescription != null) 'group_description': groupDescription,
+        'group_name': ?groupName,
+        'group_avatar_url': ?groupAvatarUrl,
+        'group_description': ?groupDescription,
       },
     );
     return Conversation.fromJson(response.data['data']);

@@ -5,8 +5,7 @@ import '../../models/chat/participant.dart';
 class GroupInfoScreen extends StatefulWidget {
   final Conversation conversation;
 
-  const GroupInfoScreen({Key? key, required this.conversation})
-    : super(key: key);
+  const GroupInfoScreen({super.key, required this.conversation});
 
   @override
   _GroupInfoScreenState createState() => _GroupInfoScreenState();
@@ -271,16 +270,16 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
       trailing: PopupMenuButton(
         icon: Icon(Icons.more_vert),
         itemBuilder: (context) => [
-          PopupMenuItem(child: Text('Xem trang cá nhân'), value: 'profile'),
+          PopupMenuItem(value: 'profile', child: Text('Xem trang cá nhân')),
           if (!isAdmin)
             PopupMenuItem(
-              child: Text('Đặt làm quản trị viên'),
               value: 'make_admin',
+              child: Text('Đặt làm quản trị viên'),
             ),
           if (!isAdmin)
             PopupMenuItem(
-              child: Text('Xóa khỏi nhóm', style: TextStyle(color: Colors.red)),
               value: 'remove',
+              child: Text('Xóa khỏi nhóm', style: TextStyle(color: Colors.red)),
             ),
         ],
         onSelected: (value) =>

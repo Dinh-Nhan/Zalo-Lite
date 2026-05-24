@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:frontend/apps/app_locale.dart';
 import 'package:frontend/apps/router.dart';
 import 'package:frontend/providers/call_provider.dart';
@@ -12,6 +13,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  await dotenv.load(fileName: ".env");
 
   runApp(
     MultiProvider(
