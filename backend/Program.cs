@@ -107,20 +107,27 @@ builder.Services.AddSwaggerGen(
 builder.Services.AddSignalR();
 
 // ── CORS (cần thiết cho Flutter Web / dev) ────────────────
-builder.Services.AddCors(opt =>
+builder.Services.AddCors(options =>
 {
-    opt.AddDefaultPolicy(policy =>
+    options.AddPolicy("AllowAll", policy =>
+    {
         policy
             .AllowAnyHeader()
             .AllowAnyMethod()
-            .SetIsOriginAllowed(_ => true) // dev only
-            .AllowCredentials());
+            .SetIsOriginAllowed(_ => true)
+            .AllowCredentials();
+    });
 });
 
 var app = builder.Build();
+app.UseHttpsRedirection();
+app.UseRouting();
 app.UseCors("AllowAll");
+app.UseMiddleware<FirebaseAuthMiddleware>();
 app.UseAuthorization();
 app.UseMiddleware<GlobalExceptionHandler>();
+app.MapControllers();
+app.MapHub<FriendHub>("/hubs/friend");
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -129,13 +136,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseCors();
-app.UseHttpsRedirection();
-app.UseRouting();
 
-app.UseMiddleware<FirebaseAuthMiddleware>();
 
-app.MapControllers();
-app.MapHub<FriendHub>("/hubs/friend");
 
 app.Run();
