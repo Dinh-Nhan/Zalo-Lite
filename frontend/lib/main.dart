@@ -2,11 +2,11 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend/apps/app_locale.dart';
 import 'package:frontend/apps/router.dart';
+import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/providers/call_provider.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'config/app_theme.dart';
-import 'firebase_options.dart';
 
 /// Điểm khởi chạy ứng dụng Zalo Lite
 void main() async {
@@ -16,7 +16,10 @@ void main() async {
 
   runApp(
     MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => CallProvider())],
+      providers: [
+        ChangeNotifierProvider(create: (_) => CallProvider()),
+        ChangeNotifierProvider(create: (_) => FriendProvider(),),
+        ],
       child: const MyApp(),
     ),
   );
