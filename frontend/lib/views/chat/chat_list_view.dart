@@ -3,11 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:frontend/apps/app_locale.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/config/dark_mode_config.dart';
+import 'package:frontend/features/friends/friends.dart';
+import 'package:frontend/features/friends/screens/contact_main_screen.dart';
 import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/utils/app_localizations.dart';
 import 'package:frontend/views/chat/chat_detail_view.dart';
 import 'package:frontend/views/contacts/contacts_view.dart';
 import 'package:frontend/views/settings/settings_dialog.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 /// Man hinh danh sach tin nhan - Thiet ke giong Zalo Web
 class ChatListView extends StatefulWidget {
@@ -104,6 +108,13 @@ class _ChatListViewState extends State<ChatListView> {
         statusBarIconBrightness: Brightness.light,
       ),
     );
+    Future.microtask(() {
+      final provider = context.read<FriendProvider>();
+
+      provider.loadFriends();
+      provider.loadRequests();
+      provider.startRealtime();
+    });
   }
 
   @override
@@ -159,16 +170,27 @@ class _ChatListViewState extends State<ChatListView> {
   }
 
   void _openSettings() {
-    SettingsDialog.show(context);
-  }
+  SettingsDialog.show(
+    context,
+    onLogout: () async {
+      await _logout();
+    },
+  );
+}
 
   void _openAppearanceSettings() {
     SettingsDialog.showAppearance(context);
   }
 
-  void _logout() {
-    AuthService.logout();
-    // context.go('/');
+  Future<void> _logout() async {
+    final friendProvider = context.read<FriendProvider>();
+    await friendProvider.disposeRealtime();
+    friendProvider.clear();
+    await AuthService.logout();
+
+    if (!mounted) return;
+    context.go('/');
+
   }
 
   @override
@@ -343,8 +365,12 @@ class _ChatListViewState extends State<ChatListView> {
         child: IconButton(
           onPressed: () {
             if (index == 1) {
-              // Settings - show dialog
-              SettingsDialog.show(context);
+              SettingsDialog.show(
+                context,
+                onLogout: () async {
+                  await _logout();
+                },
+              );
             } else {
               setState(() {
                 _selectedNavIndex = index;
@@ -803,7 +829,9 @@ class _ChatListViewState extends State<ChatListView> {
                 title: t.get('logout'),
                 subtitle: t.get('logoutSubtitle'),
                 isDark: isDark,
-                onTap: _logout,
+                onTap: () async {
+                  await _logout();
+                },
                 trailing: Icon(
                   Icons.chevron_right,
                   color: AppColors.getTextSecondary(isDark),
@@ -1069,7 +1097,8 @@ class _ChatListViewState extends State<ChatListView> {
               // Tab 0: Chat List
               _buildChatListPanel(t, isDark),
               // Tab 1: Contacts
-              const ContactsView(isWideScreen: false),
+              // const ContactsView(isWideScreen: false),
+              ContactsMainScreen(),
               // Tab 2: Discover (placeholder)
               _buildPlaceholderTab(
                 t.get('discover'),
