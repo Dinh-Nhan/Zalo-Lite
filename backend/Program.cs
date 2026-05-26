@@ -13,6 +13,7 @@ using Serilog;
 using StackExchange.Redis;
 using Microsoft.OpenApi.Models;
 using backend.swagger;
+using backend.settings;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,7 +49,9 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     var config = builder.Configuration["Redis:ConnectString"]!;
     return ConnectionMultiplexer.Connect(config);
 });
-
+// ── Cloudinary ────────────────────────────────────────────────
+builder.Services.Configure<CloudinarySettings>(
+    builder.Configuration.GetSection("Cloudinary"));
 // ── Mapster ────────────────────────────────────────────────
 var mapsterConfig = TypeAdapterConfig.GlobalSettings;
 mapsterConfig.Scan(Assembly.GetExecutingAssembly());
@@ -107,27 +110,20 @@ builder.Services.AddSwaggerGen(
 builder.Services.AddSignalR();
 
 // ── CORS (cần thiết cho Flutter Web / dev) ────────────────
-builder.Services.AddCors(options =>
+builder.Services.AddCors(opt =>
 {
-    options.AddPolicy("AllowAll", policy =>
-    {
+    opt.AddDefaultPolicy(policy =>
         policy
             .AllowAnyHeader()
             .AllowAnyMethod()
-            .SetIsOriginAllowed(_ => true)
-            .AllowCredentials();
-    });
+            .SetIsOriginAllowed(_ => true) // dev only
+            .AllowCredentials());
 });
 
 var app = builder.Build();
-app.UseHttpsRedirection();
-app.UseRouting();
 app.UseCors("AllowAll");
-app.UseMiddleware<FirebaseAuthMiddleware>();
 app.UseAuthorization();
 app.UseMiddleware<GlobalExceptionHandler>();
-app.MapControllers();
-app.MapHub<FriendHub>("/hubs/friend");
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -136,7 +132,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseCors();
+app.UseHttpsRedirection();
+app.UseRouting();
 
+app.UseMiddleware<FirebaseAuthMiddleware>();
 
+app.MapControllers();
+app.MapHub<FriendHub>("/hubs/friend");
 
 app.Run();
