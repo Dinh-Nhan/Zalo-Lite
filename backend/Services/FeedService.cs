@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -12,6 +12,7 @@ using backend.Models;
 using Google.Cloud.Firestore;
 using Mapster;
 using MapsterMapper;
+using Microsoft.Extensions.Logging;
 
 namespace backend.Services
 {
@@ -637,4 +638,25 @@ namespace backend.Services
         }
     }
 
+        public Task<ViewResponse> TrackViewAsync(string feedId, string currentUserId)
+            => Task.FromResult(new ViewResponse { ViewCount = 0 });
+
+        public Task<ViewersListResponse> GetViewersAsync(string feedId, string currentUserId)
+            => Task.FromResult(new ViewersListResponse { ViewerCount = 0, ViewerIds = new List<string>() });
+
+        public Task<HideResponse> ToggleHidePostAsync(string feedId, string currentUserId)
+            => Task.FromResult(new HideResponse { IsHidden = true });
+
+        public Task<FeedResponse> UpdateFeedAsync(string feedId, string currentUserId, UpdateFeedRequest request)
+            => Task.FromResult(new FeedResponse());
+
+        public Task DeleteFeedAsync(string feedId, string currentUserId)
+            => Task.CompletedTask;
+
+        public Task<List<FeedResponse>> GetFeedsByUserIdAsync(string userId, string currentUserId)
+            => Task.FromResult(new List<FeedResponse>());
+
+        public Task<List<FeedResponse>> GetAllFeedDeletedAsync(string currentUserId, string type)
+            => Task.FromResult(new List<FeedResponse>());
+    }
 }

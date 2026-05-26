@@ -116,7 +116,7 @@ class AuthService {
   /// Hàm xóa sạch dấu vết user (Dữ liệu Backend + Firebase Auth)
   /// Thường dùng cho chức năng "Xóa tài khoản" hoặc "Rollback" khi đăng ký lỗi
   static Future<void> deleteAccountAndData() async {
-      // 1. Kiểm tra Authentication: Nếu không có user đang đăng nhập thì không làm gì cả
+    // 1. Kiểm tra Authentication: Nếu không có user đang đăng nhập thì không làm gì cả
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       return;
@@ -139,12 +139,14 @@ class AuthService {
       } else {
         // Nếu có dữ liệu, thực hiện xóa qua Backend
         final documentId = querySnapshot.docs.first.id;
-        
+
         try {
           await DioClient.instance.delete('/api/user/$documentId');
           print("Thành công: Đã xóa dữ liệu Backend (ID: $documentId)");
         } catch (e) {
-          print("Lỗi: Không thể gọi API xóa Backend nhưng vẫn sẽ tiếp tục xóa Auth: $e");
+          print(
+            "Lỗi: Không thể gọi API xóa Backend nhưng vẫn sẽ tiếp tục xóa Auth: $e",
+          );
         }
       }
     } catch (e) {
@@ -192,10 +194,7 @@ class AuthService {
     try {
       final response = await DioClient.instance.post(
         '/api/otp/verify',
-        queryParameters: {
-          'email': email.trim(),
-          'otp': otp.trim(),
-        },
+        queryParameters: {'email': email.trim(), 'otp': otp.trim()},
       );
 
       if (response.statusCode == 200) {
@@ -238,7 +237,7 @@ class AuthService {
 
       if (response.statusCode == 200) {
         print("Cập nhật thông tin user thành công trên DB");
-        
+
         // 3. Nếu cần cập nhật cả Display Name trên Firebase cho đồng bộ
         await FirebaseAuth.instance.currentUser?.updateDisplayName(fullName);
       }

@@ -2,36 +2,64 @@ using Google.Cloud.Firestore;
 
 namespace backend.Models.Conversation;
 
+[FirestoreData]
 public class Conversation
 {
     [FirestoreDocumentId]
-    private string Id {get; set;} = null!;
+    public string Id { get; set; } = null!;
 
     /// <summary>
     /// private = chat rieng tu |
     /// group = nhom chat
     /// </summary>
     [FirestoreProperty("type")]
-    private string Type {get; set;} = "private";
+    public string Type { get; set; } = "private";
 
     [FirestoreProperty("participants")]
-    private List<UserConver> UserConvers{get; set;} = null!;
+    public List<UserConver> Participants { get; set; } = new();
 
     [FirestoreProperty("last_message")]
-    private Message LastMessage {get; set;} = null!;
+    public Message? LastMessage { get; set; }
 
     [FirestoreProperty("settings")]
-    private Settings SettingsMessage {get; set;} = null!;
+    public Settings Settings { get; set; } = new();
+
+    [FirestoreProperty("created_at")]
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     [FirestoreProperty("updated_at")]
-    private DateTime UpdatedAt {get; set;} = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    // Group specific fields
     [FirestoreProperty("group_name")]
-    private string GroupName {get; set;} = null!;
+    public string? GroupName { get; set; }
 
     [FirestoreProperty("group_avatar_url")]
-    private string GroupAvatar {get; set;} = null!;
+    public string? GroupAvatarUrl { get; set; }
 
+    [FirestoreProperty("group_description")]
+    public string? GroupDescription { get; set; }
+
+    [FirestoreProperty("created_by")]
+    public string? CreatedBy { get; set; }
+
+    // Pinned message
     [FirestoreProperty("pinned_message_id")]
-    private string PinnedMessageId {get; set;} = null!;
+    public string? PinnedMessageId { get; set; }
+
+    [FirestoreProperty("pinned_message_content")]
+    public string? PinnedMessageContent { get; set; }
+
+    // Group settings
+    [FirestoreProperty("only_admin_can_send")]
+    public bool OnlyAdminCanSend { get; set; } = false;
+
+    [FirestoreProperty("only_admin_can_edit_info")]
+    public bool OnlyAdminCanEditInfo { get; set; } = true;
+
+    [FirestoreProperty("approval_required_to_join")]
+    public bool ApprovalRequiredToJoin { get; set; } = false;
+
+    [FirestoreProperty("is_archived")]
+    public bool IsArchived { get; set; } = false;
 }
