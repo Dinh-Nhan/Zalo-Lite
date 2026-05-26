@@ -1,10 +1,13 @@
 import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend/config/app_colors.dart';
+import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/services/dio_client.dart';
 import 'package:frontend/utils/validator.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -33,7 +36,6 @@ class _LoginViewState extends State<LoginView> {
   }
 
   Future<void> _handleLogin() async {
-    // Chỉ thực hiện khi form hợp lệ
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -41,23 +43,49 @@ class _LoginViewState extends State<LoginView> {
       _apiStatus = null;
       _apiBody = null;
     });
-
+    
     final result = await AuthService.login(
       _emailController.text.trim(),
       _passwordController.text,
     );
-
+    
     if (!mounted) return;
 
     if (result.isSuccess) {
-      await _testProfileApi();
+      try {
+        
+        final friendProvider = context.read<FriendProvider>();
+        final response = await DioClient.instance.get(
+          '/api/auth/profile',
+        );
+        //final profile = response.data['result'];
+        // await friendProvider.setCurrentUid(profile['id']);
+        final firebaseUid = FirebaseAuth.instance.currentUser!.uid;
+
+        await friendProvider.setCurrentUid(firebaseUid);
+        await friendProvider.loadAll();
+        await friendProvider.startRealtime();
+
+        if (!mounted) return;
+
+        context.go('/chat-list');
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khởi tạo dữ liệu: $e'),
+          ),
+        );
+      }
     } else {
       setState(() {
         _isLoading = false;
         _apiSuccess = false;
-        _apiStatus = '❌ Login thất bại';
+        _apiStatus = 'Login thất bại';
+
         _apiBody = result.errorMessage ??
-            (result.errorCode != null ? 'Code: ${result.errorCode}' : null);
+            (result.errorCode != null
+                ? 'Code: ${result.errorCode}'
+                : null);
       });
     }
   }
@@ -198,12 +226,12 @@ class _LoginViewState extends State<LoginView> {
                       ),
                     ),
                     child: _isLoading
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-                          )
-                        : const Text('Đăng nhập', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                        )
+                      : const Text('Đăng nhập', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                   ),
                 ),
               ),

@@ -5,7 +5,11 @@ import 'package:go_router/go_router.dart';
 import 'package:frontend/config/app_colors.dart';
 
 class EnterNameView extends StatefulWidget {
-  const EnterNameView({super.key});
+  const EnterNameView({super.key, required this.email, required this.password,  this.name});
+
+  final String email;
+  final String password;
+  final String? name; // Biến lưu tên để truyền vào API register
 
   @override
   State<EnterNameView> createState() => _EnterNameViewState();
@@ -51,12 +55,9 @@ class _EnterNameViewState extends State<EnterNameView> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black, size: 20),
-          onPressed: () => context.go('/reset-password'),
-        ),
         backgroundColor: Colors.white,
         elevation: 0,
+        automaticallyImplyLeading: false,
       ),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -131,16 +132,19 @@ class _EnterNameViewState extends State<EnterNameView> {
                         LoadingDialog.show(context, message: "Đang xử lý...");
 
                         // 2. GIẢ LẬP ĐỢI 2 giây để thấy loading xoay
-                        await Future.delayed(const Duration(seconds: 2));
+                        await Future.delayed(const Duration(seconds: 1));
 
                         // 3. Tắt loading
                         if (context.mounted) {
                           LoadingDialog.hide(context);
                         }
-
                         // 4. Chuyển trang
                         if (context.mounted) {
-                          context.go('/personal-info');
+                          context.push('/personal-info', extra: {
+                            'email': widget.email,
+                            'password': widget.password,
+                            'name': _nameController.text.trim(),
+                          });
                         }
                       }
                     : null,
