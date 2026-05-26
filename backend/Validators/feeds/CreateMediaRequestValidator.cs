@@ -9,29 +9,37 @@ namespace backend.Validators
 {
     public class CreateMediaRequestValidator : AbstractValidator<CreateMediaRequest>
     {
+        private static readonly string[] AllowedMimeTypes =
+        [
+            "image/jpeg", "image/png", "image/gif", "image/webp",
+            "video/mp4", "video/quicktime", "video/x-msvideo",
+            "video/webm", "video/x-matroska"
+        ];
+
+        private const long MaxImageSize = 10 * 1024 * 1024;   // 10 MB
+        private const long MaxVideoSize = 100 * 1024 * 1024;  // 100 MB
+
         public CreateMediaRequestValidator()
         {
-            RuleFor(x => x.Type)
-            .NotEmpty().WithMessage("Type Media is required");
+            RuleFor(x => x.File)
+                .NotNull().WithMessage("Media file is required");
 
-            RuleFor(x => x.Url)
-            .NotEmpty().WithMessage("Url is required")
-            .Must(url => Uri.TryCreate(url, UriKind.Absolute, out var result)
-                && (result.Scheme == Uri.UriSchemeHttp || result.Scheme == Uri.UriSchemeHttps)
-            )
-            .WithMessage("Invalid URL format")
-            .Must(url =>
-                {
-                    var allowedExtensions = new[]
-                {
-                    // image
-                    ".jpg", ".jpeg", ".png", ".gif", ".webp",
-                    // video
-                    ".mp4", ".mov", ".avi", ".mkv", ".webm"
-                };
-                    return allowedExtensions.Any(ext => url.ToLower().Contains(ext));
-                })
-            .WithMessage("Url must be an image or video");
+            When(x => x.File != null, () =>
+            {
+                RuleFor(x => x.File.ContentType)
+                    .Must(ct => AllowedMimeTypes.Contains(ct))
+                    .WithMessage("File must be image (jpg/png/gif/webp) or video (mp4/mov/avi/webm/mkv)");
+
+                RuleFor(x => x.File)
+                    .Must(f =>
+                    {
+                        var isVideo = f.ContentType.StartsWith("video/");
+                        return isVideo
+                            ? f.Length <= MaxVideoSize
+                            : f.Length <= MaxImageSize;
+                    })
+                    .WithMessage("Image max 10MB, video max 100MB");
+            });
         }
     }
 }

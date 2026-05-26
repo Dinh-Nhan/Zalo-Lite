@@ -16,7 +16,7 @@ using MapsterMapper;
 namespace backend.Services
 {
     [ScopedService]
-    public class FeedService(FirestoreDb db, IMapper mapper, ILogger<FeedService> logger)
+    public class FeedService(FirestoreDb db, IMapper mapper, ILogger<FeedService> logger, CloudinaryService cloudinaryService)
     {
         // get story bar 
         public async Task<List<FeedResponse>> GetStoriesAsync(string userId)
@@ -44,9 +44,15 @@ namespace backend.Services
                     .WhereEqualTo("deleted_at", null)
                     .OrderByDescending("create_at"));
 
-            return stories
-                .Where(s => !mutedStoryIds.Contains(s.UserId))
-                .Select(s => ToResponse(s, userId))
+            var filtered = stories.Where(s => !mutedStoryIds.Contains(s.UserId)).ToList();
+
+            // Query tất cả author 1 lần
+            var authorIds = filtered.Select(s => s.UserId);
+            var authors = await GetUsersByIdsAsync(authorIds);
+
+            return filtered
+                .Where(s => authors.ContainsKey(s.UserId))
+                .Select(s => ToResponse(s, userId, authors[s.UserId]))
                 .ToList();
         }
 
@@ -73,10 +79,17 @@ namespace backend.Services
                     .WhereEqualTo("deleted_at", null)
                     .OrderByDescending("create_at"));
 
-            return posts
-                .Where(p => !mutedUserIds.Contains(p.UserId))
-                .Where(p => !hiddenPostIds.Contains(p.Id))
-                .Select(p => ToResponse(p, userId))
+            var filtered = posts
+            .Where(p => !mutedUserIds.Contains(p.UserId))
+            .Where(p => !hiddenPostIds.Contains(p.Id))
+            .ToList();
+
+            var authorIds = filtered.Select(p => p.UserId);
+            var authors = await GetUsersByIdsAsync(authorIds);
+
+            return filtered
+                .Where(p => authors.ContainsKey(p.UserId))
+                .Select(p => ToResponse(p, userId, authors[p.UserId]))
                 .ToList();
         }
 
@@ -84,6 +97,21 @@ namespace backend.Services
         public async Task<FeedResponse> CreateFeedAsync(string userId, CreateFeedRequest request)
         {
             var now = Timestamp.FromDateTime(DateTime.UtcNow);
+            var docRef = db.Collection("feeds").Document();
+            var feedId = docRef.Id;
+
+            var mediaList = new List<Dictionary<String, Object>>();
+
+            foreach (var media in request.Content.Media)
+            {
+                var (url, publicId, MediaType) = await cloudinaryService.UploadAsync(media.File, userId, feedId, request.Type);
+                mediaList.Add(new Dictionary<string, object>
+                {
+                    ["url"] = url,
+                    ["type"] = MediaType,
+                    ["public_id"] = publicId
+                });
+            }
 
             var data = new Dictionary<string, object?>
             {
@@ -92,11 +120,7 @@ namespace backend.Services
                 ["content"] = new Dictionary<string, object>
                 {
                     ["caption"] = request.Content.Caption,
-                    ["media"] = request.Content.Media.Select(m => new Dictionary<string, object>
-                    {
-                        ["url"] = m.Url,
-                        ["type"] = m.Type
-                    }).ToList<object>()
+                    ["media"] = mediaList
                 },
                 ["privacy"] = request.Privacy,
                 ["settings"] = new Dictionary<string, object?>
@@ -117,16 +141,19 @@ namespace backend.Services
 
             logger.LogInformation("[FeedService] Creating {Type} for user {UserId}", request.Type, userId);
 
-            var docRef = await db.Collection("feeds").AddAsync(data);
+            await docRef.SetAsync(data);
             var snap = await docRef.GetSnapshotAsync();
 
             if (!snap.Exists)
                 throw new AppException(ErrorCode.INTERNAL_ERROR);
 
             var feed = snap.ConvertTo<Feeds>();
-            logger.LogInformation("[FeedService] Created feed {FeedId}", feed.Id);
+            var authorSnap = await db.Collection("users").Document(userId).GetSnapshotAsync();
+            if (!authorSnap.Exists) throw new AppException(ErrorCode.USER_NOT_FOUND);
+            var author = authorSnap.ConvertTo<User>();
 
-            return ToResponse(feed, userId);
+            logger.LogInformation("[FeedService] Created feed {FeedId}", feed.Id);
+            return ToResponse(feed, userId, author);
         }
 
         // get feed by id 
@@ -145,7 +172,11 @@ namespace backend.Services
                 feed.Settings.ExpiresAt.Value < DateTime.UtcNow)
                 throw new AppException(ErrorCode.FEED_EXPIRED);
 
-            return ToResponse(feed, userId);
+            var authorSnap = await db.Collection("users").Document(feed.UserId).GetSnapshotAsync();
+            if (!authorSnap.Exists) throw new AppException(ErrorCode.USER_NOT_FOUND);
+            var author = authorSnap.ConvertTo<User>();
+
+            return ToResponse(feed, userId, author);
         }
 
         // update feed
@@ -177,12 +208,32 @@ namespace backend.Services
             if (request.Privacy != null)
                 updates["privacy"] = request.Privacy;
 
+            // nếu có cập nhật media thì xóa các image/video cũ trên cloud và thêm mới
             if (request.Media != null)
-                updates["content.media"] = request.Media.Select(m => new Dictionary<string, object>
+            {
+
+                var oldAssets = feed.Content.Media
+                .Where(m => !string.IsNullOrEmpty(m.PublicId))
+                .Select(m => (m.PublicId!, m.Type == "video"));
+
+                await cloudinaryService.DeleteManyAsync(oldAssets);
+
+                var mediaList = new List<Dictionary<string, Object>>();
+                foreach (var media in request.Media)
                 {
-                    ["url"] = m.Url,
-                    ["type"] = m.Type
-                }).ToList<object>();
+                    var (url, publicId, mediaType) = await cloudinaryService.UploadAsync(media.File, userId, feed.Id, feed.Type);
+
+                    mediaList.Add(new Dictionary<string, object>
+                    {
+                        ["url"] = url,
+                        ["type"] = mediaType,
+                        ["public_id"] = publicId
+                    });
+                }
+                updates["content.media"] = mediaList;
+
+
+            }
 
             if (updates.Count == 0)
                 throw new AppException(ErrorCode.FEED_NOTHING_TO_UPDATE);
@@ -194,7 +245,12 @@ namespace backend.Services
             await docRef.UpdateAsync(updates);
 
             var updated = await docRef.GetSnapshotAsync();
-            return ToResponse(updated.ConvertTo<Feeds>(), userId);
+
+            var authorSnap = await db.Collection("users").Document(userId).GetSnapshotAsync();
+            if (!authorSnap.Exists) throw new AppException(ErrorCode.USER_NOT_FOUND);
+            var author = authorSnap.ConvertTo<User>();
+
+            return ToResponse(updated.ConvertTo<Feeds>(), userId, author);
         }
 
         // soft delete (set deletedAt = now)
@@ -203,22 +259,28 @@ namespace backend.Services
             var docRef = db.Collection("feeds").Document(feedId);
             var snap = await docRef.GetSnapshotAsync();
 
-            // Kiểm tra tồn tại
             if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
                 throw new AppException(ErrorCode.FEED_NOT_FOUND);
 
             var feed = snap.ConvertTo<Feeds>();
 
-            // Chỉ chủ bài mới được xóa
-            if (feed.UserId != userId)
-                throw new AppException(ErrorCode.FORBIDDEN);
+            if (feed.UserId != userId) throw new AppException(ErrorCode.FORBIDDEN);
 
-            logger.LogInformation("[FeedService] Soft deleting feed {FeedId} by user {UserId}", feedId, userId);
+            // ── Xóa từng file theo publicId đã lưu — không cần query Cloudinary ──
+            await cloudinaryService.DeleteManyAsync(
+                feed.Content.Media
+                    .Where(m => !string.IsNullOrEmpty(m.PublicId))
+                    .Select(m => (m.PublicId!, m.Type == "video"))
+            );
+            // sau khi đã xóa các file thì xóa luôn folder
+            await cloudinaryService.DeleteFolderAsync(userId, feed.Id, feed.Type);
 
             await docRef.UpdateAsync(new Dictionary<string, object>
             {
                 ["deleted_at"] = Timestamp.FromDateTime(DateTime.UtcNow)
             });
+
+            logger.LogInformation("[FeedService] Deleted feed {FeedId} by {UserId}", feedId, userId);
         }
 
         // ── Like / Unlike ────────────────────────────────────────────────
@@ -354,10 +416,19 @@ namespace backend.Services
                 .ToList();
         }
 
-        private FeedResponse ToResponse(Feeds feed, string currentUserId)
+        private FeedResponse ToResponse(Feeds feed, string currentUserId, User author)
         {
             var response = mapper.Map<FeedResponse>(feed);
+
             response.Stats.IsLiked = feed.Stats.Likes.Contains(currentUserId);
+
+            response.Author = new AuthorResponse
+            {
+                UserId = author.Id,
+                Name = $"{author.FirstName} {author.LastName}",
+                AvatarUrl = author.Avatar
+            };
+
             return response;
         }
 
@@ -514,10 +585,17 @@ namespace backend.Services
 
             var snap = await query.GetSnapshotAsync();
 
-            return snap.Documents
-                .Select(d => d.ConvertTo<Feeds>())
-                .Where(f => f.DeletedAt == null)
-                .Select(f => ToResponse(f, currentUserId))
+            var feeds = snap.Documents
+            .Select(d => d.ConvertTo<Feeds>())
+            .Where(f => f.DeletedAt == null)
+            .ToList();
+
+            var authorIds = feeds.Select(f => f.UserId);
+            var authors = await GetUsersByIdsAsync(authorIds);
+
+            return feeds
+                .Where(f => authors.ContainsKey(f.UserId))
+                .Select(f => ToResponse(f, currentUserId, authors[f.UserId]))
                 .ToList();
         }
 
@@ -530,11 +608,32 @@ namespace backend.Services
             .OrderByDescending("create_at");
 
             var snapshot = await query.GetSnapshotAsync();
-            return snapshot.Documents
+            var feeds = snapshot.Documents
             .Select(d => d.ConvertTo<Feeds>())
-            .Where(f => f.DeletedAt != null)
-            .Select(f => ToResponse(f, currentUserId))
+            .Where(f => f.DeletedAt == null)
             .ToList();
+
+            var authorIds = feeds.Select(f => f.UserId);
+            var authors = await GetUsersByIdsAsync(authorIds);
+
+            return feeds
+                .Where(f => authors.ContainsKey(f.UserId))
+                .Select(f => ToResponse(f, currentUserId, authors[f.UserId]))
+                .ToList();
+        }
+
+        private async Task<Dictionary<string, User>> GetUsersByIdsAsync(IEnumerable<string> userIds)
+        {
+            var distinct = userIds.Distinct().ToList();
+            var tasks = distinct.Select(id =>
+                db.Collection("users").Document(id).GetSnapshotAsync());
+
+            var snaps = await Task.WhenAll(tasks);
+
+            return snaps
+                .Where(s => s.Exists)
+                .Select(s => s.ConvertTo<User>())
+                .ToDictionary(u => u.Id);
         }
     }
 

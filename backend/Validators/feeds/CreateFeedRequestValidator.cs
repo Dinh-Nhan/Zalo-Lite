@@ -11,7 +11,6 @@ namespace backend.Validators
     {
         private static readonly string[] AllowedTypes = ["post", "story"];
         private static readonly string[] AllowedPrivacy = ["public", "friends", "private"];
-        private static readonly string[] AllowedMediaTypes = ["image", "video"];
 
         public CreateFeedRequestValidator()
         {
@@ -32,19 +31,12 @@ namespace backend.Validators
                 .NotEmpty().WithMessage("Caption is required")
                 .MaximumLength(2000).WithMessage("Caption must not exceed 2000 characters");
 
-            RuleForEach(x => x.Content.Media)
-                .ChildRules(media =>
-                {
-                    media.RuleFor(m => m.Url)
-                        .NotEmpty().WithMessage("Media URL is required")
-                        .Must(url => Uri.TryCreate(url, UriKind.Absolute, out _))
-                        .WithMessage("Media URL is invalid");
+            // RuleFor(x => x.Content.Media)
+            //     .NotEmpty().WithMessage("At least one media file is required");
 
-                    media.RuleFor(m => m.Type)
-                        .NotEmpty().WithMessage("Media type is required")
-                        .Must(t => AllowedMediaTypes.Contains(t))
-                        .WithMessage("Media type must be 'image' or 'video'");
-                });
+            // Delegate validate từng media sang CreateMediaRequestValidator
+            // RuleForEach(x => x.Content.Media)
+            //     .SetValidator(new CreateMediaRequestValidator());
         }
     }
 }
