@@ -42,6 +42,8 @@ class FriendshipModel {
         senderAvatar: json['senderAvatar'] as String?,
         addresseeName: json['addresseeName'] as String,
       );
+      bool isSender(String currentUid) => senderId == currentUid;
+    bool isReceiver(String currentUid) => addresseeId == currentUid;
 }
 
 /// Model cho danh sách bạn bè (có kèm tên + avatar)
@@ -49,6 +51,7 @@ class FriendSummaryModel {
   final String friendshipId;
   final String friendId;
   final String fullName;
+  final String email;
   final String avatar;
   final DateTime friendsSince;
 
@@ -56,6 +59,7 @@ class FriendSummaryModel {
     required this.friendshipId,
     required this.friendId,
     required this.fullName,
+    required this.email,
     required this.avatar,
     required this.friendsSince,
   });
@@ -65,6 +69,7 @@ class FriendSummaryModel {
         friendshipId: json['friendshipId'] ?? '',
         friendId: json['friendId'] ?? '',
         fullName: json['fullName'] ?? '',
+        email: json['email'] ?? '',
         avatar: json['avatar'] ?? '',
         friendsSince:
             DateTime.tryParse(json['friendsSince'] ?? '') ?? DateTime.now(),
@@ -218,11 +223,11 @@ class FriendService {
     }
   }
 
-  // ── GET /api/users (search) ───────────────────────────────────
+  // ── GET /api/user/search/{keyword} ──────────────────────────────
   /// Tìm kiếm người dùng theo tên hoặc email
   static Future<List<UserSearchModel>> searchUsers(String query) async {
     try {
-      final res = await _dio.get('/api/user', queryParameters: {'q': query});
+      final res = await _dio.get('/api/user/search/$query');
       final data = res.data as Map<String, dynamic>;
       final list = (data['result'] as List? ?? []);
       return list
