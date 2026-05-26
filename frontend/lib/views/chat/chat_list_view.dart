@@ -10,6 +10,7 @@ import 'package:frontend/utils/app_localizations.dart';
 import 'package:frontend/views/chat/chat_detail_view.dart';
 import 'package:frontend/views/contacts/contacts_view.dart';
 import 'package:frontend/views/settings/settings_dialog.dart';
+import 'package:frontend/widgets/search_overlay_screen.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -22,8 +23,6 @@ class ChatListView extends StatefulWidget {
 }
 
 class _ChatListViewState extends State<ChatListView> {
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
   String _filterMode = 'all';
   int _selectedNavIndex = 0;
   Map<String, dynamic>? _selectedConversation;
@@ -119,7 +118,6 @@ class _ChatListViewState extends State<ChatListView> {
 
   @override
   void dispose() {
-    _searchController.dispose();
     super.dispose();
   }
 
@@ -128,19 +126,7 @@ class _ChatListViewState extends State<ChatListView> {
     if (_filterMode == 'unread') {
       list = list.where((conv) => conv['unreadCount'] > 0).toList();
     }
-    if (_searchQuery.isNotEmpty) {
-      list = list
-          .where(
-            (conv) =>
-                conv['name'].toLowerCase().contains(_searchQuery.toLowerCase()),
-          )
-          .toList();
-    }
     return list;
-  }
-
-  void _onSearchChanged(String value) {
-    setState(() => _searchQuery = value);
   }
 
   void _onConversationTap(Map<String, dynamic> conversation) {
@@ -418,56 +404,45 @@ class _ChatListViewState extends State<ChatListView> {
     bool isMobile = false,
   }) {
     if (isMobile) {
-      // Mobile: blue background (dark mode: black) with white search bar and white icons
-      final Color mobileHeaderBg = isDark
-          ? const Color(0xFF1A1A1A)
-          : AppColors.primaryBlue;
-      final searchBg = isDark
-          ? const Color(0xFF2A2A2A)
-          : Colors.white.withValues(alpha: 0.25);
+      final Color headerBg =
+          isDark ? const Color(0xFF1A1A1A) : AppColors.primaryBlue;
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        color: mobileHeaderBg,
+        color: headerBg,
         child: Row(
           children: [
             Expanded(
-              child: Container(
-                height: 40,
-                decoration: BoxDecoration(
-                  color: searchBg,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 14),
-                    Icon(
-                      Icons.search,
-                      color: Colors.white.withValues(alpha: 0.8),
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: _onSearchChanged,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: t.get('searchPlaceholder'),
-                          hintStyle: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.7),
+              child: GestureDetector(
+                onTap: () => _openSearchOverlay(context),
+                child: Container(
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF2A2A2A)
+                        : Colors.white.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 14),
+                      Icon(
+                        Icons.search,
+                        color: Colors.white.withValues(alpha: 0.8),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          t.get('searchPlaceholder'),
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.8),
                             fontSize: 14,
                           ),
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding: EdgeInsets.zero,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 14),
-                  ],
+                      const SizedBox(width: 14),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -489,51 +464,43 @@ class _ChatListViewState extends State<ChatListView> {
       );
     }
 
-    // Wide screen: keep original white/dark style
-    final searchBg = isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF5F5F5);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       color: AppColors.getSurface(isDark),
       child: Row(
         children: [
           Expanded(
-            child: Container(
-              height: 40,
-              decoration: BoxDecoration(
-                color: searchBg,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 14),
-                  Icon(
-                    Icons.search,
-                    color: AppColors.getTextSecondary(isDark),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: _onSearchChanged,
-                      style: TextStyle(
-                        color: AppColors.getTextPrimary(isDark),
-                        fontSize: 14,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: t.get('searchPlaceholder'),
-                        hintStyle: TextStyle(
+            child: GestureDetector(
+              onTap: () => _openSearchOverlay(context),
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF2A2A2A)
+                      : const Color(0xFFF5F5F5),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 14),
+                    Icon(
+                      Icons.search,
+                      color: AppColors.getTextSecondary(isDark),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        t.get('searchPlaceholder'),
+                        style: TextStyle(
                           color: AppColors.getTextSecondary(isDark),
                           fontSize: 14,
                         ),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 14),
-                ],
+                    const SizedBox(width: 14),
+                  ],
+                ),
               ),
             ),
           ),
@@ -543,6 +510,65 @@ class _ChatListViewState extends State<ChatListView> {
         ],
       ),
     );
+  }
+
+  void _openSearchOverlay(BuildContext context) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => SearchOverlayScreen(
+          onBack: () => Navigator.of(context).pop(),
+          onSearchResultTap: ({required userId, required name, avatar}) {
+            Navigator.of(context).pop();
+            final avatarColor = _avatarColor(name);
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => ChatDetailView(
+                  conversationId: 'user_$userId',
+                  contactName: name,
+                  avatarColor: avatarColor,
+                  isGroup: false,
+                ),
+              ),
+            );
+          },
+          recentContacts: _mockConversations,
+          onRecentContactTap: (contact) {
+            Navigator.of(context).pop();
+            final name = contact['name'] as String;
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => ChatDetailView(
+                  conversationId: contact['id'],
+                  contactName: name,
+                  avatarColor: contact['avatarColor'],
+                  isGroup: contact['isGroup'] ?? false,
+                  memberCount: contact['memberCount'],
+                ),
+              ),
+            );
+          },
+        ),
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+    );
+  }
+
+  Color _avatarColor(String name) {
+    final colors = [
+      const Color(0xFF4CAF50),
+      const Color(0xFF2196F3),
+      const Color(0xFFFF9800),
+      const Color(0xFF9C27B0),
+      const Color(0xFFE91E63),
+      const Color(0xFF00BCD4),
+      const Color(0xFF795548),
+      const Color(0xFF607D8B),
+    ];
+    if (name.isEmpty) return colors[0];
+    return colors[name.codeUnitAt(0) % colors.length];
   }
 
   Widget _buildHeaderIconButton(
