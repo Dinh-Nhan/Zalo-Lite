@@ -9,6 +9,6 @@ namespace backend.dtos.Request
     {
         public string Caption { get; set; } = null!;
 
-        public List<CreateMediaRequest> Media { get; set; } = null!;
+        public List<CreateMediaRequest> Media { get; set; } = [];
     }
 }

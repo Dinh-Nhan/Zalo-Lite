@@ -11,7 +11,12 @@ namespace backend.Validators
 {
     private static readonly string[] AllowedPrivacy = ["public", "friends", "private"];
     private static readonly string[] AllowedMediaTypes = ["image", "video"];
-
+    private static readonly string[] AllowedMimeTypes =
+        [
+            "image/jpeg", "image/png", "image/gif", "image/webp",
+            "video/mp4", "video/quicktime", "video/x-msvideo",
+            "video/webm", "video/x-matroska"
+        ];
     public UpdateFeedRequestValidator()
     {
         // all field are optional when update
@@ -32,21 +37,11 @@ namespace backend.Validators
         });
 
         When(x => x.Media != null && x.Media.Count > 0, () =>
-        {
-            RuleForEach(x => x.Media)
-                .ChildRules(media =>
-                {
-                    media.RuleFor(m => m.Url)
-                        .NotEmpty().WithMessage("Media URL can not be blank")
-                        .Must(url => Uri.TryCreate(url, UriKind.Absolute, out _))
-                        .WithMessage("Media URL is invalid");
-
-                    media.RuleFor(m => m.Type)
-                        .NotEmpty().WithMessage("Media type can not be blank")
-                        .Must(t => AllowedMediaTypes.Contains(t))
-                        .WithMessage("Media type must be 'image' or 'video'");
-                });
-        });
+            {
+                // Tái sử dụng CreateMediaRequestValidator — cùng rule validate file
+                RuleForEach(x => x.Media)
+                    .SetValidator(new CreateMediaRequestValidator());
+            });
     }
 }
 }
