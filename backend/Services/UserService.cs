@@ -86,14 +86,14 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, RedisServi
         logger.LogInformation("User deleted: {UserId}", id);
     }
 
-    public async Task<List<UserRequestDto>> SearchUser(string keyword)
+    public async Task<List<UserRequestDto>> SearchUser(string keyword, string currentUserId)
     {
         keyword = keyword.Trim().ToLower();
 
         if (keyword.Length < 2)
             return new();
 
-        string cacheKey = $"search:user:{keyword}";
+        string cacheKey = $"search:user:{keyword}:{currentUserId}";
 
         var cached = await _redis.GetAsync(cacheKey);
 
@@ -110,32 +110,21 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, RedisServi
             .GetSnapshotAsync();
 
         var users = snapshot.Documents
-            .Select(x =>
+            .Select(x => x.ConvertTo<User>())
+            .Where(user => user.Id != currentUserId) // loại bỏ bản thân
+            .Select(user => new UserRequestDto
             {
-                var user = x.ConvertTo<User>();
-
-                return new UserRequestDto
-                {
-                    Email = user.Email,
-                    FullName = $"{user.FirstName} {user.LastName}".Trim(),
-                    Avatar = user.Avatar,
-                    Id = user.Id
-                };
+                Email = user.Email,
+                FullName = $"{user.FirstName} {user.LastName}".Trim(),
+                Avatar = user.Avatar,
+                Id = user.Id
             })
             .ToList();
 
-        if (users.Any())
-        {
-            await _redis.SetAsync(
-                cacheKey,
-                JsonSerializer.Serialize(users),
-                TimeSpan.FromSeconds(30));
-        }
-        else
-        {
-            // Cache kết quả rỗng để tránh truy vấn DB nhiều lần với cùng 1 keyword không tồn tại
-            await _redis.SetAsync(cacheKey, "[]", TimeSpan.FromSeconds(30));
-        }
+        await _redis.SetAsync(
+            cacheKey,
+            JsonSerializer.Serialize(users),
+            TimeSpan.FromSeconds(30));
 
         return users;
     }
