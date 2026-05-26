@@ -4,10 +4,11 @@ import 'package:permission_handler/permission_handler.dart';
 import '/../config/agora_config.dart';
 
 class CallScreen extends StatefulWidget {
-  final String uid1;
-  final String uid2;
+  // final String uid1;
+  // final String uid2;
 
-  const CallScreen({super.key, required this.uid1, required this.uid2});
+  // const CallScreen({super.key, required this.uid1, required this.uid2});
+  const CallScreen({super.key});
 
   @override
   State<CallScreen> createState() => _CallScreenState();
@@ -23,7 +24,7 @@ class _CallScreenState extends State<CallScreen> {
   @override
   void initState() {
     super.initState();
-    _channelName = AgoraConfig.generateChannelName(widget.uid1, widget.uid2);
+    _channelName = AgoraConfig.generateChannelName("test", "channel");
     _initAgora();
   }
 
