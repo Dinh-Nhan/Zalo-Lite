@@ -7,8 +7,7 @@ namespace backend.dtos.Request
 {
     public class CreateMediaRequest
     {
-        public string Url { get; set; } = null!;
-
-        public string Type { get; set; } = null!; 
+        public IFormFile File { get; set; } = null!;
+        
     }
 }

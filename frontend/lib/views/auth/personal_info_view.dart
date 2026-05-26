@@ -3,11 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:frontend/component/loading_dialog.dart';
 import 'package:frontend/component/success_dialog.dart';
 import 'package:frontend/config/app_colors.dart';
+import 'package:frontend/services/auth_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 class PersonalInfoView extends StatefulWidget {
-  const PersonalInfoView({super.key});
+  const PersonalInfoView({super.key, required this.email, required this.password, required this.name});
+
+  final String email;
+  final String password;
+  final String name;
 
   @override
   State<PersonalInfoView> createState() => _PersonalInfoViewState();
@@ -122,7 +127,7 @@ class _PersonalInfoViewState extends State<PersonalInfoView> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.black), onPressed: () => context.go('/enter-name')),
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.black), onPressed: () => context.pop()),
         backgroundColor: Colors.white,
         elevation: 0,
       ),
@@ -170,33 +175,75 @@ class _PersonalInfoViewState extends State<PersonalInfoView> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: _isButtonEnabled 
-                  ? () async {
-                      // 1. Hiện loading đang xử lý
-                      LoadingDialog.show(context);
-                      
-                      // Giả lập gọi API tạo tài khoản
-                      await Future.delayed(const Duration(seconds: 2));
-                      
-                      if (!mounted) return;
-                      LoadingDialog.hide(context);
+                  onPressed: _isButtonEnabled
+                    ? () async {
+                        SnackBar infoSnackBar = SnackBar(
+                          content: Text(
+                            "Đang đăng ký với:\nEmail: ${widget.email}\nPassword: ${widget.password}\nName: ${widget.name}\nBirth: ${_birthController.text}\nGender: ${_genderController.text}",
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(infoSnackBar);
 
-                      // 2. Hiện thông báo thành công
-                      SuccessDialog.show(context, () {
-                        // Hành động chuyển vào tài khoản (vào Home)
-                        context.go('/update-avatar'); 
-                      });
-                    }
-                  : null,
+                        // 1. Hiển thị Loading ngay lập tức
+                        LoadingDialog.show(context);
+                        
+                        try {
+                          // 2. Gọi hàm register và đợi kết quả
+                          await AuthService.register(
+                            RegisterRequest(
+                              email: widget.email.trim(),
+                              password: widget.password,
+                              firstName: widget.name.split(' ').first,
+                              lastName: widget.name.split(' ').length > 1 
+                                  ? widget.name.split(' ').last 
+                                  : '',
+                              dateOfBirth: _birthController.text.isNotEmpty 
+                                  ? DateFormat('yyyy-MM-dd').format(
+                                    DateFormat('dd/MM/yyyy').parse(_birthController.text),
+                                  ) 
+                                  : null,
+                              bio: '',
+                            ),
+                          );
+                          // 3. Nếu chạy đến đây tức là register THÀNH CÔNG
+                          if (!mounted) return;
+                          LoadingDialog.hide(context); // Tắt loading
+
+                          SuccessDialog.show(context, () {
+                            context.pushReplacement('/update-avatar');
+                          });
+                          
+                          
+                        } catch (e) {
+                          // 4. Nếu có lỗi (Firebase hoặc API backend trả về error)
+                          if (!mounted) return;
+                          LoadingDialog.hide(context); // Tắt loading
+
+                          // Hiển thị thông báo lỗi cho người dùng
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(e.toString().replaceAll('Exception: ', '')),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                        }
+                      }
+                    : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryBlue,
                     disabledBackgroundColor: Colors.grey.shade200,
                     shape: const StadiumBorder(),
                     elevation: 0,
                   ),
-                  child: Text("Tiếp tục", 
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, 
-                    color: _isButtonEnabled ? Colors.white : Colors.grey.shade400)),
+                  child: Text(
+                    "Tiếp tục",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: _isButtonEnabled ? Colors.white : Colors.grey.shade400,
+                    ),
+                  ),
                 ),
               ),
             ],

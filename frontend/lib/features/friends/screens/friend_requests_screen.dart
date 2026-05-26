@@ -95,6 +95,7 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
             fontWeight: FontWeight.w600,
           ),
         ),
+        centerTitle: false,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(42),
           child: Container(
