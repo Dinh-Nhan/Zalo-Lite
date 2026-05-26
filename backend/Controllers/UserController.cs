@@ -168,7 +168,8 @@ public class UserController(UserService userService) : ControllerBase
     [HttpGet("search/{email}")]
     public async Task<IActionResult> SearchUser(string email)
     {
-        var users = await userService.SearchUser(email);
+        var currentUserId = GetUserIdFromToken();
+        var users = await userService.SearchUser(email, currentUserId);
         return Ok(new ApiResponse<List<UserRequestDto>> { Code = 200, Result = users });
     }
 }
