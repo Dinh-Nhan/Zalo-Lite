@@ -12,35 +12,26 @@ namespace backend.Mappings
     public class FeedMappingConfig : IRegister
     {
         public void Register(TypeAdapterConfig config)
-        {
-            // map nested object similiar field
-            // request -> entity
-            config.NewConfig<CreateMediaRequest, Media>();
-            config.NewConfig<Media, MediaResponse>();
+    {
+        // Feed → FeedResponse
+        config.NewConfig<Feeds, FeedResponse>()
+            .Map(dest => dest.CreatedAt, src => src.CreatedAt)
+            .Map(dest => dest.Settings, src => new SettingResponse
+            {
+                IsExpired = src.Settings.IsExpired,
+                ExpiresAt = src.Settings.ExpiresAt.HasValue
+                    ? src.Settings.ExpiresAt.Value
+                    : null
+            })
+            .Map(dest => dest.Stats, src => new StatsResponse
+            {
+                ViewCount = src.Stats.Views.Count,
+                LikeCount = src.Stats.Likes.Count,
+                IsLiked = false 
+            });
 
-            // Content
-            config.NewConfig<CreateContentRequest, Content>();
-            config.NewConfig<Content, ContentResponse>();
-
-            config.NewConfig<Settings, SettingResponse>();
-
-            // Stats → StatsResponse (tính toán thêm)
-            config.NewConfig<Stats, StatsResponse>()
-                .Map(dest => dest.ViewCount, src => src.Views.Count)
-                .Map(dest => dest.LikeCount, src => src.Likes.Count)
-                .Ignore(dest => dest.IsLiked); // service tự tính
-
-            // Feed
-            config.NewConfig<CreateFeedRequest, Feeds>()
-                .Ignore(dest => dest.Id)
-                .Ignore(dest => dest.UserId)    // lấy từ token
-                .Ignore(dest => dest.Stats)     // service khởi tạo
-                .Ignore(dest => dest.Settings)  // service khởi tạo
-                .Ignore(dest => dest.CreateAt)
-                .Ignore(dest => dest.DeletedAt!);
-
-            // Feeds → FeedResponse
-            config.NewConfig<Feeds, FeedResponse>();
-        }
+        config.NewConfig<Content, ContentResponse>();
+        config.NewConfig<Media, MediaResponse>();
+    }
     }
 }

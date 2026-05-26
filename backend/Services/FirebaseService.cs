@@ -20,45 +20,32 @@ public class FirebaseService
         var projectId = section.GetValue<string>("ProjectId");
 
         if (string.IsNullOrWhiteSpace(credentialsFilePath))
-        {
             throw new InvalidOperationException("Missing Firebase:CredentialsFilePath in appsettings.json.");
-        }
 
         if (string.IsNullOrWhiteSpace(projectId))
-        {
             throw new InvalidOperationException("Missing Firebase:ProjectId in appsettings.json.");
-        }
-
-        // Resolve full path
+      
+        // ✅ Resolve TRƯỚC, dùng cho tất cả
         var resolvedPath = Path.GetFullPath(credentialsFilePath, AppContext.BaseDirectory);
+        Console.WriteLine($"[FIREBASE] Resolved path: {resolvedPath}");
+        Console.WriteLine($"[FIREBASE] File exists: {File.Exists(resolvedPath)}");
         if (!File.Exists(resolvedPath))
-        {
-            throw new FileNotFoundException($"Firebase credentials file not found: {resolvedPath}", resolvedPath);
-        }
+            throw new FileNotFoundException($"Firebase credentials file not found: {resolvedPath}");
 
-        // Create credential using CredentialFactory (non-deprecated method)
-        var credential = CredentialFactory
-            .FromFile<ServiceAccountCredential>(resolvedPath)
-            .ToGoogleCredential();
-
-        // Initialize FirebaseApp once
+        // ✅ Cả FirebaseApp và Firestore đều dùng resolvedPath
         if (FirebaseApp.DefaultInstance == null)
         {
             FirebaseApp.Create(new AppOptions
             {
-                Credential = credential,
-                ProjectId = projectId
+                Credential = GoogleCredential.FromFile(resolvedPath),
+                ProjectId = projectId  // ✅ thêm ProjectId
             });
         }
 
-        // Set environment variable for Firestore to use the same credentials
-        Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", resolvedPath);
-
-        // Initialize Firestore
         FirestoreDb = new FirestoreDbBuilder
         {
             ProjectId = projectId,
-            Credential = credential
+            Credential = GoogleCredential.FromFile(resolvedPath)
         }.Build();
     }
 
@@ -81,7 +68,7 @@ public class FirebaseService
         {
             // Try to get existing user
             var userRecord = await FirebaseAuth.DefaultInstance.GetUserAsync(userId);
-            
+
             // Update existing user
             var args = new UserRecordArgs
             {
@@ -89,7 +76,7 @@ public class FirebaseService
                 Email = email.Trim(),
                 EmailVerified = false
             };
-            
+
             return await FirebaseAuth.DefaultInstance.UpdateUserAsync(args);
         }
         catch (FirebaseAuthException ex) when (ex.AuthErrorCode == AuthErrorCode.UserNotFound)
@@ -101,7 +88,7 @@ public class FirebaseService
                 Email = email.Trim(),
                 EmailVerified = false
             };
-            
+
             return await FirebaseAuth.DefaultInstance.CreateUserAsync(args);
         }
     }
@@ -129,7 +116,7 @@ public class FirebaseService
                 Email = email.Trim(),
                 EmailVerified = false
             };
-            
+
             return await FirebaseAuth.DefaultInstance.UpdateUserAsync(args);
         }
         catch (FirebaseAuthException ex) when (ex.AuthErrorCode == AuthErrorCode.UserNotFound)

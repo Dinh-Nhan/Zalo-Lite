@@ -10,9 +10,9 @@ import '../../config/app_colors.dart';
 /// Màn hình nhập mã xác thực OTP
 /// Hiển thị 6 ô nhập OTP, đếm ngược gửi lại, nút Tiếp tục
 class OtpVerifyView extends StatefulWidget {
-  final String phone;
+  final String email;
 
-  const OtpVerifyView({super.key, required this.phone});
+  const OtpVerifyView({super.key, required this.email});
 
   @override
   State<OtpVerifyView> createState() => _OtpVerifyViewState();
@@ -46,7 +46,7 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
     _startCountdown();
 
     // Tự động gọi gửi OTP khi vừa vào trang
-    AuthService.sendOtp(widget.phone).catchError((e) {
+    AuthService.sendOtp(widget.email).catchError((e) {
       setState(() => _errorMessage = e.toString());
     });
   }
@@ -141,7 +141,7 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
 
     try {
       // Gọi API Verify từ AuthService
-      bool isValid = await AuthService.verifyOtp(widget.phone, otp);
+      bool isValid = await AuthService.verifyOtp(widget.email, otp);
 
       if (isValid) {
         _showSuccessDialog(); // Nếu đúng, hiện thông báo thành công
@@ -173,7 +173,7 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
     });
 
     try {
-      await AuthService.sendOtp(widget.phone);
+      await AuthService.sendOtp(widget.email);
       _startCountdown();
       
       // Clear input cũ
@@ -194,8 +194,7 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
   }
 
   Future<void> _onBackPressed() async {
-    await AuthService.deleteAccountAndData();
-    context.go('/sign-up', extra: widget.phone); // Truyền số điện thoại hiện tại vào extra để điền sẵn
+    context.pop(); 
   }
 
   void _showSuccessDialog() {
@@ -224,7 +223,7 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
             onPressed: () {
               // Navigator.pop(context);
               // Navigate đến trang tin nhắn sau khi xác thực thành công
-              context.go('/reset-password', extra: widget.phone); // Truyền số điện thoại vào trang reset-password
+              context.push('/reset-password', extra: widget.email); // Truyền email vào trang reset-password
               // Navigator.pushReplacementNamed(context, '/reset-password');
             },
             child: Text(t.get('continue_')),
@@ -338,7 +337,7 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
               children: [
                 TextSpan(text: t.get('otpDesc')),
                 TextSpan(
-                  text: ' ${widget.phone}',
+                  text: ' ${widget.email}',
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
