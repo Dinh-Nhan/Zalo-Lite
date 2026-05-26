@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:frontend/component/loading_dialog.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/services/auth_service.dart';
+import 'package:frontend/utils/validator.dart';
 import 'package:go_router/go_router.dart';
 
 class ResetPasswordView extends StatefulWidget {
   final String? email; // Biến lưu email để truyền vào API reset password
-  const ResetPasswordView({super.key,  this.email});
+  const ResetPasswordView({super.key, required this.email});
 
   @override
   State<ResetPasswordView> createState() => _ResetPasswordViewState();
@@ -55,7 +56,7 @@ class _ResetPasswordViewState extends State<ResetPasswordView> {
     final password = _passwordCtrl.text;
     final confirm = _confirmPasswordCtrl.text;
 
-    bool isValid = password.length >= 6 && 
+    bool isValid = password.length >= 8 && 
                    confirm.isNotEmpty && 
                    password == confirm;
 
@@ -108,28 +109,14 @@ class _ResetPasswordViewState extends State<ResetPasswordView> {
 
   void _handleSubmit() async {
     if (_formKey.currentState!.validate()) {
-      LoadingDialog.show(context, message: "Đang cập nhật mật khẩu...");
-      try {
-        // Gọi hàm update mật khẩu mới
-        await AuthService.updateUserInfo(
-          fullName: "", // Nếu ở trang ResetPassword thì để trống hoặc lấy từ biến tạm
-          password: _passwordCtrl.text.trim(),
-        );
-
-        if (context.mounted) {
-          LoadingDialog.hide(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Mật khẩu đã được cập nhật!')),
-          );
-          // Đi tới bước nhập tên
-          context.go('/enter-name');
-        }
-      } catch (e) {
-        if (context.mounted) {
-          LoadingDialog.hide(context);
-          setState(() => _errorMessage = e.toString().replaceAll("Exception: ", ""));
-        }
-      }
+      LoadingDialog.show(context, message: "Đang tải...");
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
+      LoadingDialog.hide(context);
+      context.pushReplacement('/enter-name', extra: {
+        'email': widget.email,
+        'password': _passwordCtrl.text.trim()
+      });
     }
   }
 
@@ -143,7 +130,7 @@ class _ResetPasswordViewState extends State<ResetPasswordView> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black, size: 20),
           onPressed: () async => {
             await AuthService.deleteAccountAndData(),
-            context.go('/sign-up', extra: widget.email), // Quay về trang đăng ký mà không truyền số điện thoại nào cả
+            context.pop(), 
           }
         ),
         backgroundColor: Colors.white,
@@ -164,7 +151,7 @@ class _ResetPasswordViewState extends State<ResetPasswordView> {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Mật khẩu mới phải từ 6 ký tự và nên bao gồm chữ hoa, số, ký tự đặc biệt.',
+                  'Mật khẩu mới phải từ 8 ký tự và bao gồm tối thiểu 1 chữ hoa, 1 chữ số, có thể chứa ký tự đặc biệt.',
                   style: TextStyle(color: AppColors.textSecondary, height: 1.4),
                   textAlign: TextAlign.center,
                 ),
@@ -185,11 +172,7 @@ class _ResetPasswordViewState extends State<ResetPasswordView> {
                   label: 'Nhập mật khẩu mới',
                   isObscured: _obscurePassword,
                   onToggleVisibility: () => setState(() => _obscurePassword = !_obscurePassword),
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Vui lòng nhập mật khẩu';
-                    if (v.length < 6) return 'Mật khẩu phải từ 6 ký tự';
-                    return null;
-                  },
+                  validator: (v) => Validator.password(v),
                   onFieldSubmitted: (_) => _confirmFocus.requestFocus(),
                 ),
 
@@ -209,11 +192,7 @@ class _ResetPasswordViewState extends State<ResetPasswordView> {
                   label: 'Nhập lại mật khẩu mới',
                   isObscured: _obscureConfirm,
                   onToggleVisibility: () => setState(() => _obscureConfirm = !_obscureConfirm),
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Vui lòng xác nhận mật khẩu';
-                    if (v != _passwordCtrl.text) return 'Mật khẩu không khớp';
-                    return null;
-                  },
+                  validator: (v) => Validator.confirmPassword(v, _passwordCtrl.text),
                   onFieldSubmitted: _isFormValid ? (_) => _handleSubmit() : null,
                 ),
 

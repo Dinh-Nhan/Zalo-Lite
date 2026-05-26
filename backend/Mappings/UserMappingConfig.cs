@@ -24,7 +24,7 @@ namespace backend.Mappings
                 .Map(dest => dest.Role, _ => "client")          // default role
                 .Map(dest => dest.Status, _ => true)            // default active
                 .Map(dest => dest.CreateAt, _ => DateTime.UtcNow)
-                .Map(dest => dest.UpdateAt, _ => DateTime.UtcNow)
+                .Map(dest => dest.UpdateAt, _ => DateTime.Now)
                 .Ignore(dest => dest.Id)
                 .Ignore(dest => dest.Avatar);                   // avatar set sau khi upload
 

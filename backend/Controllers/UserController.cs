@@ -1,3 +1,4 @@
+using backend.dtos;
 using backend.dtos.Request;
 using backend.dtos.Response;
 using backend.Enums;
@@ -171,5 +172,16 @@ public class UserController(UserService userService) : ControllerBase
         var currentUserId = GetUserIdFromToken();
         var users = await userService.SearchUser(email, currentUserId);
         return Ok(new ApiResponse<List<UserRequestDto>> { Code = 200, Result = users });
+    }
+
+    [HttpPatch("avatar")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UpdateAvatar([FromForm] UpdateAvatarRequest request)
+    {
+        return Ok(new ApiResponse<UserResponse>()
+        {
+            Result = await userService.UpdateAvatarAsync(CurrentUserId, request),
+            Message = "Cập nhật avatar thành công"
+        });
     }
 }
