@@ -69,7 +69,6 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, RedisServi
 
         var user = snapshot.ConvertTo<User>();
         request.Adapt(user);
-        user.UpdateAt = DateTime.UtcNow;
         await docRef.SetAsync(user, SetOptions.MergeAll);
 
         return user.Adapt<UserResponse>();
@@ -89,17 +88,12 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, RedisServi
 
     public async Task<List<UserRequestDto>> SearchUser(string keyword)
     {
-        keyword = keyword.Trim();
+        keyword = keyword.Trim().ToLower();
 
         if (keyword.Length < 2)
             return new();
 
-        // Chuyển keyword sang Title Case: "đình nhân" -> "Đình Nhân"
-        var titleCase = System.Globalization.CultureInfo
-            .CurrentCulture.TextInfo.ToTitleCase(keyword.ToLower());
-
-        // Prefix query: "Đình" -> ("Đình", "Đìn~")
-        string cacheKey = $"search:user:{titleCase}";
+        string cacheKey = $"search:user:{keyword}";
 
         var cached = await _redis.GetAsync(cacheKey);
 
@@ -108,60 +102,41 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, RedisServi
             return JsonSerializer.Deserialize<List<UserRequestDto>>(cached)!;
         }
 
-        // Query song song 3 trường: email, firstName, lastName
-        var emailTask = db.Collection("users")
-            .WhereGreaterThanOrEqualTo("email", titleCase.ToLower())
-            .WhereLessThanOrEqualTo("email", titleCase.ToLower() + "\uf8ff")
+        var snapshot = await db
+            .Collection("users")
+            .WhereGreaterThanOrEqualTo("email", keyword)
+            .WhereLessThanOrEqualTo("email", keyword + "\uf8ff")
             .Limit(10)
             .GetSnapshotAsync();
 
-        var firstNameTask = db.Collection("users")
-            .WhereGreaterThanOrEqualTo("first_name", titleCase)
-            .WhereLessThanOrEqualTo("first_name", titleCase + "\uf8ff")
-            .Limit(10)
-            .GetSnapshotAsync();
-
-        var lastNameTask = db.Collection("users")
-            .WhereGreaterThanOrEqualTo("last_name", titleCase)
-            .WhereLessThanOrEqualTo("last_name", titleCase + "\uf8ff")
-            .Limit(10)
-            .GetSnapshotAsync();
-
-        await Task.WhenAll(emailTask, firstNameTask, lastNameTask);
-
-        var usersByEmail = emailTask.Result.Documents;
-        var usersByFirstName = firstNameTask.Result.Documents;
-        var usersByLastName = lastNameTask.Result.Documents;
-
-        // Gộp kết quả, loại trùng theo Id
-        var allDocs = usersByEmail
-            .Concat(usersByFirstName)
-            .Concat(usersByLastName)
-            .GroupBy(x => x.Id)
-            .Select(g => g.First())
-            .Take(20)
-            .Select(x => x.ConvertTo<User>())
-            .Select(user => new UserRequestDto
+        var users = snapshot.Documents
+            .Select(x =>
             {
-                Email = user.Email,
-                FullName = $"{user.FirstName} {user.LastName}".Trim(),
-                Avatar = user.Avatar,
-                Id = user.Id
+                var user = x.ConvertTo<User>();
+
+                return new UserRequestDto
+                {
+                    Email = user.Email,
+                    FullName = $"{user.FirstName} {user.LastName}".Trim(),
+                    Avatar = user.Avatar,
+                    Id = user.Id
+                };
             })
             .ToList();
 
-        if (allDocs.Any())
+        if (users.Any())
         {
             await _redis.SetAsync(
                 cacheKey,
-                JsonSerializer.Serialize(allDocs),
+                JsonSerializer.Serialize(users),
                 TimeSpan.FromSeconds(30));
         }
         else
         {
+            // Cache kết quả rỗng để tránh truy vấn DB nhiều lần với cùng 1 keyword không tồn tại
             await _redis.SetAsync(cacheKey, "[]", TimeSpan.FromSeconds(30));
         }
 
-        return allDocs;
+        return users;
     }
 }

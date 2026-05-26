@@ -81,6 +81,7 @@ builder.Services.AddCors(opt =>
 var app = builder.Build();
 
 // ── Warm-up Firebase ───────────────────────────────────────
+// Initialize FirebaseService immediately to ensure FirebaseApp.DefaultInstance is ready
 app.Services.GetRequiredService<FirebaseService>();
 
 // 1. Bắt exception toàn cục — phải đứng đầu tiên
