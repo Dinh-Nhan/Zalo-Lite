@@ -6,6 +6,7 @@ import 'package:frontend/features/friends/screens/add_friend_screen.dart';
 import 'package:frontend/features/friends/screens/friend_list_screen.dart';
 import 'package:frontend/features/friends/screens/friend_requests_screen.dart';
 import 'package:frontend/utils/app_localizations.dart';
+import 'package:frontend/widgets/search_overlay_screen.dart';
 
 /// Màn hình Danh bạ - Contacts View
 /// Giao diện nhỏ (mobile): hiển thị tabs Bạn bè / Nhóm
@@ -82,11 +83,8 @@ class _ContactsViewState extends State<ContactsView>
   Widget _buildMobileLayout(AppLocalizations t, bool isDark) {
     return Column(
       children: [
-        // Blue header with search
         _buildMobileHeader(t, isDark),
-        // Tabs: Bạn bè | Nhóm
         _buildMobileTabs(t, isDark),
-        // Tab content
         Expanded(
           child: TabBarView(
             controller: _tabController,
@@ -101,36 +99,41 @@ class _ContactsViewState extends State<ContactsView>
   }
 
   Widget _buildMobileHeader(AppLocalizations t, bool isDark) {
-    final Color headerBg = isDark
-        ? const Color(0xFF1A1A1A)
-        : AppColors.primaryBlue;
+    final Color headerBg =
+        isDark ? const Color(0xFF1A1A1A) : AppColors.primaryBlue;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       color: headerBg,
       child: Row(
         children: [
           Expanded(
-            child: Container(
-              height: 32,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.25),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: TextField(
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-                decoration: InputDecoration(
-                  hintText: t.get('searchPlaceholder'),
-                  hintStyle: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    fontSize: 13,
-                  ),
-                  prefixIcon: Icon(
-                    Icons.search,
-                    color: Colors.white.withValues(alpha: 0.8),
-                    size: 18,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+            child: GestureDetector(
+              onTap: () => _openSearchOverlay(context),
+              child: Container(
+                height: 32,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 10),
+                    Icon(
+                      Icons.search,
+                      color: Colors.white.withValues(alpha: 0.8),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      t.get('searchPlaceholder'),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontSize: 13,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (false) const SizedBox(width: 10),
+                  ],
                 ),
               ),
             ),
@@ -384,56 +387,41 @@ class _ContactsViewState extends State<ContactsView>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 12),
-          // Search header with action icons
+          // Search bar (opens overlay on tap)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF2A2A2A)
-                          : const Color(0xFFF5F5F5),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      children: [
-                        const SizedBox(width: 14),
-                        Icon(
-                          Icons.search,
-                          color: AppColors.getTextSecondary(isDark),
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            style: TextStyle(
-                              color: AppColors.getTextPrimary(isDark),
-                              fontSize: 14,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: t.get('searchPlaceholder'),
-                              hintStyle: TextStyle(
-                                color: AppColors.getTextSecondary(isDark),
-                                fontSize: 14,
-                              ),
-                              border: InputBorder.none,
-                              isDense: true,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                      ],
-                    ),
-                  ),
+            child: GestureDetector(
+              onTap: () => _openSearchOverlay(context),
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF2A2A2A)
+                      : const Color(0xFFF5F5F5),
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                const SizedBox(width: 8),
-                _buildIconBtnSidebar(Icons.person_add_outlined, isDark, () {}),
-                _buildIconBtnSidebar(Icons.group_add_outlined, isDark, () {}),
-              ],
+                child: Row(
+                  children: [
+                    const SizedBox(width: 14),
+                    Icon(
+                      Icons.search,
+                      color: AppColors.getTextSecondary(isDark),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        t.get('searchPlaceholder'),
+                        style: TextStyle(
+                          color: AppColors.getTextSecondary(isDark),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                  ],
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -998,5 +986,30 @@ class _ContactsViewState extends State<ContactsView>
       return '${parts[0][0]}${parts[parts.length - 1][0]}'.toUpperCase();
     }
     return name.isNotEmpty ? name[0].toUpperCase() : '?';
+  }
+
+  void _openSearchOverlay(BuildContext context) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => SearchOverlayScreen(
+          onBack: () => Navigator.of(context).pop(),
+          onSearchResultTap: ({required userId, required name, avatar}) {
+            Navigator.of(context).pop();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Đã chọn: $name'),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          },
+          recentContacts: const [],
+        ),
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+    );
   }
 }

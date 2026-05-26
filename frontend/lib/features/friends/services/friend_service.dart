@@ -223,11 +223,11 @@ class FriendService {
     }
   }
 
-  // ── GET /api/users (search) ───────────────────────────────────
+  // ── GET /api/user/search/{keyword} ──────────────────────────────
   /// Tìm kiếm người dùng theo tên hoặc email
   static Future<List<UserSearchModel>> searchUsers(String query) async {
     try {
-      final res = await _dio.get('/api/user', queryParameters: {'q': query});
+      final res = await _dio.get('/api/user/search/$query');
       final data = res.data as Map<String, dynamic>;
       final list = (data['result'] as List? ?? []);
       return list
