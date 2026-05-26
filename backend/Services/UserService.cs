@@ -1,12 +1,16 @@
-using Google.Cloud.Firestore;
-using backend.Models;
 using backend.Attributes;
+using backend.dtos.Request;
 using backend.dtos.Response;
-using backend.Exceptions;
 using backend.Enums;
+using backend.Exceptions;
+using backend.Models;
+using Google.Cloud.Firestore;
+using Google.Cloud.Firestore.V1;
 using Mapster;
 using backend.dtos.Request;
 using backend.dtos;
+using StackExchange.Redis;
+using System.Text.Json;
 
 namespace backend.Services;
 
@@ -100,7 +104,6 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, Cloudinary
         logger.LogInformation("User deleted: {UserId}", id);
     }
 
-
     public async Task<UserResponse> UpdateAvatarAsync(string userId, UpdateAvatarRequest request)
     {
         var docRef = db.Collection(Collection).Document(userId);
@@ -129,5 +132,48 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, Cloudinary
 
         var updated = await docRef.GetSnapshotAsync();
         return updated.ConvertTo<User>().Adapt<UserResponse>();
+    }
+  
+    public async Task<List<UserRequestDto>> SearchUser(string keyword, string currentUserId)
+    {
+        keyword = keyword.Trim().ToLower();
+
+        if (keyword.Length < 2)
+            return new();
+
+        string cacheKey = $"search:user:{keyword}:{currentUserId}";
+
+        var cached = await _redis.GetAsync(cacheKey);
+
+        if (!string.IsNullOrEmpty(cached))
+        {
+            return JsonSerializer.Deserialize<List<UserRequestDto>>(cached)!;
+        }
+
+        var snapshot = await db
+            .Collection("users")
+            .WhereGreaterThanOrEqualTo("email", keyword)
+            .WhereLessThanOrEqualTo("email", keyword + "\uf8ff")
+            .Limit(10)
+            .GetSnapshotAsync();
+
+        var users = snapshot.Documents
+            .Select(x => x.ConvertTo<User>())
+            .Where(user => user.Id != currentUserId) // loại bỏ bản thân
+            .Select(user => new UserRequestDto
+            {
+                Email = user.Email,
+                FullName = $"{user.FirstName} {user.LastName}".Trim(),
+                Avatar = user.Avatar,
+                Id = user.Id
+            })
+            .ToList();
+
+        await _redis.SetAsync(
+            cacheKey,
+            JsonSerializer.Serialize(users),
+            TimeSpan.FromSeconds(30));
+
+        return users;
     }
 }
