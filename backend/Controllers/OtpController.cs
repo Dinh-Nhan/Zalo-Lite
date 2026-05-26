@@ -1,4 +1,5 @@
-﻿using backend.dtos.Response;
+﻿using backend.common;
+using backend.dtos.Response;
 using backend.Services;
 using FirebaseAdmin.Auth;
 using Microsoft.AspNetCore.Authorization;
@@ -22,25 +23,16 @@ namespace backend.Controllers
             // Validate email format
             if (string.IsNullOrEmpty(email) || !email.Contains("@"))
             {
-                return BadRequest(new ApiResponse<object>
-                {
-                    Code = 400,
-                    Message = "Invalid email format",
-                    Result = false,
-                });
+                return BadRequest(ApiResponse<object>.ErrorResponse(400, "Invalid email format"));
             }
 
             var generatedOtp = await otpService.GenerateOtpAsync(email);
 
-            return Ok(new ApiResponse<OtpResponse>
+            return Ok(ApiResponse<OtpResponse>.SuccessResponse(new OtpResponse
             {
-                Code = 200,
-                Result = new OtpResponse
-                {
-                    Otp = generatedOtp,
-                    Email = email
-                }
-            });
+                Otp = generatedOtp,
+                Email = email
+            }));
         }
 
         /// <summary>
@@ -66,20 +58,10 @@ namespace backend.Controllers
             if (!result)
             {
                 var message = await otpService.MessageVerifyOtpAsync(email, otp);
-                return BadRequest(new ApiResponse<object>
-                {
-                    Code = 400,
-                    Message = message,
-                    Result = false,
-                });
+                return BadRequest(ApiResponse<object>.ErrorResponse(400, message));
             }
 
-            return Ok(new ApiResponse<object>
-            {
-                Code = 200,
-                Message = "OTP verified successfully",
-                Result = true,            
-            });
+            return Ok(ApiResponse<object>.SuccessResponse(true, "OTP verified successfully"));
         }
     }
 }

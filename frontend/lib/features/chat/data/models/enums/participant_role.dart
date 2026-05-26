@@ -1,1 +1,0 @@
-enum ParticipantRole {admin, member}
