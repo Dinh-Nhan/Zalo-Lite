@@ -1,16 +1,21 @@
-using Google.Cloud.Firestore;
-using backend.Models;
 using backend.Attributes;
+using backend.dtos.Request;
 using backend.dtos.Response;
-using backend.Exceptions;
 using backend.Enums;
+using backend.Exceptions;
+using backend.Models;
+using Google.Cloud.Firestore;
+using Google.Cloud.Firestore.V1;
 using Mapster;
 using backend.dtos.Request;
+using backend.dtos;
+using StackExchange.Redis;
+using System.Text.Json;
 
 namespace backend.Services;
 
 [ScopedService]
-public class UserService(FirestoreDb db, ILogger<UserService> logger)
+public class UserService(FirestoreDb db, ILogger<UserService> logger, CloudinaryService cloudinaryService)
 {
     private const string Collection = "users";
 
@@ -53,6 +58,16 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger)
 
         await docRef.SetAsync(user);
         logger.LogInformation("User created: {UserId}", uid);
+        // if (existing.Count > 0)
+        //     throw new AppException(ErrorCode.EMAIL_ALREADY_EXISTS);
+
+        // var user = request.Adapt<User>();
+        // var docRef = await db.Collection(Collection)
+        //                 .Document(request.Id)
+        //                 .SetAsync(user);
+        // // user.Id = docRef.Id;
+
+        // logger.LogInformation("User created: {UserId}", user.Id);
         return user.Adapt<UserResponse>();
     }
 
@@ -75,11 +90,90 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger)
     {
         var docRef = db.Collection(Collection).Document(id);
         var snapshot = await docRef.GetSnapshotAsync();
+        if (!snapshot.Exists)
+            throw new AppException(ErrorCode.USER_NOT_FOUND);
+
+        var user = snapshot.ConvertTo<User>();
+        // xóa avatar trước
+        if (!string.IsNullOrEmpty(user.AvatarPublicId))
+            await cloudinaryService.DeleteAvatarAsync(user.AvatarPublicId);
+
+        // xóa folder
+        await cloudinaryService.DeleteUserFolderAsync(user.Id);
+        await docRef.DeleteAsync();
+        logger.LogInformation("User deleted: {UserId}", id);
+    }
+
+    public async Task<UserResponse> UpdateAvatarAsync(string userId, UpdateAvatarRequest request)
+    {
+        var docRef = db.Collection(Collection).Document(userId);
+        var snapshot = await docRef.GetSnapshotAsync();
 
         if (!snapshot.Exists)
             throw new AppException(ErrorCode.USER_NOT_FOUND);
 
-        await docRef.DeleteAsync();
-        logger.LogInformation("User deleted: {UserId}", id);
+        var user = snapshot.ConvertTo<User>();
+
+        // Xóa avatar cũ trên Cloudinary nếu có
+        if (!string.IsNullOrEmpty(user.AvatarPublicId))
+            await cloudinaryService.DeleteAvatarAsync(user.AvatarPublicId);
+
+        // Upload avatar mới
+        var (url, publicId) = await cloudinaryService.UploadAvatarAsync(request.File, userId);
+
+        // Cập nhật Firestore 
+        await docRef.UpdateAsync(new Dictionary<string, object>
+        {
+            ["avatar"] = url,
+            ["avatar_public_id"] = publicId
+        });
+
+        logger.LogInformation("[UserService] Updated avatar for user {UserId}", userId);
+
+        var updated = await docRef.GetSnapshotAsync();
+        return updated.ConvertTo<User>().Adapt<UserResponse>();
+    }
+  
+    public async Task<List<UserRequestDto>> SearchUser(string keyword, string currentUserId)
+    {
+        keyword = keyword.Trim().ToLower();
+
+        if (keyword.Length < 2)
+            return new();
+
+        string cacheKey = $"search:user:{keyword}:{currentUserId}";
+
+        var cached = await _redis.GetAsync(cacheKey);
+
+        if (!string.IsNullOrEmpty(cached))
+        {
+            return JsonSerializer.Deserialize<List<UserRequestDto>>(cached)!;
+        }
+
+        var snapshot = await db
+            .Collection("users")
+            .WhereGreaterThanOrEqualTo("email", keyword)
+            .WhereLessThanOrEqualTo("email", keyword + "\uf8ff")
+            .Limit(10)
+            .GetSnapshotAsync();
+
+        var users = snapshot.Documents
+            .Select(x => x.ConvertTo<User>())
+            .Where(user => user.Id != currentUserId) // loại bỏ bản thân
+            .Select(user => new UserRequestDto
+            {
+                Email = user.Email,
+                FullName = $"{user.FirstName} {user.LastName}".Trim(),
+                Avatar = user.Avatar,
+                Id = user.Id
+            })
+            .ToList();
+
+        await _redis.SetAsync(
+            cacheKey,
+            JsonSerializer.Serialize(users),
+            TimeSpan.FromSeconds(30));
+
+        return users;
     }
 }

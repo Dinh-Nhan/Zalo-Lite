@@ -1,0 +1,150 @@
+### Variables
+@baseUrl = http://localhost:5244
+@token = YOUR_FIREBASE_TOKEN_HERE
+
+### ============================================
+### AUTH APIs
+### ============================================
+
+### Get Profile (cần token)
+GET {{baseUrl}}/api/auth/profile
+Authorization: Bearer {{token}}
+
+### ============================================
+### USER APIs
+### ============================================
+
+### Get My Info (cần token)
+GET {{baseUrl}}/api/user/me
+Authorization: Bearer {{token}}
+
+### Get User By ID (cần token)
+GET {{baseUrl}}/api/user/ei38SSMJQmXyMUOFyRn3EtNLvtz1
+Authorization: Bearer {{token}}
+
+### Get All Users (cần token)
+GET {{baseUrl}}/api/user
+Authorization: Bearer {{token}}
+
+### Create User (không cần token - dùng cho register)
+POST {{baseUrl}}/api/user
+Content-Type: application/json
+
+{
+  "id": "ei38SSMJQmXyMUOFyRn3EtNLvtz1",
+  "firstName": "Đại",
+  "lastName": "Nguyễn",
+  "email": "dai@gmail.com",
+  "password": "123456",
+  "dateOfBirth": "2000-01-01",
+  "bio": "Hello world"
+}
+
+### Update My Info (cần token)
+PUT {{baseUrl}}/api/user/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "firstName": "Đại Updated",
+  "lastName": "Nguyễn",
+  "bio": "Updated bio"
+}
+
+### Delete My Account (cần token)
+DELETE {{baseUrl}}/api/user/me
+Authorization: Bearer {{token}}
+
+### ============================================
+### FEED APIs
+### ============================================
+
+### Create Feed (cần token)
+POST {{baseUrl}}/api/feed
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "content": [
+    {
+      "text": "Hello world from API test",
+      "media": []
+    }
+  ]
+}
+
+### Get Feed By ID (cần token)
+GET {{baseUrl}}/api/feed/FEED_ID_HERE
+Authorization: Bearer {{token}}
+
+### Get My Feeds (cần token)
+GET {{baseUrl}}/api/feed/me
+Authorization: Bearer {{token}}
+
+### ============================================
+### FRIEND APIs
+### ============================================
+
+### Get My Friends (cần token)
+GET {{baseUrl}}/api/friends
+Authorization: Bearer {{token}}
+
+### Get Received Friend Requests (cần token)
+GET {{baseUrl}}/api/friends/requests/received
+Authorization: Bearer {{token}}
+
+### Get Sent Friend Requests (cần token)
+GET {{baseUrl}}/api/friends/requests/sent
+Authorization: Bearer {{token}}
+
+### Get Blocked Users (cần token)
+GET {{baseUrl}}/api/friends/blocked
+Authorization: Bearer {{token}}
+
+### Get Relationship Status (cần token)
+GET {{baseUrl}}/api/friends/status/TARGET_USER_ID
+Authorization: Bearer {{token}}
+
+### Send Friend Request (cần token)
+POST {{baseUrl}}/api/friends/requests
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "targetUserId": "TARGET_USER_ID"
+}
+
+### Accept/Reject Friend Request (cần token)
+PATCH {{baseUrl}}/api/friends/requests/FRIENDSHIP_ID
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "action": "accept"
+}
+
+### Cancel Friend Request (cần token)
+DELETE {{baseUrl}}/api/friends/requests/FRIENDSHIP_ID
+Authorization: Bearer {{token}}
+
+### Unfriend (cần token)
+DELETE {{baseUrl}}/api/friends/TARGET_USER_ID
+Authorization: Bearer {{token}}
+
+### Block User (cần token)
+POST {{baseUrl}}/api/friends/block/TARGET_USER_ID
+Authorization: Bearer {{token}}
+
+### Unblock User (cần token)
+DELETE {{baseUrl}}/api/friends/block/TARGET_USER_ID
+Authorization: Bearer {{token}}
+
+### ============================================
+### OTP APIs (không cần token)
+### ============================================
+
+### Generate OTP
+POST {{baseUrl}}/api/otp/generate?email=test@gmail.com
+
+### Verify OTP
+POST {{baseUrl}}/api/otp/verify?email=test@gmail.com&otp=123456

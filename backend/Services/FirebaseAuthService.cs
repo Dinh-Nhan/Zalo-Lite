@@ -1,3 +1,4 @@
+using backend.dtos.Request;
 using FirebaseAdmin.Auth;
 
 public class FirebaseAuthService

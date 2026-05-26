@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:frontend/apps/app_locale.dart';
 import 'package:frontend/apps/router.dart';
+import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/providers/call_provider.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
@@ -18,7 +19,10 @@ void main() async {
 
   runApp(
     MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => CallProvider())],
+      providers: [
+        ChangeNotifierProvider(create: (_) => CallProvider()),
+        ChangeNotifierProvider(create: (_) => FriendProvider(),),
+        ],
       child: const MyApp(),
     ),
   );

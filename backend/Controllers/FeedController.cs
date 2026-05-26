@@ -1,15 +1,19 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using backend.common;
 using backend.dtos.Request;
 using backend.dtos.Response;
+using backend.dtos.Response.Feeds;
+using backend.Enums;
 using backend.Exceptions;
+using backend.Extensions;
 using backend.Services;
 using FirebaseAdmin.Auth;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 
 namespace backend.Controllers
 {
@@ -24,7 +28,7 @@ namespace backend.Controllers
             {
                 var token = HttpContext.Items["User"] as FirebaseToken;
                 if (token == null)
-                    throw new AppException(Enums.ErrorCode.UNAUTHENTICATED);
+                    throw new AppException(ErrorCode.UNAUTHENTICATED);
                 return token.Uid;
             }
         }
@@ -41,7 +45,7 @@ namespace backend.Controllers
         {
             logger.LogInformation("[FeedController] GetStories | UserId={UserId}", CurrentUserId);
             var result = await feedService.GetStoriesAsync(CurrentUserId);
-            return Ok(ApiResponse<List<FeedResponse>>.SuccessResponse(result));
+            return Ok(new ApiResponse<List<FeedResponse>> { Result = result });
         }
 
         /// <summary>Lấy Newsfeed (bài post)</summary>
@@ -51,6 +55,7 @@ namespace backend.Controllers
         /// </remarks>
         /// <response code="200">Danh sách post thành công</response>
         /// <response code="401">Chưa xác thực</response>
+
         [HttpGet("newsfeed")]
         [ProducesResponseType(typeof(ApiResponse<List<FeedResponse>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
@@ -58,7 +63,7 @@ namespace backend.Controllers
         {
             logger.LogInformation("[FeedController] GetNewsfeed | UserId={UserId}", CurrentUserId);
             var result = await feedService.GetNewsfeedAsync(CurrentUserId);
-            return Ok(ApiResponse<List<FeedResponse>>.SuccessResponse(result));
+            return Ok(new ApiResponse<List<FeedResponse>> { Result = result });
         }
 
         /// <summary>Lấy toàn bộ bảng tin (Story + Newsfeed)</summary>
@@ -79,13 +84,14 @@ namespace backend.Controllers
             var postsTask = feedService.GetNewsfeedAsync(CurrentUserId);
             await Task.WhenAll(storiesTask, postsTask);
 
-            var response = new NewsfeedResponse
+            return Ok(new ApiResponse<NewsfeedResponse>
             {
-                Stories = await storiesTask,
-                Posts = await postsTask
-            };
-
-            return Ok(ApiResponse<NewsfeedResponse>.SuccessResponse(response));
+                Result = new NewsfeedResponse
+                {
+                    Stories = storiesTask.Result,
+                    Posts = postsTask.Result
+                }
+            });
         }
 
         /// <summary>Lấy chi tiết một feed theo ID</summary>
@@ -107,17 +113,17 @@ namespace backend.Controllers
         {
             logger.LogInformation("[FeedController] GetById | FeedId={FeedId} UserId={UserId}", feedId, CurrentUserId);
             var result = await feedService.GetByIdAsync(feedId, CurrentUserId);
-            return Ok(ApiResponse<FeedResponse>.SuccessResponse(result));
+            return Ok(new ApiResponse<FeedResponse> { Result = result });
         }
 
         /// <summary>Tạo post hoặc story mới</summary>
         /// <remarks>
         /// Tạo một bài đăng mới. Nếu type là "story" thì tự động đặt thời hạn 24h.
-        ///
+        /// 
         /// **Type:**
         /// - `post` → bài đăng thông thường, không có thời hạn
         /// - `story` → tin 24h, tự động hết hạn
-        ///
+        /// 
         /// **Privacy:**
         /// - `public` → tất cả bạn bè thấy
         /// - `friends` → chỉ bạn bè thấy
@@ -130,25 +136,32 @@ namespace backend.Controllers
         [ProducesResponseType(typeof(ApiResponse<FeedResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status422UnprocessableEntity)]
-        public async Task<IActionResult> CreateFeed([FromBody] CreateFeedRequest request)
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> CreateFeed([FromForm] CreateFeedRequest request, IFormFileCollection files)
         {
+            // Gán files vào request sau khi bind
+            request.Content.Media = files
+                .Select(f => new CreateMediaRequest { File = f })
+                .ToList();
             logger.LogInformation("[FeedController] CreateFeed | Type={Type} UserId={UserId}", request.Type, CurrentUserId);
             var result = await feedService.CreateFeedAsync(CurrentUserId, request);
             return CreatedAtAction(nameof(GetById), new { feedId = result.Id },
-                ApiResponse<FeedResponse>.SuccessResponse(result));
+                new ApiResponse<FeedResponse> { Result = result });
         }
 
         /// <summary>Chỉnh sửa nội dung post</summary>
         /// <remarks>
         /// Chỉ chủ bài mới được chỉnh sửa. Story không được phép chỉnh sửa.
         /// Chỉ cần gửi lên các field muốn thay đổi (partial update).
-        ///
+        /// 
         /// **Các field có thể sửa:**
         /// - `caption` → nội dung bài viết
         /// - `media` → danh sách ảnh/video (ghi đè toàn bộ)
         /// - `privacy` → quyền riêng tư
         /// </remarks>
         /// <param name="feedId">ID của post cần chỉnh sửa</param>
+        /// <param name="request"></param>
+        /// <param name="files"></param>
         /// <response code="200">Cập nhật thành công</response>
         /// <response code="400">Story không được phép sửa hoặc không có gì để update</response>
         /// <response code="401">Chưa xác thực</response>
@@ -162,13 +175,22 @@ namespace backend.Controllers
         [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status422UnprocessableEntity)]
-        public async Task<IActionResult> UpdateFeed(string feedId, [FromBody] UpdateFeedRequest request)
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UpdateFeed(
+            string feedId,
+            [FromForm] UpdateFeedRequest request,
+            IFormFileCollection files
+    )
         {
+            request.Media = files
+               .Select(f => new CreateMediaRequest { File = f })
+               .ToList();
             logger.LogInformation("[FeedController] UpdateFeed | FeedId={FeedId} UserId={UserId}",
                 feedId, CurrentUserId);
 
             var result = await feedService.UpdateFeedAsync(feedId, CurrentUserId, request);
-            return Ok(ApiResponse<FeedResponse>.SuccessResponse(result));
+
+            return Ok(new ApiResponse<FeedResponse> { Result = result });
         }
 
         /// <summary>Xóa post hoặc story</summary>
@@ -192,23 +214,38 @@ namespace backend.Controllers
                 feedId, CurrentUserId);
 
             await feedService.DeleteFeedAsync(feedId, CurrentUserId);
-            return Ok(ApiResponse<object>.SuccessResponse(null, "Xóa thành công"));
+
+            return Ok(new ApiResponse<object>
+            {
+                Code = 200,
+                Message = "Xóa thành công"
+            });
         }
 
-        /// <summary>Like / unlike một feed</summary>
+        /// <summary>Like hoặc Unlike một post/story</summary>
         /// <remarks>
-        /// Toggle like cho feed. Nếu đã like thì bỏ like, nếu chưa like thì like.
+        /// Toggle like: nếu chưa like thì like, nếu đã like thì unlike.
+        /// Áp dụng cho cả post và story.
+        /// Story đã hết hạn sẽ không thể like.
         /// </remarks>
+        /// <param name="feedId">ID của feed cần like/unlike</param>
+        /// <response code="200">Thao tác thành công, trả về trạng thái like mới</response>
+        /// <response code="401">Chưa xác thực</response>
+        /// <response code="404">Không tìm thấy feed</response>
+        /// <response code="410">Story đã hết hạn</response>
         [HttpPost("{feedId}/like")]
         [ProducesResponseType(typeof(ApiResponse<LikeResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status410Gone)]
         public async Task<IActionResult> ToggleLike(string feedId)
         {
             logger.LogInformation("[FeedController] ToggleLike | FeedId={FeedId} UserId={UserId}",
                 feedId, CurrentUserId);
 
             var result = await feedService.ToggleLikeAsync(feedId, CurrentUserId);
-            return Ok(ApiResponse<LikeResponse>.SuccessResponse(result));
+
+            return Ok(new ApiResponse<LikeResponse> { Result = result });
         }
 
         /// <summary>Lấy danh sách người đã like</summary>
@@ -230,7 +267,8 @@ namespace backend.Controllers
                 feedId, CurrentUserId);
 
             var result = await feedService.GetLikesAsync(feedId, CurrentUserId);
-            return Ok(ApiResponse<LikesListResponse>.SuccessResponse(result));
+
+            return Ok(new ApiResponse<LikesListResponse> { Result = result });
         }
 
         /// <summary>Xem story (track view)</summary>
@@ -256,7 +294,7 @@ namespace backend.Controllers
                 feedId, CurrentUserId);
 
             var result = await feedService.TrackViewAsync(feedId, CurrentUserId);
-            return Ok(ApiResponse<ViewResponse>.SuccessResponse(result));
+            return Ok(new ApiResponse<ViewResponse> { Result = result });
         }
 
         /// <summary>Lấy danh sách người đã xem story</summary>
@@ -282,7 +320,7 @@ namespace backend.Controllers
                 feedId, CurrentUserId);
 
             var result = await feedService.GetViewersAsync(feedId, CurrentUserId);
-            return Ok(ApiResponse<ViewersListResponse>.SuccessResponse(result));
+            return Ok(new ApiResponse<ViewersListResponse> { Result = result });
         }
 
         /// <summary>Ẩn hoặc bỏ ẩn một post</summary>
@@ -308,7 +346,7 @@ namespace backend.Controllers
                 feedId, CurrentUserId);
 
             var result = await feedService.ToggleHidePostAsync(feedId, CurrentUserId);
-            return Ok(ApiResponse<HideResponse>.SuccessResponse(result));
+            return Ok(new ApiResponse<HideResponse> { Result = result });
         }
 
         /// <summary>Lấy danh sách feed của một user</summary>
@@ -329,12 +367,12 @@ namespace backend.Controllers
                 userId, CurrentUserId);
 
             var result = await feedService.GetFeedsByUserIdAsync(userId, CurrentUserId);
-            return Ok(ApiResponse<List<FeedResponse>>.SuccessResponse(result));
+            return Ok(new ApiResponse<List<FeedResponse>> { Result = result });
         }
 
         /// <summary>Lấy danh sách feed của chính user mà đã bị xóa</summary>
         /// <remarks>
-        /// Lấy tất cả feed tùy thuộc vào type để xem kho lưu trữ.
+        ///Lấy tất cả feed tùy thuộc vào type để xem kho lưu trữ.
         /// Type có thể là post or story.
         /// </remarks>
         /// <param name="type">Xem kho lưu trữ theo post hoặc story</param>
@@ -343,13 +381,17 @@ namespace backend.Controllers
         [HttpGet("me/deleted/{type}")]
         [ProducesResponseType(typeof(ApiResponse<List<FeedResponse>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
-        public async Task<IActionResult> GetAllFeedDeleted(string type)
+        public async Task<IActionResult> getAllFeedDeleted(string type)
         {
-            logger.LogInformation("[FeedController] GetAllFeedDeleted | CurrentUserId={CurrentUserId}",
+            logger.LogInformation("[FeedController] getAllFeedDeleted | CurrentUserId={CurrentUserId}",
                 CurrentUserId);
 
-            var result = await feedService.GetAllFeedDeletedAsync(CurrentUserId, type);
-            return Ok(ApiResponse<List<FeedResponse>>.SuccessResponse(result));
+            var result = await feedService.getAllFeedDeleted(CurrentUserId, type);
+
+            return Ok(new ApiResponse<List<FeedResponse>>
+            {
+                Result = result
+            });
         }
     }
 }
