@@ -27,9 +27,12 @@ namespace backend.Validators
             RuleFor(x => x.Content)
                 .NotNull().WithMessage("Content is required");
 
-            RuleFor(x => x.Content.Caption)
-                .NotEmpty().WithMessage("Caption is required")
-                .MaximumLength(2000).WithMessage("Caption must not exceed 2000 characters");
+            When(x => x.Type != "story" && (x.Content?.Media == null || x.Content.Media.Count == 0), () =>
+            {
+                RuleFor(x => x.Content!.Caption)
+                    .NotEmpty().WithMessage("Caption is required when no media is provided")
+                    .MaximumLength(2000).WithMessage("Caption must not exceed 2000 characters");
+            });
 
             // RuleFor(x => x.Content.Media)
             //     .NotEmpty().WithMessage("At least one media file is required");

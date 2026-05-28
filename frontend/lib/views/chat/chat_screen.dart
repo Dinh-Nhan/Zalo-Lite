@@ -5,6 +5,7 @@ import '../../models/chat/conversation.dart';
 import '../../models/chat/message.dart';
 import '../../widgets/chat/message_bubble.dart';
 import '../../widgets/chat/typing_indicator.dart';
+import '../../widgets/emoji_picker_widget.dart';
 import 'group_info_screen.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -25,6 +26,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isLoading = true;
   bool _isSending = false;
   bool _showScrollToBottom = false;
+  bool _showEmojiKeyboard = false;
 
   // Typing indicator
   bool _isTyping = false;
@@ -164,6 +166,24 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  void _insertEmoji(String emoji) {
+    final text = _messageController.text;
+    final selection = _messageController.selection;
+    
+    if (selection.start >= 0) {
+      final newText = text.replaceRange(selection.start, selection.end, emoji);
+      final newPosition = selection.start + emoji.length;
+      
+      _messageController.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newPosition),
+      );
+    } else {
+      _messageController.text += emoji;
+    }
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -208,6 +228,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
           // Input area
           _buildInputArea(),
+          
+          if (_showEmojiKeyboard)
+            EmojiPickerWidget(
+              onEmojiSelected: _insertEmoji,
+            ),
         ],
       ),
     );
@@ -484,6 +509,11 @@ class _ChatScreenState extends State<ChatScreen> {
                       controller: _messageController,
                       focusNode: _focusNode,
                       onChanged: (_) => _onTyping(),
+                      onTap: () {
+                        setState(() {
+                          _showEmojiKeyboard = false;
+                        });
+                      },
                       decoration: InputDecoration(
                         hintText: 'Aa',
                         border: InputBorder.none,
@@ -495,9 +525,16 @@ class _ChatScreenState extends State<ChatScreen> {
                   IconButton(
                     icon: Icon(
                       Icons.emoji_emotions_outlined,
-                      color: Colors.grey[600],
+                      color: _showEmojiKeyboard ? Colors.blue : Colors.grey[600],
                     ),
-                    onPressed: _showEmojiPicker,
+                    onPressed: () {
+                      setState(() {
+                        _showEmojiKeyboard = !_showEmojiKeyboard;
+                        if (_showEmojiKeyboard) {
+                          _focusNode.unfocus();
+                        }
+                      });
+                    },
                     padding: EdgeInsets.zero,
                     constraints: BoxConstraints(),
                   ),

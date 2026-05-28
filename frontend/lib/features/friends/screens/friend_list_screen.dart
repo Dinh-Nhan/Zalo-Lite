@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/config/app_colors.dart';
 
 class FriendListScreen extends StatefulWidget {
   const FriendListScreen({super.key});
@@ -11,32 +12,22 @@ class _FriendListScreenState extends State<FriendListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
-        children: [
-          // Button action nhanh để hiển thị lời mời kết bạn
-          _buildFriendRequest(),
-        ],
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: AppColors.primaryBlue,
+        foregroundColor: Colors.white,
+        title: const Text(
+          'Danh sách bạn bè',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        elevation: 0,
+      ),
+      body: const Center(
+        child: Text(
+          'Chưa có bạn bè nào',
+          style: TextStyle(color: Color(0xFF65676B), fontSize: 15),
+        ),
       ),
     );
   }
-}
-
-Widget _buildFriendRequest() {
-  return Container(
-    padding: const EdgeInsets.all(10),
-    child: Row(
-      children: [
-        ElevatedButton(
-          onPressed: null,
-          child: Row(
-            children: [
-              Icon(Icons.person, size: 40),
-              const SizedBox(width: 10),
-              const Text("Lời mời kết bạn"),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
 }

@@ -139,10 +139,24 @@ namespace backend.Controllers
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> CreateFeed([FromForm] CreateFeedRequest request, IFormFileCollection files)
         {
-            // Gán files vào request sau khi bind
-            request.Content.Media = files
-                .Select(f => new CreateMediaRequest { File = f })
-                .ToList();
+            if (request.Content == null)
+            {
+                request.Content = new CreateContentRequest { Caption = string.Empty };
+            }
+
+            // Gán files từ Request.Form.Files hoặc tham số files vào request
+            if (Request.Form.Files != null && Request.Form.Files.Count > 0)
+            {
+                request.Content.Media = Request.Form.Files
+                    .Select(f => new CreateMediaRequest { File = f })
+                    .ToList();
+            }
+            else if (request.Content.Media == null || request.Content.Media.Count == 0)
+            {
+                request.Content.Media = files
+                    .Select(f => new CreateMediaRequest { File = f })
+                    .ToList();
+            }
             logger.LogInformation("[FeedController] CreateFeed | Type={Type} UserId={UserId}", request.Type, CurrentUserId);
             var result = await feedService.CreateFeedAsync(CurrentUserId, request);
             return CreatedAtAction(nameof(GetById), new { feedId = result.Id },
@@ -392,6 +406,38 @@ namespace backend.Controllers
             {
                 Result = result
             });
+        }
+
+        /// <summary>Thêm bình luận mới vào bài viết</summary>
+        /// <param name="feedId">ID bài đăng</param>
+        /// <param name="request">Nội dung bình luận và hình ảnh đính kèm (Form-data)</param>
+        [HttpPost("{feedId}/comments")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> CreateComment(string feedId, [FromForm] CreateCommentRequest request)
+        {
+            logger.LogInformation("[FeedController] CreateComment | FeedId={FeedId} UserId={UserId}", feedId, CurrentUserId);
+            var result = await feedService.CreateCommentAsync(feedId, CurrentUserId, request);
+            return Ok(new ApiResponse<CommentResponse> { Result = result });
+        }
+
+        /// <summary>Lấy danh sách bình luận của bài viết</summary>
+        /// <param name="feedId">ID bài đăng</param>
+        [HttpGet("{feedId}/comments")]
+        public async Task<IActionResult> GetComments(string feedId)
+        {
+            logger.LogInformation("[FeedController] GetComments | FeedId={FeedId} UserId={UserId}", feedId, CurrentUserId);
+            var result = await feedService.GetCommentsAsync(feedId, CurrentUserId);
+            return Ok(new ApiResponse<List<CommentResponse>> { Result = result });
+        }
+
+        /// <summary>Thích hoặc bỏ thích bình luận</summary>
+        /// <param name="commentId">ID bình luận</param>
+        [HttpPost("comments/{commentId}/like")]
+        public async Task<IActionResult> ToggleLikeComment(string commentId)
+        {
+            logger.LogInformation("[FeedController] ToggleLikeComment | CommentId={CommentId} UserId={UserId}", commentId, CurrentUserId);
+            var result = await feedService.ToggleLikeCommentAsync(commentId, CurrentUserId);
+            return Ok(new ApiResponse<LikeResponse> { Result = result });
         }
     }
 }

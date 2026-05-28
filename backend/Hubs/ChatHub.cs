@@ -454,9 +454,9 @@ public class ChatHub : Hub
         return _onlineUsers.ContainsKey(userId) && _onlineUsers[userId].Count > 0;
     }
 
-    public async Task<List<string>> GetOnlineUsers(List<string> userIds)
+    public Task<List<string>> GetOnlineUsers(List<string> userIds)
     {
-        return userIds.Where(IsUserOnline).ToList();
+        return Task.FromResult(userIds.Where(IsUserOnline).ToList());
     }
 
     #endregion

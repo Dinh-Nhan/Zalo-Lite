@@ -49,6 +49,13 @@ namespace backend.Services
                     Folder = folder,
                     Transformation = new Transformation().Quality("auto")
                 });
+
+                if (result.Error != null)
+                {
+                    _logger.LogError("[Cloudinary] Video upload failed: {Message}", result.Error.Message);
+                    throw new Exception($"Cloudinary video upload failed: {result.Error.Message}");
+                }
+
                 _logger.LogInformation("[Cloudinary] Uploaded video {PublicId}", result.PublicId);
                 return (result.SecureUrl.ToString(), result.PublicId, mediaType);
             }
@@ -60,6 +67,13 @@ namespace backend.Services
                     Folder = folder,
                     Transformation = new Transformation().Quality("auto").FetchFormat("auto")
                 });
+
+                if (result.Error != null)
+                {
+                    _logger.LogError("[Cloudinary] Image upload failed: {Message}", result.Error.Message);
+                    throw new Exception($"Cloudinary image upload failed: {result.Error.Message}");
+                }
+
                 _logger.LogInformation("[Cloudinary] Uploaded image {PublicId}", result.PublicId);
                 return (result.SecureUrl.ToString(), result.PublicId, mediaType);
             }

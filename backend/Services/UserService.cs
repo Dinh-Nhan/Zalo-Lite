@@ -7,7 +7,6 @@ using backend.Models;
 using Google.Cloud.Firestore;
 using Google.Cloud.Firestore.V1;
 using Mapster;
-using backend.dtos.Request;
 using backend.dtos;
 using StackExchange.Redis;
 using System.Text.Json;
@@ -15,8 +14,9 @@ using System.Text.Json;
 namespace backend.Services;
 
 [ScopedService]
-public class UserService(FirestoreDb db, ILogger<UserService> logger, CloudinaryService cloudinaryService)
+public class UserService(FirestoreDb db, ILogger<UserService> logger, CloudinaryService cloudinaryService, IDatabase redis)
 {
+    private readonly IDatabase _redis = redis;
     private const string Collection = "users";
 
     public async Task<UserResponse> GetByIdAsync(string id)
@@ -143,11 +143,11 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, Cloudinary
 
         string cacheKey = $"search:user:{keyword}:{currentUserId}";
 
-        var cached = await _redis.GetAsync(cacheKey);
+        var cached = await _redis.StringGetAsync(cacheKey);
 
         if (!string.IsNullOrEmpty(cached))
         {
-            return JsonSerializer.Deserialize<List<UserRequestDto>>(cached)!;
+            return JsonSerializer.Deserialize<List<UserRequestDto>>(cached.ToString())!;
         }
 
         var snapshot = await db
@@ -169,7 +169,7 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, Cloudinary
             })
             .ToList();
 
-        await _redis.SetAsync(
+        await _redis.StringSetAsync(
             cacheKey,
             JsonSerializer.Serialize(users),
             TimeSpan.FromSeconds(30));

@@ -5,6 +5,7 @@ import 'package:frontend/providers/call_provider.dart';
 import 'package:frontend/utils/app_localizations.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/config/dark_mode_config.dart';
+import 'package:frontend/widgets/emoji_picker_widget.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -35,6 +36,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _showSendButton = false;
+  bool _showEmojiKeyboard = false;
 
   // Mock messages data
   late List<Map<String, dynamic>> _messages;
@@ -212,6 +214,24 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     return '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
   }
 
+  void _insertEmoji(String emoji) {
+    final text = _messageController.text;
+    final selection = _messageController.selection;
+    
+    if (selection.start >= 0) {
+      final newText = text.replaceRange(selection.start, selection.end, emoji);
+      final newPosition = selection.start + emoji.length;
+      
+      _messageController.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newPosition),
+      );
+    } else {
+      _messageController.text += emoji;
+    }
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<bool>(
@@ -240,6 +260,10 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                       _buildHeader(t, isDark),
                       Expanded(child: _buildMessageList(t, isDark)),
                       _buildInputArea(t, isDark),
+                      if (_showEmojiKeyboard)
+                        EmojiPickerWidget(
+                          onEmojiSelected: _insertEmoji,
+                        ),
                     ],
                   ),
                 ),
@@ -598,10 +622,17 @@ class _ChatDetailViewState extends State<ChatDetailView> {
       child: Row(
         children: [
           IconButton(
-            onPressed: () {},
+            onPressed: () {
+              setState(() {
+                _showEmojiKeyboard = !_showEmojiKeyboard;
+                if (_showEmojiKeyboard) {
+                  FocusScope.of(context).unfocus();
+                }
+              });
+            },
             icon: Icon(
               Icons.insert_emoticon_outlined,
-              color: AppColors.getTextSecondary(isDark),
+              color: _showEmojiKeyboard ? AppColors.primaryBlue : AppColors.getTextSecondary(isDark),
               size: 26,
             ),
             padding: EdgeInsets.zero,
@@ -622,6 +653,11 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                   Expanded(
                     child: TextField(
                       controller: _messageController,
+                      onTap: () {
+                        setState(() {
+                          _showEmojiKeyboard = false;
+                        });
+                      },
                       decoration: InputDecoration(
                         hintText: t.get('messageHint'),
                         hintStyle: TextStyle(

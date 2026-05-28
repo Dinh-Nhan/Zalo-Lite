@@ -37,15 +37,19 @@ public class FirebaseService
         {
             FirebaseApp.Create(new AppOptions
             {
-                Credential = GoogleCredential.FromFile(resolvedPath),
-                ProjectId = projectId  // ✅ thêm ProjectId
+                Credential = CredentialFactory
+                    .FromFile<ServiceAccountCredential>(resolvedPath)
+                    .ToGoogleCredential(),
+                ProjectId = projectId
             });
         }
       
         FirestoreDb = new FirestoreDbBuilder
         {
             ProjectId = projectId,
-            Credential = GoogleCredential.FromFile(resolvedPath)
+            Credential = CredentialFactory
+                .FromFile<ServiceAccountCredential>(resolvedPath)
+                .ToGoogleCredential()
         }.Build();
     }
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -29,23 +29,21 @@ namespace backend.Services
             var friendIds = friendIdsTask.Result;
             var mutedStoryIds = mutedStoryIdsTask.Result;
 
-            if (friendIds.Count == 0)
-            {
-                logger.LogInformation("[FeedService] User {UserId} has no friends, returning empty stories", userId);
-                return [];
-            }
+            var targetIds = friendIds.Append(userId).Distinct().ToList();
 
-            var now = Timestamp.FromDateTime(DateTime.UtcNow);
-
-            var stories = await QueryFeedsByBatchAsync(db, friendIds, "story",
+            var stories = await QueryFeedsByBatchAsync(db, targetIds, "story",
                 (col, batch) => col
                     .WhereEqualTo("type", "story")
                     .WhereIn("user_id", batch)
-                    .WhereGreaterThan("settings.expires_at", now)
-                    .WhereEqualTo("deleted_at", null)
-                    .OrderByDescending("create_at"));
+                    .WhereEqualTo("deleted_at", null));
 
-            var filtered = stories.Where(s => !mutedStoryIds.Contains(s.UserId)).ToList();
+            var utcNow = DateTime.UtcNow;
+            var activeStories = stories
+                .Where(s => s.Settings == null || (!s.Settings.IsExpired && (!s.Settings.ExpiresAt.HasValue || s.Settings.ExpiresAt.Value > utcNow)))
+                .OrderByDescending(s => s.CreatedAt)
+                .ToList();
+
+            var filtered = activeStories.Where(s => !mutedStoryIds.Contains(s.UserId)).ToList();
 
             // Query tất cả author 1 lần
             var authorIds = filtered.Select(s => s.UserId);
@@ -517,7 +515,7 @@ namespace backend.Services
                 FeedId = feedId,
                 ViewCount = feed.Stats.Views.Count,
                 HasViewed = feed.Stats.Views.Contains(userId),
-                UserIds = feed.Stats.Views
+                ViewerIds = feed.Stats.Views
             };
         }
 
@@ -623,6 +621,129 @@ namespace backend.Services
                 .ToList();
         }
 
+        // ── Comments ───────────────────────────────────────────────────
+
+        public async Task<CommentResponse> CreateCommentAsync(string feedId, string userId, CreateCommentRequest request)
+        {
+            var feedSnap = await db.Collection("feeds").Document(feedId).GetSnapshotAsync();
+            if (!feedSnap.Exists || feedSnap.GetValue<object?>("deleted_at") != null)
+                throw new AppException(ErrorCode.FEED_NOT_FOUND);
+
+            var docRef = db.Collection("comments").Document();
+            var commentId = docRef.Id;
+            var imageUrl = "";
+
+            if (request.File != null)
+            {
+                var (url, _, _) = await cloudinaryService.UploadAsync(request.File, userId, commentId, "comment");
+                imageUrl = url;
+            }
+
+            var comment = new Comment
+            {
+                Id = commentId,
+                FeedId = feedId,
+                UserId = userId,
+                Content = request.Content,
+                ImageUrl = imageUrl,
+                Likes = new List<string>(),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await docRef.SetAsync(comment);
+
+            var authorSnap = await db.Collection("users").Document(userId).GetSnapshotAsync();
+            var author = authorSnap.ConvertTo<User>();
+
+            return new CommentResponse
+            {
+                Id = comment.Id,
+                FeedId = comment.FeedId,
+                UserId = comment.UserId,
+                UserName = $"{author.FirstName} {author.LastName}",
+                UserAvatar = author.Avatar,
+                Content = comment.Content,
+                ImageUrl = comment.ImageUrl,
+                LikeCount = 0,
+                IsLiked = false,
+                CreatedAt = comment.CreatedAt
+            };
+        }
+
+        public async Task<List<CommentResponse>> GetCommentsAsync(string feedId, string currentUserId)
+        {
+            var query = db.Collection("comments")
+                .WhereEqualTo("feed_id", feedId);
+
+            var snapshot = await query.GetSnapshotAsync();
+            var comments = snapshot.Documents
+                .Select(d => d.ConvertTo<Comment>())
+                .OrderBy(c => c.CreatedAt)
+                .ToList();
+
+            if (comments.Count == 0) return new List<CommentResponse>();
+
+            var authorIds = comments.Select(c => c.UserId).Distinct().ToList();
+            var authors = await GetUsersByIdsAsync(authorIds);
+
+            return comments
+                .Where(c => authors.ContainsKey(c.UserId))
+                .Select(c => {
+                    var author = authors[c.UserId];
+                    return new CommentResponse
+                    {
+                        Id = c.Id,
+                        FeedId = c.FeedId,
+                        UserId = c.UserId,
+                        UserName = $"{author.FirstName} {author.LastName}",
+                        UserAvatar = author.Avatar,
+                        Content = c.Content,
+                        ImageUrl = c.ImageUrl,
+                        LikeCount = c.Likes?.Count ?? 0,
+                        IsLiked = c.Likes?.Contains(currentUserId) ?? false,
+                        CreatedAt = c.CreatedAt
+                    };
+                })
+                .ToList();
+        }
+
+        public async Task<LikeResponse> ToggleLikeCommentAsync(string commentId, string userId)
+        {
+            var docRef = db.Collection("comments").Document(commentId);
+            var snap = await docRef.GetSnapshotAsync();
+
+            if (!snap.Exists)
+                throw new AppException(ErrorCode.INTERNAL_ERROR);
+
+            var comment = snap.ConvertTo<Comment>();
+            var likesList = comment.Likes ?? new List<string>();
+            var isLiked = likesList.Contains(userId);
+
+            if (isLiked)
+            {
+                await docRef.UpdateAsync(new Dictionary<string, object>
+                {
+                    ["likes"] = FieldValue.ArrayRemove(userId)
+                });
+            }
+            else
+            {
+                await docRef.UpdateAsync(new Dictionary<string, object>
+                {
+                    ["likes"] = FieldValue.ArrayUnion(userId)
+                });
+            }
+
+            var updatedSnap = await docRef.GetSnapshotAsync();
+            var updatedComment = updatedSnap.ConvertTo<Comment>();
+
+            return new LikeResponse
+            {
+                IsLiked = !isLiked,
+                LikeCount = updatedComment.Likes?.Count ?? 0
+            };
+        }
+
         private async Task<Dictionary<string, User>> GetUsersByIdsAsync(IEnumerable<string> userIds)
         {
             var distinct = userIds.Distinct().ToList();
@@ -636,27 +757,5 @@ namespace backend.Services
                 .Select(s => s.ConvertTo<User>())
                 .ToDictionary(u => u.Id);
         }
-    }
-
-        public Task<ViewResponse> TrackViewAsync(string feedId, string currentUserId)
-            => Task.FromResult(new ViewResponse { ViewCount = 0 });
-
-        public Task<ViewersListResponse> GetViewersAsync(string feedId, string currentUserId)
-            => Task.FromResult(new ViewersListResponse { ViewerCount = 0, ViewerIds = new List<string>() });
-
-        public Task<HideResponse> ToggleHidePostAsync(string feedId, string currentUserId)
-            => Task.FromResult(new HideResponse { IsHidden = true });
-
-        public Task<FeedResponse> UpdateFeedAsync(string feedId, string currentUserId, UpdateFeedRequest request)
-            => Task.FromResult(new FeedResponse());
-
-        public Task DeleteFeedAsync(string feedId, string currentUserId)
-            => Task.CompletedTask;
-
-        public Task<List<FeedResponse>> GetFeedsByUserIdAsync(string userId, string currentUserId)
-            => Task.FromResult(new List<FeedResponse>());
-
-        public Task<List<FeedResponse>> GetAllFeedDeletedAsync(string currentUserId, string type)
-            => Task.FromResult(new List<FeedResponse>());
     }
 }

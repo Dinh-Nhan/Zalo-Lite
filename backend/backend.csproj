@@ -25,7 +25,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="FirebaseCredentials\" />
+    <None Include="FirebaseCredentials\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

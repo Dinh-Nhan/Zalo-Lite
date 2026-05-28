@@ -16,26 +16,42 @@ class LoginView extends StatefulWidget {
   State<LoginView> createState() => _LoginViewState();
 }
 class _LoginViewState extends State<LoginView> {
-  final _formKey = GlobalKey<FormState>(); // 1. Khai báo FormKey
+  final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  
+
   bool _isPasswordVisible = false;
   bool _isLoading = false;
-  bool _isFormValid = false; // Biến theo dõi trạng thái form
+  bool _isFormValid = false;
 
   String? _apiStatus;
   String? _apiBody;
   bool _apiSuccess = false;
 
-  // Hàm kiểm tra form mỗi khi người dùng nhập liệu
+  @override
+  void initState() {
+    super.initState();
+    _emailController.addListener(_validateForm);
+    _passwordController.addListener(_validateForm);
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
   void _validateForm() {
     setState(() {
-      _isFormValid = _formKey.currentState?.validate() ?? false;
+      _isFormValid = _emailController.text.isNotEmpty &&
+          _emailController.text.contains('@') &&
+          _passwordController.text.isNotEmpty;
     });
   }
 
   Future<void> _handleLogin() async {
+    if (_isLoading || !_isFormValid) return;
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -43,23 +59,18 @@ class _LoginViewState extends State<LoginView> {
       _apiStatus = null;
       _apiBody = null;
     });
-    
+
     final result = await AuthService.login(
       _emailController.text.trim(),
       _passwordController.text,
     );
-    
+
     if (!mounted) return;
 
     if (result.isSuccess) {
       try {
-        
         final friendProvider = context.read<FriendProvider>();
-        final response = await DioClient.instance.get(
-          '/api/auth/profile',
-        );
-        //final profile = response.data['result'];
-        // await friendProvider.setCurrentUid(profile['id']);
+        final response = await DioClient.instance.get('/api/auth/profile');
         final firebaseUid = FirebaseAuth.instance.currentUser!.uid;
 
         await friendProvider.setCurrentUid(firebaseUid);
@@ -67,47 +78,21 @@ class _LoginViewState extends State<LoginView> {
         await friendProvider.startRealtime();
 
         if (!mounted) return;
-
         context.go('/chat-list');
       } catch (e) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khởi tạo dữ liệu: $e'),
-          ),
+          SnackBar(content: Text('Lỗi khởi tạo dữ liệu: $e')),
         );
+        setState(() => _isLoading = false);
       }
     } else {
       setState(() {
         _isLoading = false;
         _apiSuccess = false;
         _apiStatus = 'Login thất bại';
-
         _apiBody = result.errorMessage ??
-            (result.errorCode != null
-                ? 'Code: ${result.errorCode}'
-                : null);
-      });
-    }
-  }
-
-  // --- Giữ nguyên hàm _testProfileApi của bạn ---
-  Future<void> _testProfileApi() async {
-    try {
-      final response = await DioClient.instance.get('/api/auth/profile');
-      setState(() {
-        _isLoading = false;
-        _apiSuccess = true;
-        _apiStatus = '✅ ${response.statusCode} OK';
-        _apiBody = response.data.toString();
-      });
-      await Future.delayed(const Duration(milliseconds: 1500));
-      if (mounted) context.go('/chat-list');
-    } on DioException catch (e) {
-      setState(() {
-        _isLoading = false;
-        _apiSuccess = false;
-        _apiStatus = '❌ ${e.response?.statusCode ?? 'Network Error'}';
-        _apiBody = e.response?.data?.toString() ?? e.message;
+            (result.errorCode != null ? 'Code: ${result.errorCode}' : null);
       });
     }
   }
@@ -123,24 +108,22 @@ class _LoginViewState extends State<LoginView> {
         elevation: 0.5,
         centerTitle: false,
         leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_outlined, size: 18),
-            onPressed: () => context.go('/'), 
-          ),      
+          icon: const Icon(Icons.arrow_back_ios_new_outlined, size: 18),
+          onPressed: () => context.go('/'),
         ),
-      body: SingleChildScrollView( 
+      ),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
-          onChanged: _validateForm,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 16),
-
-              // --- Email field
-              TextFormField( 
+              TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
                 validator: (value) {
                   if (value == null || value.isEmpty) return 'Vui lòng nhập email';
                   if (!value.contains('@')) return 'Email không đúng định dạng';
@@ -155,16 +138,19 @@ class _LoginViewState extends State<LoginView> {
                   focusedBorder: const UnderlineInputBorder(
                     borderSide: BorderSide(color: Color(0xFF0068FF), width: 1.5),
                   ),
+                  errorBorder: const UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.red, width: 1),
+                  ),
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  errorStyle: const TextStyle(height: 0), // Ẩn text lỗi để giống Zalo
+                  errorStyle: const TextStyle(height: 0),
                 ),
               ),
               const SizedBox(height: 4),
-
-              // --- Password field ---
-              TextFormField( // Đổi thành TextFormField
+              TextFormField(
                 controller: _passwordController,
                 obscureText: !_isPasswordVisible,
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) => _handleLogin(),
                 validator: (value) {
                   return Validator.password(value);
                 },
@@ -173,13 +159,15 @@ class _LoginViewState extends State<LoginView> {
                   hintStyle: const TextStyle(color: Colors.grey, fontSize: 16),
                   suffixIcon: TextButton(
                     onPressed: () {
-                      setState(() {
-                        _isPasswordVisible = !_isPasswordVisible;
-                      });
+                      setState(() => _isPasswordVisible = !_isPasswordVisible);
                     },
                     child: Text(
                       _isPasswordVisible ? 'ẨN' : 'HIỆN',
-                      style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12),
+                      style: const TextStyle(
+                        color: Colors.grey,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                   enabledBorder: UnderlineInputBorder(
@@ -188,58 +176,91 @@ class _LoginViewState extends State<LoginView> {
                   focusedBorder: const UnderlineInputBorder(
                     borderSide: BorderSide(color: Color(0xFF0068FF), width: 1.5),
                   ),
+                  errorBorder: const UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.red, width: 1),
+                  ),
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
                   errorStyle: const TextStyle(height: 0),
                 ),
               ),
               const SizedBox(height: 20),
-
-              // Quên mật khẩu
               Align(
                 alignment: Alignment.centerLeft,
                 child: GestureDetector(
                   onTap: () {},
                   child: const Text(
                     'Lấy lại mật khẩu',
-                    style: TextStyle(color: Color(0xFF0068FF), fontWeight: FontWeight.w600, fontSize: 14),
+                    style: TextStyle(
+                      color: Color(0xFF0068FF),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ),
               const SizedBox(height: 28),
-
-              // Login button
-              Center(
-                child: SizedBox(
-                  height: 50,
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    // 3. Logic Enable/Disable: Nếu đang load HOẶC form chưa valid thì null (Disable)
-                    onPressed: (_isLoading || !_isFormValid) ? null : _handleLogin,
-                    style: ElevatedButton.styleFrom(
-                      // Màu khi disable sẽ tự động nhạt đi, màu chính khi enable
-                      backgroundColor: const Color(0xFF0068FF),
-                      disabledBackgroundColor: const Color(0xFF0068FF).withOpacity(0.3),
-                      foregroundColor: Colors.white,
-                      disabledForegroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(999),
-                      ),
+              SizedBox(
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: (_isLoading || !_isFormValid) ? null : _handleLogin,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0068FF),
+                    disabledBackgroundColor: const Color(0xFF0068FF).withOpacity(0.3),
+                    foregroundColor: Colors.white,
+                    disabledForegroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
                     ),
-                    child: _isLoading
+                  ),
+                  child: _isLoading
                       ? const SizedBox(
                           width: 22,
                           height: 22,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2.5,
+                          ),
                         )
-                      : const Text('Đăng nhập', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                  ),
+                      : const Text(
+                          'Đăng nhập',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
                 ),
               ),
-
-              // Hiển thị thông báo API (Giữ nguyên của bạn)
               if (_apiStatus != null) ...[
                 const SizedBox(height: 24),
-                // ... (Đoạn Container hiển thị kết quả giữ nguyên)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _apiSuccess ? Colors.green.shade50 : Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: _apiSuccess ? Colors.green.shade200 : Colors.red.shade200,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _apiStatus!,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: _apiSuccess ? Colors.green.shade700 : Colors.red.shade700,
+                        ),
+                      ),
+                      if (_apiBody != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          _apiBody!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _apiSuccess ? Colors.green.shade600 : Colors.red.shade600,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ],
             ],
           ),

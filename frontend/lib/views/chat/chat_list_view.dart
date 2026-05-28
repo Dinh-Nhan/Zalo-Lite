@@ -5,6 +5,7 @@ import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/config/dark_mode_config.dart';
 import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/features/friends/screens/contact_main_screen.dart';
+import 'package:frontend/features/newfeed/screens/newfeed_screen.dart';
 import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/utils/app_localizations.dart';
 import 'package:frontend/views/chat/chat_detail_view.dart';
@@ -205,25 +206,25 @@ class _ChatListViewState extends State<ChatListView> {
                             if (_selectedNavIndex == 0) {
                               _selectedNavIndex = 0; // Chat → Chat
                             } else if (_selectedNavIndex == 1) {
-                              _selectedNavIndex = 2; // Contacts → Contacts
+                              _selectedNavIndex = 3; // Contacts → Contacts
+                            } else if (_selectedNavIndex == 2) {
+                              _selectedNavIndex = 2; // Newfeed → Newfeed
                             } else {
-                              _selectedNavIndex = 0; // Discover/Profile → Chat
+                              _selectedNavIndex = 1; // Profile → Settings
                             }
-                            // Keep selected conversation when switching to wide
-                            _selectedConversation = _selectedConversation;
                           });
                         } else {
                           // Wide → Mobile conversion
                           setState(() {
                             if (_selectedNavIndex == 0) {
                               _selectedNavIndex = 0; // Chat → Chat
+                            } else if (_selectedNavIndex == 1) {
+                              _selectedNavIndex = 3; // Settings → Profile
                             } else if (_selectedNavIndex == 2) {
-                              _selectedNavIndex = 1; // Contacts → Contacts
+                              _selectedNavIndex = 2; // Newfeed → Newfeed
                             } else {
-                              _selectedNavIndex = 0; // Settings → Chat
+                              _selectedNavIndex = 1; // Contacts → Contacts
                             }
-                            // Clear selected conversation when switching to mobile
-                            // because mobile uses full-screen navigation
                             _selectedConversation = null;
                           });
                         }
@@ -255,10 +256,16 @@ class _ChatListViewState extends State<ChatListView> {
                                       showBackButton: false,
                                     ),
                             ),
-                          ] else if (_selectedNavIndex == 2)
+                          ] else if (_selectedNavIndex == 1)
                             const Expanded(
                               child: ContactsView(isWideScreen: true),
                             )
+                          else if (_selectedNavIndex == 2)
+                            const Expanded(
+                              child: NewfeedScreen(),
+                            )
+                          else if (_selectedNavIndex == 3)
+                            Expanded(child: _buildUpdateComingSoon(isDark))
                           else ...[
                             // Default to chat panel for any other index
                             _buildChatListPanelWide(t, isDark),
@@ -326,10 +333,10 @@ class _ChatListViewState extends State<ChatListView> {
           ),
           const SizedBox(height: 20),
           _buildSidebarItem(Icons.chat_bubble, 0, isDark),
-          _buildSidebarItem(Icons.contacts_outlined, 2, isDark),
+          _buildSidebarItem(Icons.contacts_outlined, 1, isDark),
+          _buildSidebarItem(Icons.auto_stories, 2, isDark),
+          _buildSidebarItem(Icons.update, 3, isDark),
           const Spacer(),
-          _buildSidebarItem(Icons.settings_outlined, 1, isDark),
-          const SizedBox(height: 12),
         ],
       ),
     );
@@ -350,19 +357,10 @@ class _ChatListViewState extends State<ChatListView> {
         ),
         child: IconButton(
           onPressed: () {
-            if (index == 1) {
-              SettingsDialog.show(
-                context,
-                onLogout: () async {
-                  await _logout();
-                },
-              );
-            } else {
-              setState(() {
-                _selectedNavIndex = index;
-                _selectedConversation = null;
-              });
-            }
+            setState(() {
+              _selectedNavIndex = index;
+              _selectedConversation = null;
+            });
           },
           icon: Icon(icon, color: Colors.white, size: 24),
         ),
@@ -1125,18 +1123,10 @@ class _ChatListViewState extends State<ChatListView> {
               // Tab 1: Contacts
               // const ContactsView(isWideScreen: false),
               ContactsMainScreen(),
-              // Tab 2: Discover (placeholder)
-              _buildPlaceholderTab(
-                t.get('discover'),
-                Icons.explore_outlined,
-                isDark,
-              ),
-              // Tab 3: Profile (placeholder)
-              _buildPlaceholderTab(
-                t.get('profile'),
-                Icons.person_outline,
-                isDark,
-              ),
+              // Tab 2: Newfeed (Newsfeed icon)
+              const NewfeedScreen(),
+              // Tab 3: Coming soon
+              _buildPlaceholderTab('Chuẩn bị cập nhật', Icons.update_outlined, isDark),
             ],
           ),
         ),
@@ -1182,6 +1172,41 @@ class _ChatListViewState extends State<ChatListView> {
     );
   }
 
+  Widget _buildUpdateComingSoon(bool isDark) {
+    return Container(
+      color: isDark ? AppColors.darkBackground : AppColors.backgroundGray,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.update,
+              size: 80,
+              color: AppColors.primaryBlue.withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Sắp ra mắt',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: AppColors.getTextPrimary(isDark),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Tính năng đang được phát triển',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.getTextSecondary(isDark).withValues(alpha: 0.7),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomNavigation(bool isDark) {
     return Container(
       decoration: BoxDecoration(
@@ -1202,24 +1227,28 @@ class _ChatListViewState extends State<ChatListView> {
                 Icons.chat_bubble_outline,
                 0,
                 isDark,
+                'Tin nhắn',
               ),
               _buildBottomNavItem(
                 Icons.contacts,
                 Icons.contacts_outlined,
                 1,
                 isDark,
+                'Bạn bè',
               ),
               _buildBottomNavItem(
                 Icons.auto_stories,
                 Icons.auto_stories_outlined,
                 2,
                 isDark,
+                'Bảng tin',
               ),
               _buildBottomNavItem(
-                Icons.person,
-                Icons.person_outline,
+                Icons.update,
+                Icons.update_outlined,
                 3,
                 isDark,
+                'Cập nhật',
               ),
             ],
           ),
@@ -1233,18 +1262,24 @@ class _ChatListViewState extends State<ChatListView> {
     IconData inactiveIcon,
     int index,
     bool isDark,
+    String label,
   ) {
     final isSelected = _selectedNavIndex == index;
-    return IconButton(
-      onPressed: () {
-        setState(() => _selectedNavIndex = index);
-      },
-      icon: Icon(
-        isSelected ? activeIcon : inactiveIcon,
-        color: isSelected
-            ? AppColors.primaryBlue
-            : AppColors.getTextSecondary(isDark),
-        size: 26,
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          setState(() => _selectedNavIndex = index);
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Icon(
+            isSelected ? activeIcon : inactiveIcon,
+            color: isSelected
+                ? AppColors.primaryBlue
+                : AppColors.getTextSecondary(isDark),
+            size: 26,
+          ),
+        ),
       ),
     );
   }

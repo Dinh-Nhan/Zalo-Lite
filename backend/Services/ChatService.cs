@@ -745,11 +745,11 @@ public class ChatService
         return response;
     }
 
-    private async Task<bool> IsUserOnlineAsync(string userId)
+    private Task<bool> IsUserOnlineAsync(string userId)
     {
         // TODO: Implement with Redis or SignalR connection tracking
         // For now, return false
-        return false;
+        return Task.FromResult(false);
     }
 
     #endregion

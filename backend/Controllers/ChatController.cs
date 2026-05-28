@@ -92,7 +92,7 @@ public class ChatController : ControllerBase
         var userId = User.GetUid();
         await _chatService.RemoveParticipantAsync(conversationId, userIdToRemove, userId);
 
-        return Ok(ApiResponse<object>.SuccessResponse(null, "Participant removed successfully"));
+        return Ok(ApiResponse<object>.SuccessResponse(default(object), "Participant removed successfully"));
     }
 
     /// <summary>
@@ -104,7 +104,7 @@ public class ChatController : ControllerBase
         var userId = User.GetUid();
         await _chatService.DeleteConversationAsync(conversationId, userId);
 
-        return Ok(ApiResponse<object>.SuccessResponse(null, "Conversation deleted successfully"));
+        return Ok(ApiResponse<object>.SuccessResponse(default(object), "Conversation deleted successfully"));
     }
 
     #endregion
@@ -159,7 +159,7 @@ public class ChatController : ControllerBase
         var userId = User.GetUid();
         await _chatService.DeleteMessageAsync(conversationId, messageId, userId);
 
-        return Ok(ApiResponse<object>.SuccessResponse(null, "Message deleted successfully"));
+        return Ok(ApiResponse<object>.SuccessResponse(default(object), "Message deleted successfully"));
     }
 
     /// <summary>
@@ -183,7 +183,7 @@ public class ChatController : ControllerBase
         var userId = User.GetUid();
         await _chatService.MarkAsReadAsync(conversationId, messageId, userId);
 
-        return Ok(ApiResponse<object>.SuccessResponse(null, "Message marked as read"));
+        return Ok(ApiResponse<object>.SuccessResponse(default(object), "Message marked as read"));
     }
 
     /// <summary>
@@ -195,7 +195,7 @@ public class ChatController : ControllerBase
         var userId = User.GetUid();
         await _chatService.MarkAsDeliveredAsync(conversationId, messageId, userId);
 
-        return Ok(ApiResponse<object>.SuccessResponse(null, "Message marked as delivered"));
+        return Ok(ApiResponse<object>.SuccessResponse(default(object), "Message marked as delivered"));
     }
 
     #endregion

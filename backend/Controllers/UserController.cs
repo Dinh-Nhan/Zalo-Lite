@@ -1,3 +1,4 @@
+using backend.common;
 using backend.dtos;
 using backend.dtos.Request;
 using backend.dtos.Response;
@@ -26,6 +27,8 @@ public class UserController(UserService userService) : ControllerBase
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         return firebaseToken.Uid;
     }
+
+    private string CurrentUserId => GetUserIdFromToken();
 
 
     /// <summary>

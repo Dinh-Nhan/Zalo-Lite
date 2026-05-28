@@ -50,6 +50,11 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     var config = builder.Configuration["Redis:ConnectString"]!;
     return ConnectionMultiplexer.Connect(config);
 });
+builder.Services.AddScoped<IDatabase>(sp =>
+{
+    var redis = sp.GetRequiredService<IConnectionMultiplexer>();
+    return redis.GetDatabase();
+});
 // ── Cloudinary ────────────────────────────────────────────────
 builder.Services.Configure<CloudinarySettings>(
     builder.Configuration.GetSection("Cloudinary"));
