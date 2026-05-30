@@ -21,8 +21,8 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => CallProvider()),
-        ChangeNotifierProvider(create: (_) => FriendProvider(),),
-        ],
+        ChangeNotifierProvider(create: (_) => FriendProvider()),
+      ],
       child: const MyApp(),
     ),
   );

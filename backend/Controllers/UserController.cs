@@ -1,3 +1,4 @@
+using backend.common;
 using backend.dtos;
 using backend.dtos.Request;
 using backend.dtos.Response;
@@ -13,7 +14,7 @@ namespace backend.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[FirebaseAuthorize]  
+[FirebaseAuthorize]
 public class UserController(UserService userService) : ControllerBase
 {
     /// <summary>
@@ -36,7 +37,7 @@ public class UserController(UserService userService) : ControllerBase
     public async Task<IActionResult> GetMe()
     {
         var uid = GetUserIdFromToken();
-        
+
         return Ok(new ApiResponse<UserResponse>
         {
             Code = 200,
@@ -180,7 +181,7 @@ public class UserController(UserService userService) : ControllerBase
     {
         return Ok(new ApiResponse<UserResponse>()
         {
-            Result = await userService.UpdateAvatarAsync(CurrentUserId, request),
+            Result = await userService.UpdateAvatarAsync(GetUserIdFromToken(), request),
             Message = "Cập nhật avatar thành công"
         });
     }

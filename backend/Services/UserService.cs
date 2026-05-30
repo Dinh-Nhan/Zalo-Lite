@@ -15,7 +15,7 @@ using System.Text.Json;
 namespace backend.Services;
 
 [ScopedService]
-public class UserService(FirestoreDb db, ILogger<UserService> logger, CloudinaryService cloudinaryService)
+public class UserService(FirestoreDb db, RedisService _redis, ILogger<UserService> logger, CloudinaryService cloudinaryService)
 {
     private const string Collection = "users";
 
@@ -121,7 +121,7 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, Cloudinary
         // Upload avatar mới
         var (url, publicId) = await cloudinaryService.UploadAvatarAsync(request.File, userId);
 
-        // Cập nhật Firestore 
+        // Cập nhật Firestore
         await docRef.UpdateAsync(new Dictionary<string, object>
         {
             ["avatar"] = url,
@@ -133,7 +133,7 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, Cloudinary
         var updated = await docRef.GetSnapshotAsync();
         return updated.ConvertTo<User>().Adapt<UserResponse>();
     }
-  
+
     public async Task<List<UserRequestDto>> SearchUser(string keyword, string currentUserId)
     {
         keyword = keyword.Trim().ToLower();

@@ -19,7 +19,7 @@ namespace backend.Services
     [ScopedService]
     public class FeedService(FirestoreDb db, IMapper mapper, ILogger<FeedService> logger, CloudinaryService cloudinaryService)
     {
-        // get story bar 
+        // get story bar
         public async Task<List<FeedResponse>> GetStoriesAsync(string userId)
         {
             var friendIdsTask = GetFriendIdsAsync(userId);
@@ -157,7 +157,7 @@ namespace backend.Services
             return ToResponse(feed, userId, author);
         }
 
-        // get feed by id 
+        // get feed by id
 
         public async Task<FeedResponse> GetByIdAsync(string feedId, string userId)
         {
@@ -394,7 +394,7 @@ namespace backend.Services
                 .ToList();
         }
 
-        // muted story or post with a users 
+        // muted story or post with a users
         private async Task<List<string>> GetMutedUserIdsAsync(string userId)
         {
             var snap = await db.Collection("muted_users")
@@ -638,25 +638,4 @@ namespace backend.Services
         }
     }
 
-        public Task<ViewResponse> TrackViewAsync(string feedId, string currentUserId)
-            => Task.FromResult(new ViewResponse { ViewCount = 0 });
-
-        public Task<ViewersListResponse> GetViewersAsync(string feedId, string currentUserId)
-            => Task.FromResult(new ViewersListResponse { ViewerCount = 0, ViewerIds = new List<string>() });
-
-        public Task<HideResponse> ToggleHidePostAsync(string feedId, string currentUserId)
-            => Task.FromResult(new HideResponse { IsHidden = true });
-
-        public Task<FeedResponse> UpdateFeedAsync(string feedId, string currentUserId, UpdateFeedRequest request)
-            => Task.FromResult(new FeedResponse());
-
-        public Task DeleteFeedAsync(string feedId, string currentUserId)
-            => Task.CompletedTask;
-
-        public Task<List<FeedResponse>> GetFeedsByUserIdAsync(string userId, string currentUserId)
-            => Task.FromResult(new List<FeedResponse>());
-
-        public Task<List<FeedResponse>> GetAllFeedDeletedAsync(string currentUserId, string type)
-            => Task.FromResult(new List<FeedResponse>());
-    }
 }

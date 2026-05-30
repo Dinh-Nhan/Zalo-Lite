@@ -53,7 +53,7 @@ namespace backend.Middleware
                 Success = false,
                 Code = meta.Code,
                 Message = meta.Message,
-                Data = new ErrorDetail
+                Result = new ErrorDetail
                 {
                     ErrorCode = ex.ErrorCode.ToString(),
                     TraceId = traceId
@@ -76,7 +76,7 @@ namespace backend.Middleware
                 Success = false,
                 Code = meta.Code,
                 Message = meta.Message,
-                Data = new ErrorDetail
+                Result = new ErrorDetail
                 {
                     ErrorCode = ErrorCode.VALIDATION_ERROR.ToString(),
                     TraceId = traceId,
@@ -99,7 +99,7 @@ namespace backend.Middleware
                 Success = false,
                 Code = meta.Code,
                 Message = meta.Message,
-                Data = new ErrorDetail
+                Result = new ErrorDetail
                 {
                     ErrorCode = ErrorCode.INTERNAL_ERROR.ToString(),
                     TraceId = traceId,

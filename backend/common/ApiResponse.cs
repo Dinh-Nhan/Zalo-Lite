@@ -15,7 +15,7 @@ namespace backend.common
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string? Message { get; init; }
 
-        public T? Data { get; init; }
+        public T? Result { get; init; }
 
         public static ApiResponse<T> SuccessResponse(T data, string? message = null)
         {
@@ -24,7 +24,7 @@ namespace backend.common
                 Success = true,
                 Code = 200,
                 Message = message,
-                Data = data
+                Result = data
             };
         }
 
@@ -35,7 +35,7 @@ namespace backend.common
                 Success = false,
                 Code = code,
                 Message = message,
-                Data = default
+                Result = default
             };
         }
     }
