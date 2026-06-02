@@ -25,14 +25,14 @@ class _ContactsViewState extends State<ContactsView>
   late TabController _tabController;
   int _selectedMenuIndex = 0;
 
-  // NOTE: _mockContacts đã được thay bằng FriendListScreen (API thật).
-  // Chỉ giữ _mockGroups vì tab Nhóm chưa có API.
+  // NOTE: _mockContacts sẽ được thay bằng FriendListScreen (API thật).
+  // Chỉ giữ _mockGroups cho tab Nhóm chưa có API.
 
   // Mock groups data
   final List<Map<String, dynamic>> _mockGroups = [
     {
       'id': 'g_001',
-      'name': 'Nhóm Dự Án',
+      'name': 'Nhóm Đồ Ăn',
       'avatar': null,
       'avatarColor': const Color(0xFF9C27B0),
       'memberCount': 5,
@@ -933,7 +933,7 @@ class _ContactsViewState extends State<ContactsView>
           ),
           const SizedBox(height: 8),
           Text(
-            'Khi nào tôi nhận được lời mời?',
+            'Khi nào tải được lời mời?',
             style: TextStyle(fontSize: 13, color: AppColors.primaryBlue),
           ),
         ],

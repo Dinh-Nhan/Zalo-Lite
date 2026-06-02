@@ -32,7 +32,7 @@ class _ChatListViewState extends State<ChatListView> {
   final List<Map<String, dynamic>> _mockConversations = [
     {
       'id': 'conv_001',
-      'name': 'Đình Nhân',
+      'name': 'Đình Nhàn',
       'avatar': null,
       'avatarColor': const Color(0xFF4CAF50),
       'lastMessageKey': 'youPrefix',
@@ -45,7 +45,7 @@ class _ChatListViewState extends State<ChatListView> {
     },
     {
       'id': 'conv_002',
-      'name': 'Nhóm Dự Án',
+      'name': 'Nhóm Đồ Ăn',
       'avatar': null,
       'avatarColor': const Color(0xFF9C27B0),
       'lastMessageKey': 'youPrefix',
@@ -201,29 +201,17 @@ class _ChatListViewState extends State<ChatListView> {
                         _wasWideScreen != isWideScreen) {
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         if (isWideScreen) {
-                          // Mobile → Wide conversion
+                          // Mobile ΓåÆ Wide conversion
                           setState(() {
                             if (_selectedNavIndex == 0) {
-                              _selectedNavIndex = 0; // Chat → Chat
+                              _selectedNavIndex = 0; // Chat ΓåÆ Chat
                             } else if (_selectedNavIndex == 1) {
-                              _selectedNavIndex = 3; // Contacts → Contacts
-                            } else if (_selectedNavIndex == 2) {
-                              _selectedNavIndex = 2; // Newfeed → Newfeed
-                            } else {
-                              _selectedNavIndex = 1; // Profile → Settings
                             }
                           });
                         } else {
-                          // Wide → Mobile conversion
+                          // Wide ΓåÆ Mobile conversion
                           setState(() {
                             if (_selectedNavIndex == 0) {
-                              _selectedNavIndex = 0; // Chat → Chat
-                            } else if (_selectedNavIndex == 1) {
-                              _selectedNavIndex = 3; // Settings → Profile
-                            } else if (_selectedNavIndex == 2) {
-                              _selectedNavIndex = 2; // Newfeed → Newfeed
-                            } else {
-                              _selectedNavIndex = 1; // Contacts → Contacts
                             }
                             _selectedConversation = null;
                           });
@@ -663,11 +651,11 @@ class _ChatListViewState extends State<ChatListView> {
 
   String _formatTimeAgo(int value, String unit, AppLocalizations t) {
     if (unit == 'minutes') {
-      return t.isVietnamese ? '$value phút' : '$value min';
+      return t.isVietnamese ? '$value ph├║t' : '$value min';
     } else if (unit == 'hours') {
       return t.isVietnamese ? '$value giờ' : '$value hr';
     } else if (unit == 'days') {
-      return t.isVietnamese ? '$value ngày' : '$value d';
+      return t.isVietnamese ? '$value ng├áy' : '$value d';
     }
     return '';
   }
@@ -1126,7 +1114,6 @@ class _ChatListViewState extends State<ChatListView> {
               // Tab 2: Newfeed (Newsfeed icon)
               const NewfeedScreen(),
               // Tab 3: Coming soon
-              _buildPlaceholderTab('Chuẩn bị cập nhật', Icons.update_outlined, isDark),
             ],
           ),
         ),

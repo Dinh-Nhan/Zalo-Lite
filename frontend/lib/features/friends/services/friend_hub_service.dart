@@ -31,7 +31,7 @@ class FriendRealtimeEvent {
 ///   await hub.disconnect();
 class FriendHubService {
   // static const String _baseUrl = 'http://10.0.2.2:5244';
-  static const String _baseUrl = 'http://localhost:5244';
+  static const String _baseUrl = 'http://10.0.2.2:5244';
   static const String _hubPath = '/hubs/friend';
 
   HubConnection? _connection;

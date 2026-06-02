@@ -126,7 +126,7 @@ class _LoginViewState extends State<LoginView> {
                 textInputAction: TextInputAction.next,
                 validator: (value) {
                   if (value == null || value.isEmpty) return 'Vui lòng nhập email';
-                  if (!value.contains('@')) return 'Email không đúng định dạng';
+                  if (!value.contains('@')) return 'Email không hợp lệ';
                   return null;
                 },
                 decoration: InputDecoration(

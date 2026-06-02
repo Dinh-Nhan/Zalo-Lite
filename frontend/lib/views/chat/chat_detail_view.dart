@@ -63,7 +63,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         },
         {
           'id': 'msg_002',
-          'content': 'Mình khỏe, cảm ơn bạn nha 😊',
+          'content': 'Mình khỏe, cúm đi bạn nha',
           'isMe': true,
           'time': '14:36',
           'date': 'today',
@@ -99,7 +99,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
       _messages = [
         {
           'id': 'msg_001',
-          'content': 'Chào cả nhóm! 👋',
+          'content': 'Chào cử nhóm!',
           'isMe': false,
           'time': '14:30',
           'date': 'today',
@@ -117,7 +117,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         },
         {
           'id': 'msg_003',
-          'content': 'Chào cả nhà 😄',
+          'content': 'Chào cử nhà',
           'isMe': true,
           'time': '14:32',
           'date': 'today',
@@ -140,7 +140,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         },
         {
           'id': 'msg_006',
-          'content': 'Ok, mình sẽ có mặt đúng giờ 👍',
+          'content': 'Ok, mình sẽ có mặt đúng giờ',
           'isMe': false,
           'time': '14:37',
           'date': 'today',
@@ -160,7 +160,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
           'isMe': false,
           'time': '14:39',
           'date': 'today',
-          'senderName': 'Hà Linh',
+          'senderName': 'H├á Linh',
           'senderAvatar': const Color(0xFFE91E63),
         },
       ];

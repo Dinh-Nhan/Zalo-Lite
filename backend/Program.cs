@@ -84,7 +84,11 @@ builder.Services.AddSingleton(sp =>
     sp.GetRequiredService<FirebaseService>().FirestoreDb);
 
 builder.Services.AddScoped<UserService>();
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    });
 builder.Services.AddEndpointsApiExplorer();
 // add options using bearer token to verify access token when request api
 builder.Services.AddSwaggerGen(

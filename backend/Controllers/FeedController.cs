@@ -139,25 +139,20 @@ namespace backend.Controllers
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> CreateFeed([FromForm] CreateFeedRequest request, IFormFileCollection files)
         {
-            if (request.Content == null)
+            // ASP.NET Core model binding does NOT bind nested indexed form fields
+            // (e.g. "Content.Media[0].File") into complex nested objects.
+            // Manual bind: receive files via IFormFileCollection and assign here.
+            if (files.Count > 0)
             {
-                request.Content = new CreateContentRequest { Caption = string.Empty };
-            }
-
-            // Gán files từ Request.Form.Files hoặc tham số files vào request
-            if (Request.Form.Files != null && Request.Form.Files.Count > 0)
-            {
-                request.Content.Media = Request.Form.Files
-                    .Select(f => new CreateMediaRequest { File = f })
-                    .ToList();
-            }
-            else if (request.Content.Media == null || request.Content.Media.Count == 0)
-            {
+                request.Content ??= new CreateContentRequest();
                 request.Content.Media = files
                     .Select(f => new CreateMediaRequest { File = f })
                     .ToList();
             }
-            logger.LogInformation("[FeedController] CreateFeed | Type={Type} UserId={UserId}", request.Type, CurrentUserId);
+
+            logger.LogInformation("[FeedController] CreateFeed | Type={Type} MediaCount={Count}",
+                request.Type, request.Content?.Media?.Count ?? 0);
+
             var result = await feedService.CreateFeedAsync(CurrentUserId, request);
             return CreatedAtAction(nameof(GetById), new { feedId = result.Id },
                 new ApiResponse<FeedResponse> { Result = result });
@@ -196,9 +191,13 @@ namespace backend.Controllers
             IFormFileCollection files
     )
         {
-            request.Media = files
-               .Select(f => new CreateMediaRequest { File = f })
-               .ToList();
+            if (files.Count > 0)
+            {
+                request.Media = files
+                    .Select(f => new CreateMediaRequest { File = f })
+                    .ToList();
+            }
+
             logger.LogInformation("[FeedController] UpdateFeed | FeedId={FeedId} UserId={UserId}",
                 feedId, CurrentUserId);
 

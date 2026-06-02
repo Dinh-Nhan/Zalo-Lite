@@ -323,7 +323,7 @@ class _ChatScreenState extends State<ChatScreen> {
             PopupMenuItem(
               value: 'mute',
               child: Text(
-                widget.conversation.isMuted ? 'Bật thông báo' : 'Tắt thông báo',
+                'Bật thông báo' : 'Tắt thông báo',
               ),
             ),
             PopupMenuItem(value: 'media', child: Text('Xem ảnh/video')),
@@ -722,11 +722,11 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _startVideoCall() {
-    _showInfo('Tính năng gọi video đang được phát triển');
+    _showInfo('Tính năng gửi video đang được phát triển');
   }
 
   void _startVoiceCall() {
-    _showInfo('Tính năng gọi thoại đang được phát triển');
+    _showInfo('Tính năng gửi thoại đang được phát triển');
   }
 
   void _handleMenuAction(String action) {
@@ -754,7 +754,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _reactToMessage(String messageId, String emoji) {
     // TODO: React via SignalR
-    _showInfo('Đã thả cảm xúc');
+    _showInfo('Đã thu cắm xúc');
   }
 
   void _forwardMessage(Message message) {
@@ -796,7 +796,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _showMessageInfo(Message message) {
-    _showInfo('Tính năng thông tin tin nhắn đang được phát triển');
+    _showInfo('Tính năng đánh dấu tin nhắn đang được phát triển');
   }
 
   void _showEmojiPicker() {
