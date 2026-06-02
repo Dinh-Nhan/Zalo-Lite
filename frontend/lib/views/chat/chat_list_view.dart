@@ -11,6 +11,7 @@ import 'package:frontend/views/chat/chat_detail_view.dart';
 import 'package:frontend/views/contacts/contacts_view.dart';
 import 'package:frontend/views/settings/settings_dialog.dart';
 import 'package:frontend/widgets/search_overlay_screen.dart';
+import 'package:frontend/component/friend_search_page.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -513,47 +514,53 @@ class _ChatListViewState extends State<ChatListView> {
   }
 
   void _openSearchOverlay(BuildContext context) {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => SearchOverlayScreen(
-          onBack: () => Navigator.of(context).pop(),
-          onSearchResultTap: ({required userId, required name, avatar}) {
-            Navigator.of(context).pop();
-            final avatarColor = _avatarColor(name);
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => ChatDetailView(
-                  conversationId: 'user_$userId',
-                  contactName: name,
-                  avatarColor: avatarColor,
-                  isGroup: false,
-                ),
-              ),
-            );
-          },
-          recentContacts: _mockConversations,
-          onRecentContactTap: (contact) {
-            Navigator.of(context).pop();
-            final name = contact['name'] as String;
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => ChatDetailView(
-                  conversationId: contact['id'],
-                  contactName: name,
-                  avatarColor: contact['avatarColor'],
-                  isGroup: contact['isGroup'] ?? false,
-                  memberCount: contact['memberCount'],
-                ),
-              ),
-            );
-          },
-        ),
-        transitionsBuilder: (_, animation, __, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        transitionDuration: const Duration(milliseconds: 200),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FriendSearchPage(),
       ),
     );
+    // Navigator.of(context).push(
+    //   PageRouteBuilder(
+    //     pageBuilder: (_, __, ___) => SearchOverlayScreen(
+    //       onBack: () => Navigator.of(context).pop(),
+    //       onSearchResultTap: ({required userId, required name, avatar}) {
+    //         Navigator.of(context).pop();
+    //         final avatarColor = _avatarColor(name);
+    //         Navigator.of(context).push(
+    //           MaterialPageRoute(
+    //             builder: (context) => ChatDetailView(
+    //               conversationId: 'user_$userId',
+    //               contactName: name,
+    //               avatarColor: avatarColor,
+    //               isGroup: false,
+    //             ),
+    //           ),
+    //         );
+    //       },
+    //       recentContacts: _mockConversations,
+    //       onRecentContactTap: (contact) {
+    //         Navigator.of(context).pop();
+    //         final name = contact['name'] as String;
+    //         Navigator.of(context).push(
+    //           MaterialPageRoute(
+    //             builder: (context) => ChatDetailView(
+    //               conversationId: contact['id'],
+    //               contactName: name,
+    //               avatarColor: contact['avatarColor'],
+    //               isGroup: contact['isGroup'] ?? false,
+    //               memberCount: contact['memberCount'],
+    //             ),
+    //           ),
+    //         );
+    //       },
+    //     ),
+    //     transitionsBuilder: (_, animation, __, child) {
+    //       return FadeTransition(opacity: animation, child: child);
+    //     },
+    //     transitionDuration: const Duration(milliseconds: 200),
+    //   ),
+    // );
   }
 
   Color _avatarColor(String name) {

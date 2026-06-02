@@ -83,6 +83,7 @@ class UserSearchModel {
   final String email;
   final String avatar;
   final bool status;
+  final String dob;
 
   const UserSearchModel({
     required this.id,
@@ -90,6 +91,7 @@ class UserSearchModel {
     required this.email,
     required this.avatar,
     required this.status,
+    this.dob = '',
   });
 
   factory UserSearchModel.fromJson(Map<String, dynamic> json) =>
