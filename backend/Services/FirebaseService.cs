@@ -24,7 +24,7 @@ public class FirebaseService
 
         if (string.IsNullOrWhiteSpace(projectId))
             throw new InvalidOperationException("Missing Firebase:ProjectId in appsettings.json.");
-      
+
         // ✅ Resolve TRƯỚC, dùng cho tất cả
         var resolvedPath = Path.GetFullPath(credentialsFilePath, AppContext.BaseDirectory);
         Console.WriteLine($"[FIREBASE] Resolved path: {resolvedPath}");
@@ -37,19 +37,15 @@ public class FirebaseService
         {
             FirebaseApp.Create(new AppOptions
             {
-                Credential = CredentialFactory
-                    .FromFile<ServiceAccountCredential>(resolvedPath)
-                    .ToGoogleCredential(),
-                ProjectId = projectId
+                Credential = GoogleCredential.FromFile(resolvedPath),
+                ProjectId = projectId  // ✅ thêm ProjectId
             });
         }
-      
+
         FirestoreDb = new FirestoreDbBuilder
         {
             ProjectId = projectId,
-            Credential = CredentialFactory
-                .FromFile<ServiceAccountCredential>(resolvedPath)
-                .ToGoogleCredential()
+            Credential = GoogleCredential.FromFile(resolvedPath)
         }.Build();
     }
 
