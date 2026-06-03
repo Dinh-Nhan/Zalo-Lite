@@ -81,10 +81,7 @@ class StoryService {
         'Type': 'story',
         'Privacy': 'public',
         'Content.Caption': '',
-        'Content.Media[0].File': MultipartFile.fromBytes(
-          bytes,
-          filename: safeFilename,
-        ),
+        'files': MultipartFile.fromBytes(bytes, filename: safeFilename),
       });
 
       final response = await _dio.post('/api/feed', data: formData);

@@ -323,7 +323,7 @@ class _ChatScreenState extends State<ChatScreen> {
             PopupMenuItem(
               value: 'mute',
               child: Text(
-                'Bật thông báo' : 'Tắt thông báo',
+                widget.conversation.isMuted ? 'Bật thông báo' : 'Tắt thông báo',
               ),
             ),
             PopupMenuItem(value: 'media', child: Text('Xem ảnh/video')),

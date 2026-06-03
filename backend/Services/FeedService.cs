@@ -110,9 +110,9 @@ namespace backend.Services
 
             if (request.Content?.Media?.Any() == true)
             {
-                foreach (var media in request.Content.Media)
+                foreach (var media in request.Content.Media.Where(m => m.File != null))
                 {
-                var (url, publicId, MediaType) = await cloudinaryService.UploadAsync(media.File, userId, feedId, request.Type);
+                var (url, publicId, MediaType) = await cloudinaryService.UploadAsync(media.File!, userId, feedId, request.Type);
                 mediaList.Add(new Dictionary<string, object>
                 {
                     ["url"] = url,
@@ -742,131 +742,5 @@ namespace backend.Services
                 .ToDictionary(u => u.Id);
         }
 
-        // ── Comments ───────────────────────────────────────────────────
-
-        public async Task<CommentResponse> CreateCommentAsync(string feedId, string userId, CreateCommentRequest request)
-
-        // ── Comments ───────────────────────────────────────────────────
-
-        public async Task<CommentResponse> CreateCommentAsync(string feedId, string userId, CreateCommentRequest request)
-        {
-            var feedSnap = await db.Collection("feeds").Document(feedId).GetSnapshotAsync();
-            if (!feedSnap.Exists || feedSnap.GetValue<object?>("deleted_at") != null)
-                throw new AppException(ErrorCode.FEED_NOT_FOUND);
-
-            var docRef = db.Collection("comments").Document();
-            var commentId = docRef.Id;
-            var imageUrl = "";
-
-            if (request.File != null)
-            {
-                var (url, _, _) = await cloudinaryService.UploadAsync(request.File, userId, commentId, "comment");
-                imageUrl = url;
-            }
-
-            var comment = new Comment
-            {
-                Id = commentId,
-                FeedId = feedId,
-                UserId = userId,
-                Content = request.Content,
-                ImageUrl = imageUrl,
-                Likes = new List<string>(),
-                CreatedAt = DateTime.UtcNow
-            };
-
-            await docRef.SetAsync(comment);
-
-            var authorSnap = await db.Collection("users").Document(userId).GetSnapshotAsync();
-            var author = authorSnap.ConvertTo<User>();
-
-            return new CommentResponse
-            {
-                Id = comment.Id,
-                FeedId = comment.FeedId,
-                UserId = comment.UserId,
-                UserName = $"{author.FirstName} {author.LastName}",
-                UserAvatar = author.Avatar,
-                Content = comment.Content,
-                ImageUrl = comment.ImageUrl,
-                LikeCount = 0,
-                IsLiked = false,
-                CreatedAt = comment.CreatedAt
-            };
-        }
-
-        public async Task<List<CommentResponse>> GetCommentsAsync(string feedId, string currentUserId)
-        {
-            var query = db.Collection("comments")
-                .WhereEqualTo("feed_id", feedId);
-
-            var snapshot = await query.GetSnapshotAsync();
-            var comments = snapshot.Documents
-                .Select(d => d.ConvertTo<Comment>())
-                .OrderBy(c => c.CreatedAt)
-                .ToList();
-
-            if (comments.Count == 0) return new List<CommentResponse>();
-
-            var authorIds = comments.Select(c => c.UserId).Distinct().ToList();
-            var authors = await GetUsersByIdsAsync(authorIds);
-
-            return comments
-                .Where(c => authors.ContainsKey(c.UserId))
-                .Select(c => {
-                    var author = authors[c.UserId];
-                    return new CommentResponse
-                    {
-                        Id = c.Id,
-                        FeedId = c.FeedId,
-                        UserId = c.UserId,
-                        UserName = $"{author.FirstName} {author.LastName}",
-                        UserAvatar = author.Avatar,
-                        Content = c.Content,
-                        ImageUrl = c.ImageUrl,
-                        LikeCount = c.Likes?.Count ?? 0,
-                        IsLiked = c.Likes?.Contains(currentUserId) ?? false,
-                        CreatedAt = c.CreatedAt
-                    };
-                })
-                .ToList();
-        }
-
-        public async Task<LikeResponse> ToggleLikeCommentAsync(string commentId, string userId)
-        {
-            var docRef = db.Collection("comments").Document(commentId);
-            var snap = await docRef.GetSnapshotAsync();
-
-            if (!snap.Exists)
-                throw new AppException(ErrorCode.INTERNAL_ERROR);
-
-            var comment = snap.ConvertTo<Comment>();
-            var likesList = comment.Likes ?? new List<string>();
-            var isLiked = likesList.Contains(userId);
-
-            if (isLiked)
-            {
-                await docRef.UpdateAsync(new Dictionary<string, object>
-                {
-                    ["likes"] = FieldValue.ArrayRemove(userId)
-                });
-            }
-            else
-            {
-                await docRef.UpdateAsync(new Dictionary<string, object>
-                {
-                    ["likes"] = FieldValue.ArrayUnion(userId)
-                });
-            }
-
-            var updatedSnap = await docRef.GetSnapshotAsync();
-            var updatedComment = updatedSnap.ConvertTo<Comment>();
-
-            return new LikeResponse
-            {
-                IsLiked = !isLiked,
-                LikeCount = updatedComment.Likes?.Count ?? 0
-            };
-        }
     }
 }

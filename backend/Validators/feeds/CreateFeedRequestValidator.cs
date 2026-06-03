@@ -30,11 +30,7 @@ namespace backend.Validators
         When(x => x.Type == "post", () =>
         {
             RuleFor(x => x.Content.Caption)
-                .MaximumLength(2000).WithMessage("Caption must not exceed 2000 characters")
-                .Must((req, caption) =>
-                    !string.IsNullOrWhiteSpace(caption) ||
-                    (req.Content?.Media != null && req.Content.Media.Count > 0))
-                .WithMessage("Caption or at least one image is required");
+                .MaximumLength(2000).WithMessage("Caption must not exceed 2000 characters");
         });
 
         When(x => x.Type == "story", () =>

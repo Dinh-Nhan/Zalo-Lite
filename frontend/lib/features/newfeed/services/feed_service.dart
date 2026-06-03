@@ -32,28 +32,33 @@ class FeedService {
     List<String>? allowedUserIds,
   }) async {
     try {
-      final Map<String, dynamic> formMap = {
-        'Type': 'post',
-        'Privacy': visibility,
-        'Content.Caption': content,
-      };
-
-      if (allowedUserIds != null && allowedUserIds.isNotEmpty) {
-        formMap['allowedUserIds'] = allowedUserIds;
-      }
-
+      final List<MultipartFile> fileList = [];
       if (images != null && images.isNotEmpty) {
         for (int i = 0; i < images.length; i++) {
           final img = images[i];
-          final bytes = await img.readAsBytes();
-          formMap['Content.Media[$i].File'] = MultipartFile.fromBytes(
-            bytes,
-            filename: img.name,
-          );
+          String safeName = img.name;
+          if (safeName.isEmpty ||
+              safeName.contains('/') ||
+              safeName.contains('\\') ||
+              !safeName.contains('.')) {
+            safeName = 'image_$i.jpg';
+          }
+          fileList.add(MultipartFile.fromBytes(
+            await img.readAsBytes(),
+            filename: safeName,
+          ));
         }
       }
 
-      final formData = FormData.fromMap(formMap);
+      final formData = FormData.fromMap({
+        'Type': 'post',
+        'Privacy': visibility,
+        'Content.Caption': content,
+        if (allowedUserIds != null && allowedUserIds.isNotEmpty)
+          'AllowedUserIds': allowedUserIds,
+        for (final file in fileList)
+          'files': file,
+      });
 
       final response = await _dio.post('/api/feed', data: formData);
 

@@ -139,12 +139,11 @@ namespace backend.Controllers
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> CreateFeed([FromForm] CreateFeedRequest request, IFormFileCollection files)
         {
-            // ASP.NET Core model binding does NOT bind nested indexed form fields
-            // (e.g. "Content.Media[0].File") into complex nested objects.
-            // Manual bind: receive files via IFormFileCollection and assign here.
+            // Always ensure Content is initialized — ASP.NET Core won't create it if nullable
+            request.Content ??= new CreateContentRequest();
+
             if (files.Count > 0)
             {
-                request.Content ??= new CreateContentRequest();
                 request.Content.Media = files
                     .Select(f => new CreateMediaRequest { File = f })
                     .ToList();
