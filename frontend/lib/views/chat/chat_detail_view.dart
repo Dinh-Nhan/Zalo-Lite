@@ -303,7 +303,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         children: [
           if (widget.showBackButton) ...[
             IconButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => GoRouter.of(context).pop(),
               icon: Icon(
                 Icons.arrow_back,
                 color: headerIconColor,

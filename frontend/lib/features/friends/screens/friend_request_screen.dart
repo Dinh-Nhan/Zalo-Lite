@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/features/friends/screens/received_request_tab.dart';
 import 'package:frontend/features/friends/screens/sent_request_tab.dart';
@@ -18,7 +19,7 @@ class FriendRequestScreen extends StatelessWidget {
           elevation: 0,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => GoRouter.of(context).pop(),
           ),
           title: const Text("Lời mời kết bạn", style: TextStyle(color: Colors.white, fontSize: 18)),
           centerTitle: false,

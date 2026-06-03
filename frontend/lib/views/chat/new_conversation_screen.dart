@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class NewConversationScreen extends StatefulWidget {
   final String type; // 'private' or 'group'
@@ -93,7 +94,7 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
       // TODO: Create conversation via API
       // final conversation = await chatService.createConversation(...);
 
-      Navigator.pop(context);
+      GoRouter.of(context).pop();
       _showSuccess(
         'Đã tạo ${widget.type == 'group' ? 'nhóm' : 'cuộc hội thoại'}',
       );
@@ -113,7 +114,7 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
         elevation: 1,
         leading: IconButton(
           icon: Icon(Icons.close, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => GoRouter.of(context).pop(),
         ),
         title: Text(
           widget.type == 'group' ? 'Tạo nhóm' : 'Tin nhắn mới',

@@ -2,28 +2,32 @@ import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/story_model.dart';
 import '../services/story_service.dart';
-import '../services/cloudinary_service.dart';
 
 enum StoryLoadingState { idle, loading, success, error }
 
 class StoryProvider extends ChangeNotifier {
-  List<UserStory> _userStories = [];
+  List<UserStory> _allUserStories = [];
+  int _displayedCount = 6;
   StoryLoadingState _state = StoryLoadingState.idle;
   String? _errorMessage;
   bool _isCreating = false;
 
-  List<UserStory> get userStories => List.unmodifiable(_userStories);
+  List<UserStory> get userStories =>
+      List.unmodifiable(_allUserStories.take(_displayedCount).toList());
+  List<UserStory> get allUserStories => List.unmodifiable(_allUserStories);
   StoryLoadingState get state => _state;
   String? get errorMessage => _errorMessage;
   bool get isCreating => _isCreating;
+  bool get hasMore => _displayedCount < _allUserStories.length;
 
   Future<void> loadStories() async {
     _state = StoryLoadingState.loading;
     _errorMessage = null;
+    _displayedCount = 6;
     notifyListeners();
 
     try {
-      _userStories = await StoryService.getStories();
+      _allUserStories = await StoryService.getStories();
       _state = StoryLoadingState.success;
     } catch (e) {
       _state = StoryLoadingState.error;
@@ -33,6 +37,13 @@ class StoryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void loadMore() {
+    if (_displayedCount < _allUserStories.length) {
+      _displayedCount += 6;
+      notifyListeners();
+    }
+  }
+
   Future<StoryModel?> createStory(XFile imageFile) async {
     _isCreating = true;
     notifyListeners();
@@ -40,10 +51,10 @@ class StoryProvider extends ChangeNotifier {
     try {
       final story = await StoryService.createStory(imageFile: imageFile);
 
-      final ownerIndex = _userStories.indexWhere((u) => u.isOwner);
+      final ownerIndex = _allUserStories.indexWhere((u) => u.isOwner);
       if (ownerIndex != -1) {
-        final owner = _userStories[ownerIndex];
-        _userStories[ownerIndex] = UserStory(
+        final owner = _allUserStories[ownerIndex];
+        _allUserStories[ownerIndex] = UserStory(
           oderId: owner.oderId,
           userName: owner.userName,
           userAvatar: owner.userAvatar,
@@ -51,7 +62,7 @@ class StoryProvider extends ChangeNotifier {
           isOwner: true,
         );
       } else {
-        _userStories.insert(
+        _allUserStories.insert(
           0,
           UserStory(
             oderId: story.userId,
@@ -75,10 +86,10 @@ class StoryProvider extends ChangeNotifier {
   }
 
   void markStorySeen(String oderId, String storyId) {
-    final userIndex = _userStories.indexWhere((u) => u.oderId == oderId);
+    final userIndex = _allUserStories.indexWhere((u) => u.oderId == oderId);
     if (userIndex == -1) return;
 
-    final user = _userStories[userIndex];
+    final user = _allUserStories[userIndex];
     final updatedStories = user.stories.map((s) {
       if (s.id == storyId) {
         return s.copyWith(isSeen: true);
@@ -86,7 +97,7 @@ class StoryProvider extends ChangeNotifier {
       return s;
     }).toList();
 
-    _userStories[userIndex] = UserStory(
+    _allUserStories[userIndex] = UserStory(
       oderId: user.oderId,
       userName: user.userName,
       userAvatar: user.userAvatar,
@@ -97,12 +108,13 @@ class StoryProvider extends ChangeNotifier {
   }
 
   void removeUserStory(String oderId) {
-    _userStories.removeWhere((u) => u.oderId == oderId);
+    _allUserStories.removeWhere((u) => u.oderId == oderId);
     notifyListeners();
   }
 
   void clear() {
-    _userStories = [];
+    _allUserStories = [];
+    _displayedCount = 6;
     _state = StoryLoadingState.idle;
     _errorMessage = null;
     notifyListeners();

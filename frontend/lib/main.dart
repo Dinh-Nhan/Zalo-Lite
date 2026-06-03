@@ -1,11 +1,13 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:frontend/apps/app_locale.dart';
 import 'package:frontend/apps/router.dart';
 import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/features/newfeed/providers/feed_provider.dart';
 import 'package:frontend/features/newfeed/providers/story_provider.dart';
+import 'package:frontend/features/profile/providers/profile_provider.dart';
 import 'package:frontend/providers/call_provider.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
@@ -14,6 +16,13 @@ import 'config/app_theme.dart';
 /// Điểm khởi chạy ứng dụng Zalo Lite
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark,
+    systemNavigationBarColor: Colors.white,
+    systemNavigationBarIconBrightness: Brightness.dark,
+  ));
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
@@ -26,6 +35,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => FriendProvider()),
         ChangeNotifierProvider(create: (_) => FeedProvider()),
         ChangeNotifierProvider(create: (_) => StoryProvider()),
+        ChangeNotifierProvider(create: (_) => ProfileProvider()),
       ],
       child: const MyApp(),
     ),

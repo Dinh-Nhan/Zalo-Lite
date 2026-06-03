@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../models/chat/conversation.dart';
 import '../../widgets/chat/conversation_tile.dart';
 import 'chat_screen.dart';

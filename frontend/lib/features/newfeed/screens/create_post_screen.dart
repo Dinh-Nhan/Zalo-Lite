@@ -21,7 +21,12 @@ class CreatePostScreen extends StatefulWidget {
     super.key,
     required this.currentUserName,
     required this.currentUserAvatar,
+    this.preSelectedBytes,
+    this.preSelectedPath,
   });
+
+  final Uint8List? preSelectedBytes;
+  final String? preSelectedPath;
 
   @override
   State<CreatePostScreen> createState() => _CreatePostScreenState();
@@ -31,6 +36,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   final TextEditingController _contentController = TextEditingController();
   final ImagePicker _imagePicker = ImagePicker();
   final List<_PickedImage> _selectedImages = [];
+  XFile? _preSelectedXFile;
   String _visibility = 'public';
   List<String> _selectedFriendIds = [];
   bool _isLoading = false;
@@ -38,6 +44,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.preSelectedBytes != null && widget.preSelectedPath != null) {
+      _preSelectedXFile = XFile(widget.preSelectedPath!);
+      _selectedImages.add(_PickedImage(
+        file: _preSelectedXFile!,
+        bytes: widget.preSelectedBytes!,
+      ));
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<FriendProvider>().loadFriends();
     });
@@ -193,7 +206,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Lỗi: ${provider.errorMessage ?? 'Không thể đăng bài'}'),
+          content: Text(
+            'Lỗi: ${provider.errorMessage ?? 'Không thể đăng bài'}',
+          ),
           backgroundColor: Colors.red,
           duration: const Duration(seconds: 2),
         ),
@@ -206,14 +221,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     final mediaQuery = MediaQuery.of(context);
     final bottomPadding = mediaQuery.viewInsets.bottom;
 
-    return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.9,
-      ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+    return Material(
+      color: Colors.white,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -420,7 +430,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               itemBuilder: (context, index) {
                 final friend = selected[index];
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.primaryBlue.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(15),
@@ -480,10 +493,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         autofocus: true,
         decoration: const InputDecoration(
           hintText: 'Bạn đang nghĩ gì?',
-          hintStyle: TextStyle(
-            color: Color(0xFF999999),
-            fontSize: 15,
-          ),
+          hintStyle: TextStyle(color: Color(0xFF999999), fontSize: 15),
           border: InputBorder.none,
           contentPadding: EdgeInsets.zero,
         ),
@@ -515,7 +525,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       width: double.infinity,
                       height: 200,
                       color: Colors.grey.shade200,
-                      child: Icon(Icons.broken_image, color: Colors.grey.shade400),
+                      child: Icon(
+                        Icons.broken_image,
+                        color: Colors.grey.shade400,
+                      ),
                     ),
                   ),
                 ),
@@ -557,18 +570,21 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                    child: Image.memory(
-                      _selectedImages[index].bytes,
-                      width: 110,
-                      height: 110,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 110,
-                        height: 110,
-                        color: Colors.grey.shade300,
-                        child: Icon(Icons.broken_image, color: Colors.grey.shade400),
-                      ),
-                    ),
+                        child: Image.memory(
+                          _selectedImages[index].bytes,
+                          width: 110,
+                          height: 110,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 110,
+                            height: 110,
+                            color: Colors.grey.shade300,
+                            child: Icon(
+                              Icons.broken_image,
+                              color: Colors.grey.shade400,
+                            ),
+                          ),
+                        ),
                       ),
                       Positioned(
                         top: 4,
@@ -633,10 +649,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     const SizedBox(width: 8),
                     const Text(
                       'Chọn ảnh từ thiết bị',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF1A1A1A),
-                      ),
+                      style: TextStyle(fontSize: 14, color: Color(0xFF1A1A1A)),
                     ),
                   ],
                 ),
@@ -788,11 +801,7 @@ class _VisibilitySheetState extends State<_VisibilitySheet> {
                 color: AppColors.primaryBlue.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(
-                icon,
-                color: AppColors.primaryBlue,
-                size: 20,
-              ),
+              child: Icon(icon, color: AppColors.primaryBlue, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -820,11 +829,7 @@ class _VisibilitySheetState extends State<_VisibilitySheet> {
               ),
             ),
             if (isSelected)
-              const Icon(
-                Icons.check,
-                color: AppColors.primaryBlue,
-                size: 20,
-              ),
+              const Icon(Icons.check, color: AppColors.primaryBlue, size: 20),
           ],
         ),
       ),
@@ -872,120 +877,137 @@ class _FriendSelectorSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          margin: const EdgeInsets.only(top: 8),
-          width: 36,
-          height: 4,
-          decoration: BoxDecoration(
-            color: Colors.grey.shade300,
-            borderRadius: BorderRadius.circular(2),
+    return SafeArea(
+      child: Column(
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
-          child: Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Chọn bạn bè có thể nhìn thấy bài viết',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1A1A1A),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Chọn bạn bè có thể nhìn thấy bài viết',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1A1A1A),
+                    ),
                   ),
                 ),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text(
-                  'Xong',
-                  style: TextStyle(
-                    color: AppColors.primaryBlue,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    'Xong',
+                    style: TextStyle(
+                      color: AppColors.primaryBlue,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: Consumer<FriendProvider>(
-            builder: (context, provider, _) {
-              final friends = provider.friends;
+          const Divider(height: 1),
+          Expanded(
+            child: Consumer<FriendProvider>(
+              builder: (context, provider, _) {
+                final friends = provider.friends;
 
-              if (friends.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.group_outlined,
-                        size: 48,
-                        color: Colors.grey.shade400,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Chưa có bạn bè',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 14,
+                if (friends.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.group_outlined,
+                          size: 48,
+                          color: Colors.grey.shade400,
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              }
+                        const SizedBox(height: 12),
+                        Text(
+                          'Chưa có bạn bè',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
 
-              return ListView.builder(
-                controller: scrollController,
-                itemCount: friends.length,
-                itemBuilder: (context, index) {
-                  final friend = friends[index];
-                  final isSelected = selectedFriendIds.contains(friend.friendId);
-                  final color = _avatarColor(friend.fullName);
+                return ListView.builder(
+                  controller: scrollController,
+                  itemCount: friends.length,
+                  itemBuilder: (context, index) {
+                    final friend = friends[index];
+                    final isSelected = selectedFriendIds.contains(
+                      friend.friendId,
+                    );
+                    final color = _avatarColor(friend.fullName);
 
-                  return InkWell(
-                    onTap: () {
-                      final newList = List<String>.from(selectedFriendIds);
-                      if (isSelected) {
-                        newList.remove(friend.friendId);
-                      } else {
-                        newList.add(friend.friendId);
-                      }
-                      onSelectionChanged(newList);
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: color,
-                              border: Border.all(
-                                color: isSelected
-                                    ? AppColors.primaryBlue
-                                    : Colors.transparent,
-                                width: 2,
+                    return InkWell(
+                      onTap: () {
+                        final newList = List<String>.from(selectedFriendIds);
+                        if (isSelected) {
+                          newList.remove(friend.friendId);
+                        } else {
+                          newList.add(friend.friendId);
+                        }
+                        onSelectionChanged(newList);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: color,
+                                border: Border.all(
+                                  color: isSelected
+                                      ? AppColors.primaryBlue
+                                      : Colors.transparent,
+                                  width: 2,
+                                ),
                               ),
-                            ),
-                            child: ClipOval(
-                              child: friend.avatar.isNotEmpty
-                                  ? Image.network(
-                                      friend.avatar,
-                                      width: 44,
-                                      height: 44,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Center(
+                              child: ClipOval(
+                                child: friend.avatar.isNotEmpty
+                                    ? Image.network(
+                                        friend.avatar,
+                                        width: 44,
+                                        height: 44,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Center(
+                                          child: Text(
+                                            friend.fullName.isNotEmpty
+                                                ? friend.fullName[0]
+                                                      .toUpperCase()
+                                                : '?',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    : Center(
                                         child: Text(
                                           friend.fullName.isNotEmpty
                                               ? friend.fullName[0].toUpperCase()
@@ -997,64 +1019,52 @@ class _FriendSelectorSheet extends StatelessWidget {
                                           ),
                                         ),
                                       ),
-                                    )
-                                  : Center(
-                                      child: Text(
-                                        friend.fullName.isNotEmpty
-                                            ? friend.fullName[0].toUpperCase()
-                                            : '?',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    friend.fullName,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF1A1A1A),
+                                    ),
+                                  ),
+                                  if (friend.email.isNotEmpty)
+                                    Text(
+                                      friend.email,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF65676B),
                                       ),
                                     ),
+                                ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  friend.fullName,
-                                  style: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF1A1A1A),
-                                  ),
-                                ),
-                                if (friend.email.isNotEmpty)
-                                  Text(
-                                    friend.email,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF65676B),
-                                    ),
-                                  ),
-                              ],
+                            Icon(
+                              isSelected
+                                  ? Icons.check_circle
+                                  : Icons.circle_outlined,
+                              color: isSelected
+                                  ? AppColors.primaryBlue
+                                  : Colors.grey.shade300,
+                              size: 22,
                             ),
-                          ),
-                          Icon(
-                            isSelected
-                                ? Icons.check_circle
-                                : Icons.circle_outlined,
-                            color: isSelected
-                                ? AppColors.primaryBlue
-                                : Colors.grey.shade300,
-                            size: 22,
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
-              );
-            },
+                    );
+                  },
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

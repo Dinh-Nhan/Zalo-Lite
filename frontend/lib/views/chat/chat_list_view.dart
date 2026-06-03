@@ -6,6 +6,7 @@ import 'package:frontend/config/dark_mode_config.dart';
 import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/features/friends/screens/contact_main_screen.dart';
 import 'package:frontend/features/newfeed/screens/newfeed_screen.dart';
+import 'package:frontend/features/profile/screens/profile_screen.dart';
 import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/utils/app_localizations.dart';
 import 'package:frontend/views/chat/chat_detail_view.dart';
@@ -156,15 +157,6 @@ class _ChatListViewState extends State<ChatListView> {
     }
   }
 
-  void _openSettings() {
-  SettingsDialog.show(
-    context,
-    onLogout: () async {
-      await _logout();
-    },
-  );
-}
-
   void _openAppearanceSettings() {
     SettingsDialog.showAppearance(context);
   }
@@ -201,15 +193,14 @@ class _ChatListViewState extends State<ChatListView> {
                         _wasWideScreen != isWideScreen) {
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         if (isWideScreen) {
-                          // Mobile ΓåÆ Wide conversion
+                          // Mobile → Wide conversion
                           setState(() {
                             if (_selectedNavIndex == 0) {
-                              _selectedNavIndex = 0; // Chat ΓåÆ Chat
-                            } else if (_selectedNavIndex == 1) {
+                              _selectedNavIndex = 0; // Chat → Chat
                             }
                           });
                         } else {
-                          // Wide ΓåÆ Mobile conversion
+                          // Wide → Mobile conversion
                           setState(() {
                             if (_selectedNavIndex == 0) {
                             }
@@ -244,7 +235,8 @@ class _ChatListViewState extends State<ChatListView> {
                                       showBackButton: false,
                                     ),
                             ),
-                          ] else if (_selectedNavIndex == 1)
+                          ]
+                          else if (_selectedNavIndex == 1)
                             const Expanded(
                               child: ContactsView(isWideScreen: true),
                             )
@@ -253,7 +245,9 @@ class _ChatListViewState extends State<ChatListView> {
                               child: NewfeedScreen(),
                             )
                           else if (_selectedNavIndex == 3)
-                            Expanded(child: _buildUpdateComingSoon(isDark))
+                            const Expanded(
+                              child: ProfileScreen(),
+                            )
                           else ...[
                             // Default to chat panel for any other index
                             _buildChatListPanelWide(t, isDark),
@@ -323,7 +317,7 @@ class _ChatListViewState extends State<ChatListView> {
           _buildSidebarItem(Icons.chat_bubble, 0, isDark),
           _buildSidebarItem(Icons.contacts_outlined, 1, isDark),
           _buildSidebarItem(Icons.auto_stories, 2, isDark),
-          _buildSidebarItem(Icons.update, 3, isDark),
+          _buildSidebarItem(Icons.person_outline, 3, isDark),
           const Spacer(),
         ],
       ),
@@ -1109,11 +1103,11 @@ class _ChatListViewState extends State<ChatListView> {
               // Tab 0: Chat List
               _buildChatListPanel(t, isDark),
               // Tab 1: Contacts
-              // const ContactsView(isWideScreen: false),
               ContactsMainScreen(),
-              // Tab 2: Newfeed (Newsfeed icon)
+              // Tab 2: Newfeed
               const NewfeedScreen(),
-              // Tab 3: Coming soon
+              // Tab 3: Profile
+              const ProfileScreen(),
             ],
           ),
         ),
@@ -1231,11 +1225,11 @@ class _ChatListViewState extends State<ChatListView> {
                 'Bảng tin',
               ),
               _buildBottomNavItem(
-                Icons.update,
-                Icons.update_outlined,
+                Icons.person,
+                Icons.person_outline,
                 3,
                 isDark,
-                'Cập nhật',
+                'Cá nhân',
               ),
             ],
           ),

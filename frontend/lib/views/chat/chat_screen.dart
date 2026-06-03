@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/chat/conversation.dart';
 import '../../models/chat/message.dart';
@@ -244,7 +245,7 @@ class _ChatScreenState extends State<ChatScreen> {
       elevation: 1,
       leading: IconButton(
         icon: Icon(Icons.arrow_back, color: Colors.black),
-        onPressed: () => Navigator.pop(context),
+        onPressed: () => GoRouter.of(context).pop(),
       ),
       title: InkWell(
         onTap: _openConversationInfo,

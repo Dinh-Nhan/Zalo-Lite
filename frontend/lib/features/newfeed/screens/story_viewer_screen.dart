@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -64,7 +63,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
 
   void _nextStory() {
     final provider = context.read<StoryProvider>();
-    final stories = provider.userStories;
+    final stories = provider.allUserStories;
     if (_currentUserIndex >= stories.length) {
       context.pop();
       return;
@@ -95,7 +94,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       _startProgress();
     } else if (_currentUserIndex > 0) {
       final provider = context.read<StoryProvider>();
-      final stories = provider.userStories;
+      final stories = provider.allUserStories;
       setState(() {
         _currentUserIndex--;
         _currentStoryIndex = stories[_currentUserIndex].stories.length - 1;
@@ -134,7 +133,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       backgroundColor: Colors.black,
       body: Consumer<StoryProvider>(
         builder: (context, provider, _) {
-          final stories = provider.userStories;
+          final stories = provider.allUserStories;
           if (stories.isEmpty) {
             return Center(
               child: Column(

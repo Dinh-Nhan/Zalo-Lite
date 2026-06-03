@@ -3,12 +3,12 @@ import 'package:image_picker/image_picker.dart';
 import '../models/post_model.dart';
 import '../models/comment_model.dart';
 import '../services/feed_service.dart';
-import '../services/cloudinary_service.dart';
 
 enum FeedLoadingState { idle, loading, success, error }
 
 class FeedProvider extends ChangeNotifier {
-  List<PostModel> _posts = [];
+  List<PostModel> _allPosts = [];
+  int _displayedCount = 6;
   FeedLoadingState _state = FeedLoadingState.idle;
   String? _errorMessage;
   bool _isCreating = false;
@@ -16,10 +16,12 @@ class FeedProvider extends ChangeNotifier {
   final Map<String, List<CommentModel>> _commentsMap = {};
   bool _isLoadingComments = false;
 
-  List<PostModel> get posts => List.unmodifiable(_posts);
+  List<PostModel> get posts => List.unmodifiable(_allPosts.take(_displayedCount).toList());
+  List<PostModel> get allPosts => List.unmodifiable(_allPosts);
   FeedLoadingState get state => _state;
   String? get errorMessage => _errorMessage;
   bool get isCreating => _isCreating;
+  bool get hasMore => _displayedCount < _allPosts.length;
 
   Map<String, List<CommentModel>> get commentsMap => _commentsMap;
   bool get isLoadingComments => _isLoadingComments;
@@ -53,11 +55,10 @@ class FeedProvider extends ChangeNotifier {
       final currentComments = _commentsMap[postId] ?? [];
       _commentsMap[postId] = [...currentComments, comment];
 
-      // Update post comment count
-      final index = _posts.indexWhere((p) => p.id == postId);
-      if (index != -1) {
-        final post = _posts[index];
-        _posts[index] = post.copyWith(commentCount: post.commentCount + 1);
+      final index = _allPosts.indexWhere((p) => p.id == postId);
+      if (index != -1 && index < _displayedCount) {
+        final post = _allPosts[index];
+        _allPosts[index] = post.copyWith(commentCount: post.commentCount + 1);
       }
 
       notifyListeners();
@@ -77,7 +78,6 @@ class FeedProvider extends ChangeNotifier {
     final comment = comments[index];
     final wasLiked = comment.isLiked;
 
-    // optimistic update
     comments[index] = comment.copyWith(
       isLiked: !wasLiked,
       likeCount: wasLiked ? comment.likeCount - 1 : comment.likeCount + 1,
@@ -87,7 +87,6 @@ class FeedProvider extends ChangeNotifier {
     try {
       await FeedService.toggleLikeComment(commentId);
     } catch (e) {
-      // revert
       comments[index] = comment;
       notifyListeners();
     }
@@ -96,10 +95,11 @@ class FeedProvider extends ChangeNotifier {
   Future<void> loadFeed() async {
     _state = FeedLoadingState.loading;
     _errorMessage = null;
+    _displayedCount = 6;
     notifyListeners();
 
     try {
-      _posts = await FeedService.getFeed();
+      _allPosts = await FeedService.getFeed();
       _state = FeedLoadingState.success;
     } catch (e) {
       _state = FeedLoadingState.error;
@@ -111,13 +111,21 @@ class FeedProvider extends ChangeNotifier {
 
   Future<void> refreshFeed() async {
     try {
-      _posts = await FeedService.getFeed();
+      _allPosts = await FeedService.getFeed();
+      _displayedCount = 6;
       _state = FeedLoadingState.success;
       _errorMessage = null;
     } catch (e) {
       _errorMessage = e.toString();
     }
     notifyListeners();
+  }
+
+  void loadMore() {
+    if (_displayedCount < _allPosts.length) {
+      _displayedCount += 6;
+      notifyListeners();
+    }
   }
 
   Future<bool> createPost({
@@ -137,7 +145,7 @@ class FeedProvider extends ChangeNotifier {
         allowedUserIds: allowedUserIds,
       );
 
-      _posts = [post, ..._posts];
+      _allPosts = [post, ..._allPosts];
       _isCreating = false;
       notifyListeners();
       return true;
@@ -150,13 +158,13 @@ class FeedProvider extends ChangeNotifier {
   }
 
   Future<void> toggleLike(String postId) async {
-    final index = _posts.indexWhere((p) => p.id == postId);
+    final index = _allPosts.indexWhere((p) => p.id == postId);
     if (index == -1) return;
 
-    final post = _posts[index];
+    final post = _allPosts[index];
     final wasLiked = post.isLiked;
 
-    _posts[index] = post.copyWith(
+    _allPosts[index] = post.copyWith(
       isLiked: !wasLiked,
       likeCount: wasLiked ? post.likeCount - 1 : post.likeCount + 1,
     );
@@ -169,23 +177,24 @@ class FeedProvider extends ChangeNotifier {
         await FeedService.likePost(postId);
       }
     } catch (e) {
-      _posts[index] = post;
+      _allPosts[index] = post;
       notifyListeners();
     }
   }
 
   void addPost(PostModel post) {
-    _posts.insert(0, post);
+    _allPosts.insert(0, post);
     notifyListeners();
   }
 
   void removePost(String postId) {
-    _posts.removeWhere((p) => p.id == postId);
+    _allPosts.removeWhere((p) => p.id == postId);
     notifyListeners();
   }
 
   void clear() {
-    _posts = [];
+    _allPosts = [];
+    _displayedCount = 6;
     _state = FeedLoadingState.idle;
     _errorMessage = null;
     notifyListeners();

@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:frontend/services/dio_client.dart';
+import 'package:image_picker/image_picker.dart';
 
 class LoginResult {
   final String? token;
@@ -210,52 +211,40 @@ class AuthService {
     }
   }
 
-  // frontend/services/auth_service.dart
-
   static Future<void> updateUserInfo({
-    required String fullName,
-    String? password,
+    required String firstName,
+    required String lastName,
+    String? dateOfBirth,
+    String? bio,
   }) async {
     try {
-      // 1. Lấy user hiện tại từ hệ thống (Firebase hoặc Token lưu trữ)
-      // Giả sử bạn dùng email làm định danh chính
-      final String? email = FirebaseAuth.instance.currentUser?.email;
+      final fullName = '$firstName $lastName'.trim();
 
-      if (email == null) throw Exception("Không tìm thấy thông tin đăng nhập");
-
-      // 2. Gọi API Backend để cập nhật Database
       final response = await DioClient.instance.put(
-        '/api/users/update', // Thay đổi path đúng theo Swagger của bạn
-          queryParameters: {
-          'email': email,
-        },
+        '/api/user/me',
         data: {
-          'password': password,
-          'fullName': fullName,
+          'firstName': firstName,
+          'lastName': lastName,
+          if (dateOfBirth != null) 'dateOfBirth': dateOfBirth,
+          if (bio != null) 'bio': bio,
         },
       );
 
       if (response.statusCode == 200) {
-        print("Cập nhật thông tin user thành công trên DB");
-
-        // 3. Nếu cần cập nhật cả Display Name trên Firebase cho đồng bộ
         await FirebaseAuth.instance.currentUser?.updateDisplayName(fullName);
+        print('Cập nhật thông tin thành công');
       }
     } on DioException catch (e) {
-      // String errorMsg = e.response?.data?['message'] ?? "Lỗi cập nhật thông tin";
-      // throw Exception(errorMsg);\
       final dynamic data = e.response?.data;
-    String errorMsg = "Lỗi cập nhật";
-    
-    if (data is Map) {
-      errorMsg = data['message']?.toString() ?? errorMsg;
-    } else {
-      errorMsg = data?.toString() ?? errorMsg;
-    }
-    
-    throw Exception(errorMsg);
+      String errorMsg = 'Lỗi cập nhật';
+      if (data is Map) {
+        errorMsg = data['message']?.toString() ?? errorMsg;
+      } else {
+        errorMsg = data?.toString() ?? errorMsg;
+      }
+      throw Exception(errorMsg);
     } catch (e) {
-      throw Exception("Lỗi hệ thống: $e");
+      throw Exception('Lỗi hệ thống: $e');
     }
   }
   // frontend/services/auth_service.dart
@@ -275,6 +264,53 @@ class AuthService {
       return false;
     }
   }
+  /// Cập nhật avatar của user hiện tại.
+  /// Upload ảnh lên Backend → Backend upload lên Cloudinary → cập nhật Firestore
+  /// → cập nhật Firebase Auth photoURL để đồng bộ toàn app.
+  static Future<String> updateAvatar(XFile image) async {
+    try {
+      final bytes = await image.readAsBytes();
+      final safeName = image.name.isNotEmpty ? image.name : 'avatar.jpg';
+      final formData = FormData.fromMap({
+        'File': MultipartFile.fromBytes(bytes, filename: safeName),
+      });
+
+      final response = await DioClient.instance.patch(
+        '/api/user/avatar',
+        data: formData,
+      );
+
+      if (response.statusCode == 200) {
+        final data = response.data as Map<String, dynamic>;
+        final result = data['result'] as Map<String, dynamic>?;
+        final avatarUrl = result?['avatar'] as String?;
+
+        if (avatarUrl != null && avatarUrl.isNotEmpty) {
+          // Cập nhật photoURL trên Firebase Auth
+          await FirebaseAuth.instance.currentUser?.updatePhotoURL(avatarUrl);
+          print('[AuthService] Cập nhật avatar thành công: $avatarUrl');
+          return avatarUrl;
+        }
+      }
+
+      throw Exception('Cập nhật avatar thất bại');
+    } on DioException catch (e) {
+      throw Exception(_handleDioError(e));
+    } catch (e) {
+      throw Exception('Lỗi hệ thống: $e');
+    }
+  }
+
+  static String _handleDioError(DioException e) {
+    final status = e.response?.statusCode;
+    final body = e.response?.data;
+    if (status == 401) return 'Chưa đăng nhập hoặc token hết hạn';
+    if (status == 403) return 'Không có quyền cập nhật avatar';
+    if (status == 404) return 'Không tìm thấy tài khoản';
+    if (status != null) return 'Lỗi server $status';
+    return 'Lỗi kết nối: ${e.message}';
+  }
+
   /// Chuyển Firebase error code sang tiếng Việt
   static String _mapFirebaseError(String code) {
     switch (code) {

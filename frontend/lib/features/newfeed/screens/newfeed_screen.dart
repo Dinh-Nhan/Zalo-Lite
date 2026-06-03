@@ -557,9 +557,23 @@ class _NewfeedScreenState extends State<NewfeedScreen> {
         return SliverList(
           delegate: SliverChildBuilderDelegate(
             (context, index) {
+              if (index == provider.posts.length) {
+                if (provider.hasMore) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: TextButton(
+                        onPressed: () => provider.loadMore(),
+                        child: const Text('Xem thêm bài viết'),
+                      ),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              }
               return _PostCard(post: provider.posts[index]);
             },
-            childCount: provider.posts.length,
+            childCount: provider.posts.length + (provider.hasMore ? 1 : 0),
           ),
         );
       },

@@ -1,12 +1,13 @@
+import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/features/friends/widgets/demo_bio.dart';
-import 'package:frontend/features/newfeed/providers/feed_provider.dart';
-import 'package:frontend/features/newfeed/providers/story_provider.dart';
+import 'package:frontend/features/newfeed/screens/create_post_screen.dart';
 import 'package:frontend/features/newfeed/screens/create_story_screen.dart';
 import 'package:frontend/features/newfeed/screens/newfeed_screen.dart';
 import 'package:frontend/features/newfeed/screens/story_viewer_screen.dart';
+import 'package:frontend/features/profile/screens/profile_screen.dart';
 import 'package:frontend/views/auth/set_password_view.dart';
 import 'package:frontend/views/chat/chat_detail_view.dart';
 import 'package:go_router/go_router.dart';
@@ -186,6 +187,26 @@ GoRouter createRouter() {
         builder: (context, state) {
           final startIndex = state.extra as int? ?? 0;
           return StoryViewerScreen(startIndex: startIndex);
+        },
+      ),
+      // ===== PROFILE =====
+      GoRoute(
+        path: '/profile',
+        builder: (context, state) {
+          final userId = state.extra as String?;
+          return ProfileScreen(targetUserId: userId);
+        },
+      ),
+      GoRoute(
+        path: '/create-post-avatar',
+        builder: (context, state) {
+          final data = state.extra as Map<String, dynamic>?;
+          return CreatePostScreen(
+            currentUserName: FirebaseAuth.instance.currentUser?.displayName ?? 'User',
+            currentUserAvatar: FirebaseAuth.instance.currentUser?.photoURL ?? '',
+            preSelectedBytes: data?['imageBytes'] as Uint8List?,
+            preSelectedPath: data?['imagePath'] as String?,
+          );
         },
       ),
     ],

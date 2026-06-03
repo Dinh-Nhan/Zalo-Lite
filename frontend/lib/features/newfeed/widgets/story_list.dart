@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../models/story_model.dart';
 import '../providers/story_provider.dart';
 import 'story_avatar.dart';
 
@@ -31,21 +30,49 @@ class StoryList extends StatelessWidget {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: stories.length + 1,
+              itemCount: stories.length + (provider.hasMore ? 2 : 1),
               separatorBuilder: (_, __) => const SizedBox(width: 10),
               itemBuilder: (context, index) {
                 if (index == 0) {
                   return _buildAddStory(context);
                 }
-                final userStory = stories[index - 1];
-                return StoryAvatar(
-                  userStory: userStory,
-                  onTap: () => _openStoryViewer(context, index - 1),
-                );
+                if (index <= stories.length) {
+                  final userStory = stories[index - 1];
+                  return StoryAvatar(
+                    userStory: userStory,
+                    onTap: () => _openStoryViewer(context, index - 1),
+                  );
+                }
+                return _buildSeeMoreButton(context, provider);
               },
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildSeeMoreButton(BuildContext context, StoryProvider provider) {
+    return GestureDetector(
+      onTap: () => provider.loadMore(),
+      child: Container(
+        width: 104,
+        height: 150,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          color: Colors.grey.shade200,
+        ),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.arrow_forward, color: Colors.grey, size: 28),
+            SizedBox(height: 4),
+            Text(
+              'Xem thêm',
+              style: TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+          ],
+        ),
       ),
     );
   }
