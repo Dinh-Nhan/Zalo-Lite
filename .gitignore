@@ -1,1 +1,4 @@
 .vs/
+
+# Firebase credentials
+backend/config/
