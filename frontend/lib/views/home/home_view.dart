@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend/apps/app_locale.dart';
-import 'package:frontend/features/calling/screens/call_screen.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../config/app_colors.dart';
@@ -129,17 +128,6 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
                     Expanded(child: _buildLogo(t)),
                     _buildButtons(t),
                     const SizedBox(height: 32),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const CallScreen(),
-                          ),
-                        );
-                      },
-                      child: const Text('Go to Call Screen'),
-                    ),
                   ],
                 ),
               ),

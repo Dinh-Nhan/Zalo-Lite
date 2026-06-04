@@ -123,13 +123,58 @@ class Message {
       status: json['status'] ?? 'sent',
       createdAt: DateTime.parse(
         json['created_at'] ?? DateTime.now().toIso8601String(),
-      ),
+      ).toLocal(),
       updatedAt: DateTime.parse(
         json['updated_at'] ?? DateTime.now().toIso8601String(),
-      ),
+      ).toLocal(),
       isMine: json['is_mine'] ?? false,
     );
   }
+
+  Message copyWith({
+    Map<String, List<String>>? reactions,
+    int? totalReactions,
+    bool? isDeleted,
+    String? content,
+    bool? isEdited,
+    String? status,
+    bool? isMine,
+  }) {
+    return Message(
+      id: id,
+      conversationId: conversationId,
+      senderId: senderId,
+      senderName: senderName,
+      senderAvatar: senderAvatar,
+      type: type,
+      content: content ?? this.content,
+      mediaUrl: mediaUrl,
+      thumbnailUrl: thumbnailUrl,
+      fileName: fileName,
+      fileSize: fileSize,
+      duration: duration,
+      replyToMessageId: replyToMessageId,
+      replyToContent: replyToContent,
+      replyToSenderName: replyToSenderName,
+      isForwarded: isForwarded,
+      reactions: reactions ?? this.reactions,
+      totalReactions: totalReactions ?? this.totalReactions,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: deletedAt,
+      isEdited: isEdited ?? this.isEdited,
+      editedAt: editedAt,
+      readBy: readBy,
+      deliveredTo: deliveredTo,
+      status: status ?? this.status,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      isMine: isMine ?? this.isMine,
+    );
+  }
+
+  /// Fix isMine dựa vào currentUserId thay vì tin server
+  Message withCurrentUser(String currentUserId) =>
+      copyWith(isMine: senderId == currentUserId);
 
   Map<String, dynamic> toJson() {
     return {

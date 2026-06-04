@@ -332,34 +332,14 @@ class _ChatDetailViewState extends State<ChatDetailView> {
             ),
           ),
           IconButton(
-            onPressed: () {
-              final callData = CallModel(
-                id: DateTime.now().toString(),
-                remoteName: widget.contactName,
-                remoteAvatar: '', // Thêm avatar nếu có
-                isVideo: false,
-              );
-              context.read<CallProvider>().initCall(callData);
-
-              // 2. Sau đó mới chuyển trang
-              context.go('/call');
-            },
+            onPressed: () {},
             icon: Icon(
               Icons.call_outlined,
               color: headerIconColor,
             ),
           ),
           IconButton(
-            onPressed: () {
-              final callData = CallModel(
-                id: DateTime.now().toString(),
-                remoteName: widget.contactName,
-                remoteAvatar: '', // Thêm avatar nếu có
-                isVideo: false,
-              );
-              context.read<CallProvider>().initCall(callData);
-
-            },
+            onPressed: () {},
             icon: Icon(
               Icons.videocam_outlined,
               color: headerIconColor,

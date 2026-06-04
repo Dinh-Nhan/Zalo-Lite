@@ -1,33 +1,24 @@
 import 'package:dio/dio.dart';
+import 'package:frontend/services/dio_client.dart';
 import '../../models/chat/conversation.dart';
 import '../../models/chat/message.dart';
 
 class ChatService {
-  final Dio _dio;
-  final String baseUrl;
+  final Dio _dio = DioClient.instance;
 
-  ChatService({required this.baseUrl})
-    : _dio = Dio(BaseOptions(baseUrl: baseUrl));
+  ChatService();
 
-  // Set auth token
-  void setAuthToken(String token) {
-    _dio.options.headers['Authorization'] = 'Bearer $token';
-  }
-
-  // Get conversations
   Future<List<Conversation>> getConversations() async {
     final response = await _dio.get('/api/chat/conversations');
-    final data = response.data['data'] as List;
+    final data = response.data['result'] as List;
     return data.map((json) => Conversation.fromJson(json)).toList();
   }
 
-  // Get conversation by ID
   Future<Conversation> getConversation(String conversationId) async {
     final response = await _dio.get('/api/chat/conversations/$conversationId');
-    return Conversation.fromJson(response.data['data']);
+    return Conversation.fromJson(response.data['result']);
   }
 
-  // Get messages
   Future<List<Message>> getMessages(
     String conversationId, {
     int limit = 50,
@@ -35,13 +26,15 @@ class ChatService {
   }) async {
     final response = await _dio.get(
       '/api/chat/conversations/$conversationId/messages',
-      queryParameters: {'limit': limit, 'beforeMessageId': ?beforeMessageId},
+      queryParameters: {
+        'limit': limit,
+        if (beforeMessageId != null) 'beforeMessageId': beforeMessageId,
+      },
     );
-    final data = response.data['data'] as List;
+    final data = response.data['result'] as List;
     return data.map((json) => Message.fromJson(json)).toList();
   }
 
-  // Send message
   Future<Message> sendMessage({
     required String conversationId,
     required String type,
@@ -59,18 +52,17 @@ class ChatService {
         'conversation_id': conversationId,
         'type': type,
         'content': content,
-        'media_url': ?mediaUrl,
-        'thumbnail_url': ?thumbnailUrl,
-        'file_name': ?fileName,
-        'file_size': ?fileSize,
-        'reply_to_message_id': ?replyToMessageId,
         'is_forwarded': isForwarded,
+        if (mediaUrl != null) 'media_url': mediaUrl,
+        if (thumbnailUrl != null) 'thumbnail_url': thumbnailUrl,
+        if (fileName != null) 'file_name': fileName,
+        if (fileSize != null) 'file_size': fileSize,
+        if (replyToMessageId != null) 'reply_to_message_id': replyToMessageId,
       },
     );
-    return Message.fromJson(response.data['data']);
+    return Message.fromJson(response.data['result']);
   }
 
-  // Create conversation
   Future<Conversation> createConversation({
     required String type,
     required List<String> participantIds,
@@ -83,15 +75,14 @@ class ChatService {
       data: {
         'type': type,
         'participant_ids': participantIds,
-        'group_name': ?groupName,
-        'group_avatar_url': ?groupAvatarUrl,
-        'group_description': ?groupDescription,
+        if (groupName != null) 'group_name': groupName,
+        if (groupAvatarUrl != null) 'group_avatar_url': groupAvatarUrl,
+        if (groupDescription != null) 'group_description': groupDescription,
       },
     );
-    return Conversation.fromJson(response.data['data']);
+    return Conversation.fromJson(response.data['result']);
   }
 
-  // Update message
   Future<Message> updateMessage({
     required String conversationId,
     required String messageId,
@@ -105,17 +96,15 @@ class ChatService {
         'new_content': newContent,
       },
     );
-    return Message.fromJson(response.data['data']);
+    return Message.fromJson(response.data['result']);
   }
 
-  // Delete message
   Future<void> deleteMessage(String conversationId, String messageId) async {
     await _dio.delete(
       '/api/chat/conversations/$conversationId/messages/$messageId',
     );
   }
 
-  // React to message
   Future<void> reactToMessage({
     required String conversationId,
     required String messageId,
@@ -131,21 +120,18 @@ class ChatService {
     );
   }
 
-  // Mark as read
   Future<void> markAsRead(String conversationId, String messageId) async {
     await _dio.post(
       '/api/chat/conversations/$conversationId/messages/$messageId/read',
     );
   }
 
-  // Mark as delivered
   Future<void> markAsDelivered(String conversationId, String messageId) async {
     await _dio.post(
       '/api/chat/conversations/$conversationId/messages/$messageId/delivered',
     );
   }
 
-  // Update group
   Future<Conversation> updateGroup({
     required String conversationId,
     String? groupName,
@@ -156,15 +142,14 @@ class ChatService {
       '/api/chat/conversations/group',
       data: {
         'conversation_id': conversationId,
-        'group_name': ?groupName,
-        'group_avatar_url': ?groupAvatarUrl,
-        'group_description': ?groupDescription,
+        if (groupName != null) 'group_name': groupName,
+        if (groupAvatarUrl != null) 'group_avatar_url': groupAvatarUrl,
+        if (groupDescription != null) 'group_description': groupDescription,
       },
     );
-    return Conversation.fromJson(response.data['data']);
+    return Conversation.fromJson(response.data['result']);
   }
 
-  // Add participants
   Future<Conversation> addParticipants({
     required String conversationId,
     required List<String> userIds,
@@ -173,10 +158,9 @@ class ChatService {
       '/api/chat/conversations/participants',
       data: {'conversation_id': conversationId, 'user_ids': userIds},
     );
-    return Conversation.fromJson(response.data['data']);
+    return Conversation.fromJson(response.data['result']);
   }
 
-  // Remove participant
   Future<void> removeParticipant({
     required String conversationId,
     required String userId,
@@ -186,8 +170,22 @@ class ChatService {
     );
   }
 
-  // Delete conversation
   Future<void> deleteConversation(String conversationId) async {
     await _dio.delete('/api/chat/conversations/$conversationId');
+  }
+
+  Future<void> hideMessageForMe(String conversationId, String messageId) async {
+    await _dio.post(
+      '/api/chat/conversations/$conversationId/messages/$messageId/hide',
+    );
+  }
+
+  Future<Map<String, dynamic>> getUserProfile(String userId) async {
+    final response = await _dio.get('/api/user/$userId');
+    return response.data['result'] as Map<String, dynamic>;
+  }
+
+  Future<void> saveFcmToken(String token) async {
+    await _dio.post('/api/user/fcm-token', data: {'token': token});
   }
 }

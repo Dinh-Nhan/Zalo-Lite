@@ -1,3 +1,11 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:frontend/features/calling/screens/incoming_call_screen.dart';
+import 'package:frontend/models/call_model.dart';
+import 'package:frontend/providers/call_provider.dart';
+import 'package:flutter_callkeep/flutter_callkeep.dart';
+import 'package:frontend/features/calling/screens/call_screen.dart';
+import 'package:frontend/services/call_notification_service.dart';
+import 'package:frontend/services/message_notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend/apps/app_locale.dart';
@@ -5,9 +13,12 @@ import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/config/dark_mode_config.dart';
 import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/features/friends/screens/contact_main_screen.dart';
+import 'package:frontend/models/chat/conversation.dart';
+import 'package:frontend/providers/chat_provider.dart';
 import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/utils/app_localizations.dart';
 import 'package:frontend/views/chat/chat_detail_view.dart';
+import 'package:frontend/views/chat/chat_screen.dart';
 import 'package:frontend/views/contacts/contacts_view.dart';
 import 'package:frontend/views/settings/settings_dialog.dart';
 import 'package:frontend/widgets/search_overlay_screen.dart';
@@ -25,78 +36,8 @@ class ChatListView extends StatefulWidget {
 class _ChatListViewState extends State<ChatListView> {
   String _filterMode = 'all';
   int _selectedNavIndex = 0;
-  Map<String, dynamic>? _selectedConversation;
-  bool? _wasWideScreen; // Track previous screen size
-
-  final List<Map<String, dynamic>> _mockConversations = [
-    {
-      'id': 'conv_001',
-      'name': 'Đình Nhân',
-      'avatar': null,
-      'avatarColor': const Color(0xFF4CAF50),
-      'lastMessageKey': 'youPrefix',
-      'lastMessageContent': 'Nice to meet you',
-      'lastMessageTimeValue': 5,
-      'lastMessageTimeUnit': 'minutes',
-      'unreadCount': 0,
-      'isPinned': false,
-      'isGroup': false,
-    },
-    {
-      'id': 'conv_002',
-      'name': 'Nhóm Dự Án',
-      'avatar': null,
-      'avatarColor': const Color(0xFF9C27B0),
-      'lastMessageKey': 'youPrefix',
-      'lastMessageContent': 'Nice to meet you',
-      'lastMessageTimeValue': 10,
-      'lastMessageTimeUnit': 'minutes',
-      'unreadCount': 3,
-      'isPinned': false,
-      'isGroup': true,
-      'memberCount': 5,
-    },
-    {
-      'id': 'conv_003',
-      'name': 'Minh Anh',
-      'avatar': null,
-      'avatarColor': const Color(0xFF2196F3),
-      'lastMessageKey': '',
-      'lastMessageContent': 'Chào bạn!',
-      'lastMessageTimeValue': 30,
-      'lastMessageTimeUnit': 'minutes',
-      'unreadCount': 0,
-      'isPinned': false,
-      'isGroup': false,
-    },
-    {
-      'id': 'conv_004',
-      'name': 'Nhóm Lớp K18',
-      'avatar': null,
-      'avatarColor': const Color(0xFFFF9800),
-      'lastMessageKey': '',
-      'lastMessageContent': 'Ai có tài liệu không?',
-      'lastMessageTimeValue': 1,
-      'lastMessageTimeUnit': 'hours',
-      'unreadCount': 12,
-      'isPinned': false,
-      'isGroup': true,
-      'memberCount': 45,
-    },
-    {
-      'id': 'conv_005',
-      'name': 'Tuấn Kiệt',
-      'avatar': null,
-      'avatarColor': const Color(0xFFE91E63),
-      'lastMessageKey': 'youPrefix',
-      'lastMessageContent': 'Ok bạn',
-      'lastMessageTimeValue': 2,
-      'lastMessageTimeUnit': 'hours',
-      'unreadCount': 0,
-      'isPinned': false,
-      'isGroup': false,
-    },
-  ];
+  Conversation? _selectedConversation;
+  bool? _wasWideScreen;
 
   @override
   void initState() {
@@ -109,47 +50,197 @@ class _ChatListViewState extends State<ChatListView> {
     );
     Future.microtask(() {
       final provider = context.read<FriendProvider>();
-
       provider.loadFriends();
       provider.loadRequests();
       provider.startRealtime();
+
+      final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+      if (uid.isNotEmpty) {
+        final chatProvider = context.read<ChatProvider>();
+        chatProvider.setContext(context);
+        chatProvider.init(uid);
+      }
+
+      if (mounted) CallNotificationService.checkPendingCall(_handleFcmCall);
+      _pollActiveCalls();
+
+      // Điều hướng khi tap notification tin nhắn
+      MessageNotificationService.onNotificationTap = _openConversationById;
+      MessageNotificationService.checkInitialMessage();
     });
+
+    context.read<CallProvider>().addListener(_onCallStateChanged);
+    CallNotificationService.acceptedCall.addListener(_onCallAcceptedNotifier);
+    CallNotificationService.declinedCall.addListener(_onCallDeclinedNotifier);
+    // Check ngay nếu có event đang chờ
+    if (CallNotificationService.acceptedCall.value != null) {
+      Future.microtask(_onCallAcceptedNotifier);
+    }
   }
 
   @override
   void dispose() {
+    MessageNotificationService.onNotificationTap = null;
+    context.read<CallProvider>().removeListener(_onCallStateChanged);
+    CallNotificationService.acceptedCall.removeListener(_onCallAcceptedNotifier);
+    CallNotificationService.declinedCall.removeListener(_onCallDeclinedNotifier);
     super.dispose();
   }
 
-  List<Map<String, dynamic>> get _filteredConversations {
-    var list = _mockConversations;
-    if (_filterMode == 'unread') {
-      list = list.where((conv) => conv['unreadCount'] > 0).toList();
-    }
-    return list;
+  /// Mở conversation từ notification tap — tìm trong danh sách hoặc fetch từ API
+  Future<void> _openConversationById(String conversationId) async {
+    if (!mounted) return;
+    final chatProvider = context.read<ChatProvider>();
+
+    // Tìm trong danh sách đã load
+    Conversation? conv = chatProvider.conversations
+        .where((c) => c.id == conversationId)
+        .firstOrNull;
+
+    // Nếu chưa có, fetch từ API
+    conv ??= await chatProvider.fetchConversation(conversationId);
+    if (conv == null || !mounted) return;
+
+    chatProvider.openConversation(conv);
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ChatScreen(conversation: conv!)),
+    );
   }
 
-  void _onConversationTap(Map<String, dynamic> conversation) {
-    // Check if we're on wide screen
+  void _onCallStateChanged() {
+    final call = context.read<CallProvider>().currentCall;
+    if (call != null && call.isIncoming && call.status == CallStatus.ringing) {
+      Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute(
+          builder: (_) => IncomingCallScreen(call: call),
+          fullscreenDialog: true,
+        ),
+      );
+    }
+  }
+
+  void _setupCallKeepEvents() {
+    // Không cần setup thêm — dùng ValueNotifier listeners ở initState
+  }
+
+  /// Khi app cold start từ việc nhấn Accept trên CallKeep native UI,
+  /// EventChannel đã mất → query activeCalls để lấy cuộc gọi đang active
+  bool _coldStartCallHandled = false;
+
+  /// Poll activeCalls vài lần — phòng race giữa native ghi ACTIVE_CALLS và app query
+  Future<void> _pollActiveCalls() async {
+    for (int i = 0; i < 5; i++) {
+      if (!mounted || _coldStartCallHandled) return;
+      try {
+        final activeCalls = await CallKeep.instance.activeCalls();
+        debugPrint('[ChatList] poll[$i] activeCalls count=${activeCalls.length}');
+        if (activeCalls.isNotEmpty) {
+          _coldStartCallHandled = true;
+          final event = activeCalls.first;
+          debugPrint('[ChatList] coldstart call: ${event.callerName} extra=${event.extra}');
+          await CallKeep.instance.endAllCalls(); // clear để không re-trigger
+          if (mounted) _handleCallAccepted(event);
+          return;
+        }
+      } catch (e) {
+        debugPrint('[ChatList] _pollActiveCalls error: $e');
+      }
+      await Future.delayed(const Duration(milliseconds: 800));
+    }
+  }
+
+  void _onCallAcceptedNotifier() {
+    final event = CallNotificationService.acceptedCall.value;
+    debugPrint('[ChatList] _onCallAcceptedNotifier: event=${event?.callerName} mounted=$mounted');
+    if (event == null || !mounted) return;
+    CallNotificationService.acceptedCall.value = null; // consume
+    _handleCallAccepted(event);
+  }
+
+  void _onCallDeclinedNotifier() {
+    final event = CallNotificationService.declinedCall.value;
+    if (event == null || !mounted) return;
+    CallNotificationService.declinedCall.value = null;
+    _handleCallDeclined(event);
+  }
+
+  bool _callScreenOpened = false;
+
+  void _handleCallAccepted(CallEvent event) {
+    debugPrint('[ChatList] _handleCallAccepted: extra=${event.extra}');
+    if (!mounted || _callScreenOpened) return;
+    _callScreenOpened = true;
+    _coldStartCallHandled = true;
+    final extra      = event.extra ?? {};
+    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final call = CallModel(
+      conversationId: extra['conversation_id'] ?? '',
+      callerId:       extra['caller_id'] ?? '',
+      calleeId:       currentUid,
+      remoteName:     extra['caller_name'] ?? event.callerName ?? '',
+      remoteAvatar:   extra['caller_avatar'] ?? '',
+      isVideo:        extra['call_type'] == 'video',
+      isIncoming:     true,
+      status:         CallStatus.active,
+    );
+
+    context.read<CallProvider>().acceptCall();
+    context.read<ChatProvider>().acceptCall(call.conversationId, call.callerId);
+
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => CallScreen(call: call),
+      ),
+    ).then((_) {
+      // Reset khi CallScreen đóng → cuộc gọi sau hoạt động lại
+      _callScreenOpened = false;
+      _coldStartCallHandled = false;
+    });
+  }
+
+  void _handleCallDeclined(CallEvent event) {
+    if (!mounted) return;
+    final extra = event.extra ?? {};
+    final chat  = context.read<ChatProvider>();
+    chat.rejectCall(extra['conversation_id'] ?? '', extra['caller_id'] ?? '', reason: 'rejected');
+    context.read<CallProvider>().rejectCall();
+  }
+
+  void _handleFcmCall(Map<String, String> data) {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final callModel = CallModel(
+      conversationId: data['conversation_id'] ?? '',
+      callerId:       data['caller_id'] ?? '',
+      calleeId:       currentUid,
+      remoteName:     data['caller_name'] ?? '',
+      remoteAvatar:   data['caller_avatar'] ?? '',
+      isVideo:        data['call_type'] == 'video',
+      isIncoming:     true,
+      status:         CallStatus.ringing,
+    );
+
+    context.read<CallProvider>().receiveIncomingCall(callModel);
+
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(
+        builder: (_) => IncomingCallScreen(call: callModel),
+        fullscreenDialog: true,
+      ),
+    );
+  }
+
+  void _onConversationTap(Conversation conversation) {
+    context.read<ChatProvider>().openConversation(conversation);
     final isWideScreen = MediaQuery.of(context).size.width >= 700;
 
     if (isWideScreen) {
-      // On wide screen, update selected conversation to show in right panel
-      setState(() {
-        _selectedConversation = conversation;
-      });
+      setState(() => _selectedConversation = conversation);
     } else {
-      // On mobile, navigate to full screen chat
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ChatDetailView(
-            conversationId: conversation['id'],
-            contactName: conversation['name'],
-            avatarColor: conversation['avatarColor'],
-            isGroup: conversation['isGroup'] ?? false,
-            memberCount: conversation['memberCount'],
-          ),
+          builder: (_) => ChatScreen(conversation: conversation),
         ),
       );
     }
@@ -240,19 +331,8 @@ class _ChatListViewState extends State<ChatListView> {
                             Expanded(
                               child: _selectedConversation == null
                                   ? _buildWelcomePanel(t, isDark)
-                                  : ChatDetailView(
-                                      conversationId:
-                                          _selectedConversation!['id'],
-                                      contactName:
-                                          _selectedConversation!['name'],
-                                      avatarColor:
-                                          _selectedConversation!['avatarColor'],
-                                      isGroup:
-                                          _selectedConversation!['isGroup'] ??
-                                          false,
-                                      memberCount:
-                                          _selectedConversation!['memberCount'],
-                                      showBackButton: false,
+                                  : ChatScreen(
+                                      conversation: _selectedConversation!,
                                     ),
                             ),
                           ] else if (_selectedNavIndex == 2)
@@ -265,19 +345,8 @@ class _ChatListViewState extends State<ChatListView> {
                             Expanded(
                               child: _selectedConversation == null
                                   ? _buildWelcomePanel(t, isDark)
-                                  : ChatDetailView(
-                                      conversationId:
-                                          _selectedConversation!['id'],
-                                      contactName:
-                                          _selectedConversation!['name'],
-                                      avatarColor:
-                                          _selectedConversation!['avatarColor'],
-                                      isGroup:
-                                          _selectedConversation!['isGroup'] ??
-                                          false,
-                                      memberCount:
-                                          _selectedConversation!['memberCount'],
-                                      showBackButton: false,
+                                  : ChatScreen(
+                                      conversation: _selectedConversation!,
                                     ),
                             ),
                           ],
@@ -531,22 +600,8 @@ class _ChatListViewState extends State<ChatListView> {
               ),
             );
           },
-          recentContacts: _mockConversations,
-          onRecentContactTap: (contact) {
-            Navigator.of(context).pop();
-            final name = contact['name'] as String;
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => ChatDetailView(
-                  conversationId: contact['id'],
-                  contactName: name,
-                  avatarColor: contact['avatarColor'],
-                  isGroup: contact['isGroup'] ?? false,
-                  memberCount: contact['memberCount'],
-                ),
-              ),
-            );
-          },
+          recentContacts: const [],
+          onRecentContactTap: (_) {},
         ),
         transitionsBuilder: (_, animation, __, child) {
           return FadeTransition(opacity: animation, child: child);
@@ -653,50 +708,168 @@ class _ChatListViewState extends State<ChatListView> {
   }
 
   Widget _buildConversationList(AppLocalizations t, bool isDark) {
-    return ListView.builder(
-      padding: EdgeInsets.zero,
-      itemCount: _filteredConversations.length,
-      itemBuilder: (context, index) {
-        final conversation = _filteredConversations[index];
-        return _buildConversationTile(conversation, t, isDark);
+    return Consumer<ChatProvider>(
+      builder: (context, chat, _) {
+        if (chat.conversationsState == ChatLoadingState.loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (chat.conversationsState == ChatLoadingState.error) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 40),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Không thể tải cuộc trò chuyện',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  if (chat.errorMessage != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      chat.errorMessage!,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.getTextSecondary(isDark),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: () => chat.loadConversations(),
+                    child: const Text('Thử lại'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final list = _filterMode == 'unread'
+            ? chat.conversations.where((c) => c.unreadCount > 0).toList()
+            : chat.conversations;
+
+        if (list.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.chat_bubble_outline,
+                  size: 64,
+                  color: AppColors.getTextSecondary(isDark).withValues(alpha: 0.4),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Chưa có cuộc trò chuyện nào',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.getTextSecondary(isDark),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Tìm kiếm bạn bè để bắt đầu nhắn tin',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.getTextSecondary(isDark).withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return RefreshIndicator(
+          color: AppColors.primaryBlue,
+          onRefresh: () => chat.loadConversations(),
+          child: ListView.builder(
+            padding: EdgeInsets.zero,
+            itemCount: list.length,
+            itemBuilder: (context, index) =>
+                _buildConversationTileFromModel(list[index], t, isDark),
+          ),
+        );
       },
     );
   }
 
-  String _formatTimeAgo(int value, String unit, AppLocalizations t) {
-    if (unit == 'minutes') {
-      return t.isVietnamese ? '$value phút' : '$value min';
-    } else if (unit == 'hours') {
-      return t.isVietnamese ? '$value giờ' : '$value hr';
-    } else if (unit == 'days') {
-      return t.isVietnamese ? '$value ngày' : '$value d';
-    }
-    return '';
+  String _formatRelativeTime(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inSeconds < 60) return 'Vừa xong';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} phút';
+    if (diff.inHours < 24) return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    if (diff.inDays == 1) return 'Hôm qua';
+    if (diff.inDays < 7) return '${dt.day}/${dt.month}';
+    return '${dt.day}/${dt.month}/${dt.year}';
   }
 
-  Widget _buildConversationTile(
-    Map<String, dynamic> conversation,
+  String _formatLastMessage(Conversation conv) {
+    final msg = conv.lastMessage;
+    if (msg == null) return '';
+
+    final String prefix;
+    if (msg.isMine) {
+      prefix = 'Bạn';
+    } else {
+      // Ưu tiên dùng tên từ conversation (đúng hơn senderName trong message)
+      final resolvedName = conv.type == 'private'
+          ? (conv.otherUserName ?? msg.senderName)
+          : msg.senderName;
+      final parts = resolvedName.trim().split(' ');
+      // Lấy từ CUỐI (tên người Việt thường là tên riêng ở cuối)
+      prefix = parts.isNotEmpty ? parts.last : resolvedName;
+    }
+
+    final String content;
+    if (msg.isDeleted) {
+      content = 'Tin nhắn đã bị thu hồi';
+    } else {
+      switch (msg.type) {
+        case 'image':
+          content = '[Hình ảnh]';
+          break;
+        case 'video':
+          content = '[Video]';
+          break;
+        case 'audio':
+          content = '[Tin nhắn thoại]';
+          break;
+        case 'file':
+          content = '[Tệp: ${msg.fileName ?? 'đính kèm'}]';
+          break;
+        case 'sticker':
+          content = '[Sticker]';
+          break;
+        default:
+          content = msg.content;
+      }
+    }
+
+    return '$prefix: $content';
+  }
+
+  Widget _buildConversationTileFromModel(
+    Conversation conv,
     AppLocalizations t,
     bool isDark,
   ) {
-    final String name = conversation['name'];
-    final Color avatarColor = conversation['avatarColor'];
-    final String messageKey = conversation['lastMessageKey'] ?? '';
-    final String messageContent = conversation['lastMessageContent'] ?? '';
-    final int timeValue = conversation['lastMessageTimeValue'] ?? 0;
-    final String timeUnit = conversation['lastMessageTimeUnit'] ?? '';
-    final int unreadCount = conversation['unreadCount'];
-    final bool isGroup = conversation['isGroup'] ?? false;
-    final int? memberCount = conversation['memberCount'];
-
-    // Format message with localization
-    final String lastMessage = messageKey.isNotEmpty
-        ? '${t.get(messageKey)} $messageContent'
-        : messageContent;
-    final String lastMessageTime = _formatTimeAgo(timeValue, timeUnit, t);
+    final String name = conv.displayName;
+    final Color avatarColor = _avatarColor(name);
+    final String lastMessage = _formatLastMessage(conv);
+    final int unreadCount = conv.unreadCount;
+    final bool isGroup = conv.type == 'group';
+    final int memberCount = conv.participants.length;
+    final String lastMessageTime = _formatRelativeTime(
+        conv.lastMessage?.createdAt ?? conv.updatedAt);
 
     return InkWell(
-      onTap: () => _onConversationTap(conversation),
+      onTap: () => _onConversationTap(conv),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
@@ -704,19 +877,24 @@ class _ChatListViewState extends State<ChatListView> {
             Stack(
               clipBehavior: Clip.none,
               children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: avatarColor,
-                  child: Text(
-                    _getInitials(name),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-                if (isGroup && memberCount != null)
+                conv.displayAvatar.isNotEmpty
+                    ? CircleAvatar(
+                        radius: 24,
+                        backgroundImage: NetworkImage(conv.displayAvatar),
+                      )
+                    : CircleAvatar(
+                        radius: 24,
+                        backgroundColor: avatarColor,
+                        child: Text(
+                          _getInitials(name),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                if (isGroup)
                   Positioned(
                     left: -4,
                     bottom: -4,
@@ -739,6 +917,24 @@ class _ChatListViewState extends State<ChatListView> {
                           color: Colors.white,
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (!isGroup && conv.otherUserId != null &&
+                    context.read<ChatProvider>().isUserOnline(conv.otherUserId!))
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.getSurface(isDark),
+                          width: 2,
                         ),
                       ),
                     ),
@@ -766,25 +962,50 @@ class _ChatListViewState extends State<ChatListView> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (lastMessageTime.isNotEmpty)
-                        Text(
-                          lastMessageTime,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.getTextSecondary(isDark),
-                          ),
+                      Text(
+                        lastMessageTime,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.getTextSecondary(isDark),
                         ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    lastMessage,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.getTextSecondary(isDark),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          lastMessage,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: unreadCount > 0
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                            color: AppColors.getTextSecondary(isDark),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (unreadCount > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryBlue,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            unreadCount > 99 ? '99+' : unreadCount.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),
@@ -922,7 +1143,7 @@ class _ChatListViewState extends State<ChatListView> {
                 ],
               ),
             ),
-            ?trailing,
+            if (trailing != null) trailing,
           ],
         ),
       ),

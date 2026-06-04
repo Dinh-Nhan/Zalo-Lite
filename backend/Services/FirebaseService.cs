@@ -42,11 +42,17 @@ public class FirebaseService
             });
         }
 
-        FirestoreDb = new FirestoreDbBuilder
+        var databaseId = section.GetValue<string>("DatabaseId"); // null = dùng "(default)"
+
+        var builder = new FirestoreDbBuilder
         {
-            ProjectId = projectId,
+            ProjectId  = projectId,
             Credential = GoogleCredential.FromFile(resolvedPath)
-        }.Build();
+        };
+        if (!string.IsNullOrWhiteSpace(databaseId))
+            builder.DatabaseId = databaseId;
+
+        FirestoreDb = builder.Build();
     }
 
     /// <summary>
