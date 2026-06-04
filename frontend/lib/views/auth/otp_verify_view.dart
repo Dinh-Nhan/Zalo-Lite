@@ -73,7 +73,7 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
     final otp = _otpControllers.map((c) => c.text).join();
     setState(() {
       _isButtonEnabled = otp.length == 6;
-      _errorMessage = null; // Xóa lỗi khi user nhập lại
+      _errorMessage = null; 
     });
   }
 
@@ -146,19 +146,24 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
       if (isValid) {
         _showSuccessDialog(); // Nếu đúng, hiện thông báo thành công
       } else {
-        setState(() => _errorMessage = "Mã xác thực không chính xác.");
+        _showErrorDialog(); // Nếu sai, hiện dialog lỗi
+        // setState(() => _errorMessage = "Mã xác thực không chính xác.");
       }
     } catch (e) {
-      // Nếu sai mã hoặc lỗi mạng, API sẽ trả về lỗi và hiển thị tại đây
-      setState(() => _errorMessage = e.toString().replaceAll("Exception: ", ""));
-      
-      // Tùy chọn: Xóa trắng các ô OTP để user nhập lại nếu sai
-      for (var controller in _otpControllers) {
-        controller.clear();
-      }
-      _focusNodes[0].requestFocus();
-      _updateButtonState();
-    } finally {
+    _showErrorDialog();
+
+    setState(() {
+      _errorMessage =
+          e.toString().replaceAll("Exception: ", "");
+    });
+
+    for (var controller in _otpControllers) {
+      controller.clear();
+    }
+
+    _focusNodes[0].requestFocus();
+    _updateButtonState();
+  }finally {
       setState(() => _isLoading = false);
     }
   }
@@ -232,7 +237,40 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
       ),
     );
   }
-
+  void _showErrorDialog() {
+  final t = AppLocalizations(localeNotifier.value);
+  showDialog(
+    context: context,
+    barrierDismissible: true, // Cho phép chạm ra ngoài để đóng dialog (hoặc để false nếu bắt buộc bấm nút)
+    builder: (context) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Đổi sang Icon lỗi màu đỏ
+          const Icon(Icons.error_outline, color: Colors.red, size: 60), 
+          const SizedBox(height: 16),
+          Text(
+            t.get('otpInvalid'), // Thay bằng key thông báo lỗi của bạn (Ví dụ: "Mã OTP không chính xác")
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center, // Căn giữa chữ cho đẹp hơn nếu chuỗi dài
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context); // Đóng dialog để quay lại màn hình nhập OTP
+          },
+          child: Text(t.get('tryAgain')), // Thay bằng key chữ "Thử lại" hoặc "Đóng"
+        ),
+      ],
+    ),
+  );
+}
   @override
   void dispose() {
     _timer?.cancel();

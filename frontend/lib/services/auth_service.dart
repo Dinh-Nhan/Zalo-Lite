@@ -225,6 +225,7 @@ class AuthService {
         print("Thành công: Xác thực OTP khớp.");
         return true;
       }
+      print("Thất bại: Xác thực OTP không khớp.");
       return false;
     } on DioException catch (e) {
       String errorMsg = e.response?.data?['message'] ?? "Mã OTP không hợp lệ";
