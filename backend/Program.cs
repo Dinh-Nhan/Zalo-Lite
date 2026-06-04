@@ -11,11 +11,31 @@ using Mapster;
 using MapsterMapper;
 using Serilog;
 using StackExchange.Redis;
+using Microsoft.OpenApi.Models;
+using backend.swagger;
+using backend.settings;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ── Firebase ───────────────────────────────────────────────
-// Firebase initialization is handled by FirebaseService (registered below)
+// var firebaseConfig = builder.Configuration.GetSection("Firebase");
+// var projectId = firebaseConfig["ProjectId"];
+// var credentialPath = firebaseConfig["CredentialsFilePath"];
+
+// var credential = CredentialFactory
+//     .FromFile<ServiceAccountCredential>(credentialPath)
+//     .ToGoogleCredential();
+
+// FirebaseApp.Create(new AppOptions()
+// {
+//     Credential = credential,
+//     ProjectId = projectId
+// });
+
+// background service 
+builder.Services.AddHostedService<StoryExpirationService>();
+
+
+//var builder = WebApplication.CreateBuilder(args);
 
 // ── Serilog ────────────────────────────────────────────────
 builder.Host.UseSerilog((ctx, config) => config
@@ -30,7 +50,9 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     var config = builder.Configuration["Redis:ConnectString"]!;
     return ConnectionMultiplexer.Connect(config);
 });
-
+// ── Cloudinary ────────────────────────────────────────────────
+builder.Services.Configure<CloudinarySettings>(
+    builder.Configuration.GetSection("Cloudinary"));
 // ── Mapster ────────────────────────────────────────────────
 var mapsterConfig = TypeAdapterConfig.GlobalSettings;
 mapsterConfig.Scan(Assembly.GetExecutingAssembly());
@@ -56,10 +78,33 @@ builder.Services.AddSingleton<FirebaseService>();
 builder.Services.AddSingleton(sp =>
     sp.GetRequiredService<FirebaseService>().FirestoreDb);
 
-// ── Controllers, Swagger ───────────────────────────────────
+builder.Services.AddScoped<UserService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// add options using bearer token to verify access token when request api
+builder.Services.AddSwaggerGen(
+    options =>
+{
+    // config xml for comment in controller to explain api 
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    options.IncludeXmlComments(xmlPath);
+
+
+    //require bearer token for per request in backend
+    options.OperationFilter<AuthorizeCheckOperationFilter>();
+
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Nhập token theo định dạng: Bearer {token}"
+    });
+}
+);
 
 // ── SignalR ────────────────────────────────────────────────
 builder.Services.AddSignalR();

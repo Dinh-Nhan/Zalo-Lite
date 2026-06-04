@@ -7,13 +7,15 @@ using backend.Models;
 using Google.Cloud.Firestore;
 using Google.Cloud.Firestore.V1;
 using Mapster;
+using backend.dtos.Request;
+using backend.dtos;
 using StackExchange.Redis;
 using System.Text.Json;
 
 namespace backend.Services;
 
 [ScopedService]
-public class UserService(FirestoreDb db, ILogger<UserService> logger, RedisService _redis)
+public class UserService(FirestoreDb db, RedisService _redis, ILogger<UserService> logger, CloudinaryService cloudinaryService)
 {
     private const string Collection = "users";
 
@@ -56,6 +58,16 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, RedisServi
 
         await docRef.SetAsync(user);
         logger.LogInformation("User created: {UserId}", uid);
+        // if (existing.Count > 0)
+        //     throw new AppException(ErrorCode.EMAIL_ALREADY_EXISTS);
+
+        // var user = request.Adapt<User>();
+        // var docRef = await db.Collection(Collection)
+        //                 .Document(request.Id)
+        //                 .SetAsync(user);
+        // // user.Id = docRef.Id;
+
+        // logger.LogInformation("User created: {UserId}", user.Id);
         return user.Adapt<UserResponse>();
     }
 
@@ -78,12 +90,48 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, RedisServi
     {
         var docRef = db.Collection(Collection).Document(id);
         var snapshot = await docRef.GetSnapshotAsync();
+        if (!snapshot.Exists)
+            throw new AppException(ErrorCode.USER_NOT_FOUND);
+
+        var user = snapshot.ConvertTo<User>();
+        // xóa avatar trước
+        if (!string.IsNullOrEmpty(user.AvatarPublicId))
+            await cloudinaryService.DeleteAvatarAsync(user.AvatarPublicId);
+
+        // xóa folder
+        await cloudinaryService.DeleteUserFolderAsync(user.Id);
+        await docRef.DeleteAsync();
+        logger.LogInformation("User deleted: {UserId}", id);
+    }
+
+    public async Task<UserResponse> UpdateAvatarAsync(string userId, UpdateAvatarRequest request)
+    {
+        var docRef = db.Collection(Collection).Document(userId);
+        var snapshot = await docRef.GetSnapshotAsync();
 
         if (!snapshot.Exists)
             throw new AppException(ErrorCode.USER_NOT_FOUND);
 
-        await docRef.DeleteAsync();
-        logger.LogInformation("User deleted: {UserId}", id);
+        var user = snapshot.ConvertTo<User>();
+
+        // Xóa avatar cũ trên Cloudinary nếu có
+        if (!string.IsNullOrEmpty(user.AvatarPublicId))
+            await cloudinaryService.DeleteAvatarAsync(user.AvatarPublicId);
+
+        // Upload avatar mới
+        var (url, publicId) = await cloudinaryService.UploadAvatarAsync(request.File, userId);
+
+        // Cập nhật Firestore
+        await docRef.UpdateAsync(new Dictionary<string, object>
+        {
+            ["avatar"] = url,
+            ["avatar_public_id"] = publicId
+        });
+
+        logger.LogInformation("[UserService] Updated avatar for user {UserId}", userId);
+
+        var updated = await docRef.GetSnapshotAsync();
+        return updated.ConvertTo<User>().Adapt<UserResponse>();
     }
 
     public async Task<List<UserRequestDto>> SearchUser(string keyword, string currentUserId)

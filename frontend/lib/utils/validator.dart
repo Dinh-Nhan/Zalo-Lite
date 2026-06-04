@@ -47,15 +47,13 @@ class Validator {
     String? value, {
     String requiredMessage = 'Không được để trống',
     String invalidMessage =
-        'Mật khẩu phải ≥8 ký tự, gồm chữ hoa, thường, số, ký tự đặc biệt',
+        'Mật khẩu ≥8 ký tự, gồm ít nhất 1 chữ hoa và 1 chữ số',
   }) {
     if (value == null || value.isEmpty) {
       return requiredMessage;
     }
 
-    final regex = RegExp(
-      r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$',
-    );
+    final regex = RegExp(r'^(?=.*[A-Z])(?=.*\d).{8,}$');
 
     if (!regex.hasMatch(value)) {
       return invalidMessage;

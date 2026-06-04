@@ -1,3 +1,4 @@
+using backend.dtos.Request;
 using FirebaseAdmin.Auth;
 
 public class FirebaseAuthService
@@ -7,7 +8,7 @@ public class FirebaseAuthService
         try
         {
             return await FirebaseAuth.DefaultInstance
-                .VerifyIdTokenAsync(idToken, true);
+                .VerifyIdTokenAsync(idToken);
         }
         catch
         {
