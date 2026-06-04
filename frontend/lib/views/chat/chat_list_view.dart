@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:frontend/apps/app_locale.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/config/dark_mode_config.dart';
+import 'package:frontend/features/feedback/screens/feedback_screen.dart';
 import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/features/friends/screens/contact_main_screen.dart';
 import 'package:frontend/services/auth_service.dart';
@@ -102,6 +103,15 @@ class _ChatListViewState extends State<ChatListView> {
   @override
   void initState() {
     super.initState();
+    // Đợi giao diện dựng xong hoàn toàn rồi mới hiển thị Modal
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    // Giả sử bạn có một biến hoặc hàm check xem có feedback nào cần đánh giá không
+    bool hasPendingFeedbackEvaluation = true; // Logic check từ DB/API của bạn
+    
+    if (hasPendingFeedbackEvaluation) {
+      _showFeedbackFlow(context);
+    }
+  });
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -164,7 +174,13 @@ class _ChatListViewState extends State<ChatListView> {
     },
   );
 }
-
+void _showFeedbackFlow(BuildContext context) {
+  showDialog(
+    context: context,
+    barrierDismissible: false, // Bắt buộc tương tác qua nút bấm trong modal
+    builder: (context) => const FeedbackFlowModal(),
+  );
+}
   void _openAppearanceSettings() {
     SettingsDialog.showAppearance(context);
   }
