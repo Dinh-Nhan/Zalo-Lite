@@ -146,6 +146,7 @@ class AppLocalizations {
       'noGroupInvitation': 'Không có lời mời vào nhóm và cộng đồng',
       'discover': 'Khám phá',
       'profile': 'Cá nhân',
+      'tryAgain': 'Thử lại',
     },
 
     // ---- ENGLISH ----
@@ -249,6 +250,7 @@ class AppLocalizations {
       'noGroupInvitation': 'No group or community invitations',
       'discover': 'Discover',
       'profile': 'Profile',
+      'tryAgain': 'Try again',
     },
   };
 }

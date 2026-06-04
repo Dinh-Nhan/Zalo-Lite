@@ -22,6 +22,7 @@ import 'package:frontend/views/chat/chat_screen.dart';
 import 'package:frontend/views/contacts/contacts_view.dart';
 import 'package:frontend/views/settings/settings_dialog.dart';
 import 'package:frontend/widgets/search_overlay_screen.dart';
+import 'package:frontend/component/friend_search_page.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -82,8 +83,12 @@ class _ChatListViewState extends State<ChatListView> {
   void dispose() {
     MessageNotificationService.onNotificationTap = null;
     context.read<CallProvider>().removeListener(_onCallStateChanged);
-    CallNotificationService.acceptedCall.removeListener(_onCallAcceptedNotifier);
-    CallNotificationService.declinedCall.removeListener(_onCallDeclinedNotifier);
+    CallNotificationService.acceptedCall.removeListener(
+      _onCallAcceptedNotifier,
+    );
+    CallNotificationService.declinedCall.removeListener(
+      _onCallDeclinedNotifier,
+    );
     super.dispose();
   }
 
@@ -102,9 +107,9 @@ class _ChatListViewState extends State<ChatListView> {
     if (conv == null || !mounted) return;
 
     chatProvider.openConversation(conv);
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ChatScreen(conversation: conv!)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => ChatScreen(conversation: conv!)));
   }
 
   void _onCallStateChanged() {
@@ -133,11 +138,15 @@ class _ChatListViewState extends State<ChatListView> {
       if (!mounted || _coldStartCallHandled) return;
       try {
         final activeCalls = await CallKeep.instance.activeCalls();
-        debugPrint('[ChatList] poll[$i] activeCalls count=${activeCalls.length}');
+        debugPrint(
+          '[ChatList] poll[$i] activeCalls count=${activeCalls.length}',
+        );
         if (activeCalls.isNotEmpty) {
           _coldStartCallHandled = true;
           final event = activeCalls.first;
-          debugPrint('[ChatList] coldstart call: ${event.callerName} extra=${event.extra}');
+          debugPrint(
+            '[ChatList] coldstart call: ${event.callerName} extra=${event.extra}',
+          );
           await CallKeep.instance.endAllCalls(); // clear để không re-trigger
           if (mounted) _handleCallAccepted(event);
           return;
@@ -151,7 +160,9 @@ class _ChatListViewState extends State<ChatListView> {
 
   void _onCallAcceptedNotifier() {
     final event = CallNotificationService.acceptedCall.value;
-    debugPrint('[ChatList] _onCallAcceptedNotifier: event=${event?.callerName} mounted=$mounted');
+    debugPrint(
+      '[ChatList] _onCallAcceptedNotifier: event=${event?.callerName} mounted=$mounted',
+    );
     if (event == null || !mounted) return;
     CallNotificationService.acceptedCall.value = null; // consume
     _handleCallAccepted(event);
@@ -171,39 +182,45 @@ class _ChatListViewState extends State<ChatListView> {
     if (!mounted || _callScreenOpened) return;
     _callScreenOpened = true;
     _coldStartCallHandled = true;
-    final extra      = event.extra ?? {};
+    final extra = event.extra ?? {};
     final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final call = CallModel(
       conversationId: extra['conversation_id'] ?? '',
-      callerId:       extra['caller_id'] ?? '',
-      calleeId:       currentUid,
-      remoteName:     extra['caller_name'] ?? event.callerName ?? '',
-      remoteAvatar:   extra['caller_avatar'] ?? '',
-      isVideo:        extra['call_type'] == 'video',
-      isIncoming:     true,
-      status:         CallStatus.active,
+      callerId: extra['caller_id'] ?? '',
+      calleeId: currentUid,
+      remoteName: extra['caller_name'] ?? event.callerName ?? '',
+      remoteAvatar: extra['caller_avatar'] ?? '',
+      isVideo: extra['call_type'] == 'video',
+      isIncoming: true,
+      status: CallStatus.active,
     );
 
     context.read<CallProvider>().acceptCall();
     context.read<ChatProvider>().acceptCall(call.conversationId, call.callerId);
 
-    Navigator.of(context, rootNavigator: true).push(
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => CallScreen(call: call),
-      ),
-    ).then((_) {
-      // Reset khi CallScreen đóng → cuộc gọi sau hoạt động lại
-      _callScreenOpened = false;
-      _coldStartCallHandled = false;
-    });
+    Navigator.of(context, rootNavigator: true)
+        .push(
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => CallScreen(call: call),
+          ),
+        )
+        .then((_) {
+          // Reset khi CallScreen đóng → cuộc gọi sau hoạt động lại
+          _callScreenOpened = false;
+          _coldStartCallHandled = false;
+        });
   }
 
   void _handleCallDeclined(CallEvent event) {
     if (!mounted) return;
     final extra = event.extra ?? {};
-    final chat  = context.read<ChatProvider>();
-    chat.rejectCall(extra['conversation_id'] ?? '', extra['caller_id'] ?? '', reason: 'rejected');
+    final chat = context.read<ChatProvider>();
+    chat.rejectCall(
+      extra['conversation_id'] ?? '',
+      extra['caller_id'] ?? '',
+      reason: 'rejected',
+    );
     context.read<CallProvider>().rejectCall();
   }
 
@@ -211,13 +228,13 @@ class _ChatListViewState extends State<ChatListView> {
     final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final callModel = CallModel(
       conversationId: data['conversation_id'] ?? '',
-      callerId:       data['caller_id'] ?? '',
-      calleeId:       currentUid,
-      remoteName:     data['caller_name'] ?? '',
-      remoteAvatar:   data['caller_avatar'] ?? '',
-      isVideo:        data['call_type'] == 'video',
-      isIncoming:     true,
-      status:         CallStatus.ringing,
+      callerId: data['caller_id'] ?? '',
+      calleeId: currentUid,
+      remoteName: data['caller_name'] ?? '',
+      remoteAvatar: data['caller_avatar'] ?? '',
+      isVideo: data['call_type'] == 'video',
+      isIncoming: true,
+      status: CallStatus.ringing,
     );
 
     context.read<CallProvider>().receiveIncomingCall(callModel);
@@ -247,13 +264,13 @@ class _ChatListViewState extends State<ChatListView> {
   }
 
   void _openSettings() {
-  SettingsDialog.show(
-    context,
-    onLogout: () async {
-      await _logout();
-    },
-  );
-}
+    SettingsDialog.show(
+      context,
+      onLogout: () async {
+        await _logout();
+      },
+    );
+  }
 
   void _openAppearanceSettings() {
     SettingsDialog.showAppearance(context);
@@ -267,7 +284,6 @@ class _ChatListViewState extends State<ChatListView> {
 
     if (!mounted) return;
     context.go('/');
-
   }
 
   @override
@@ -473,8 +489,9 @@ class _ChatListViewState extends State<ChatListView> {
     bool isMobile = false,
   }) {
     if (isMobile) {
-      final Color headerBg =
-          isDark ? const Color(0xFF1A1A1A) : AppColors.primaryBlue;
+      final Color headerBg = isDark
+          ? const Color(0xFF1A1A1A)
+          : AppColors.primaryBlue;
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         color: headerBg,
@@ -760,7 +777,9 @@ class _ChatListViewState extends State<ChatListView> {
                 Icon(
                   Icons.chat_bubble_outline,
                   size: 64,
-                  color: AppColors.getTextSecondary(isDark).withValues(alpha: 0.4),
+                  color: AppColors.getTextSecondary(
+                    isDark,
+                  ).withValues(alpha: 0.4),
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -776,7 +795,9 @@ class _ChatListViewState extends State<ChatListView> {
                   'Tìm kiếm bạn bè để bắt đầu nhắn tin',
                   style: TextStyle(
                     fontSize: 13,
-                    color: AppColors.getTextSecondary(isDark).withValues(alpha: 0.7),
+                    color: AppColors.getTextSecondary(
+                      isDark,
+                    ).withValues(alpha: 0.7),
                   ),
                 ),
               ],
@@ -803,7 +824,8 @@ class _ChatListViewState extends State<ChatListView> {
     final diff = now.difference(dt);
     if (diff.inSeconds < 60) return 'Vừa xong';
     if (diff.inMinutes < 60) return '${diff.inMinutes} phút';
-    if (diff.inHours < 24) return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    if (diff.inHours < 24)
+      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     if (diff.inDays == 1) return 'Hôm qua';
     if (diff.inDays < 7) return '${dt.day}/${dt.month}';
     return '${dt.day}/${dt.month}/${dt.year}';
@@ -866,7 +888,8 @@ class _ChatListViewState extends State<ChatListView> {
     final bool isGroup = conv.type == 'group';
     final int memberCount = conv.participants.length;
     final String lastMessageTime = _formatRelativeTime(
-        conv.lastMessage?.createdAt ?? conv.updatedAt);
+      conv.lastMessage?.createdAt ?? conv.updatedAt,
+    );
 
     return InkWell(
       onTap: () => _onConversationTap(conv),
@@ -921,8 +944,11 @@ class _ChatListViewState extends State<ChatListView> {
                       ),
                     ),
                   ),
-                if (!isGroup && conv.otherUserId != null &&
-                    context.read<ChatProvider>().isUserOnline(conv.otherUserId!))
+                if (!isGroup &&
+                    conv.otherUserId != null &&
+                    context.read<ChatProvider>().isUserOnline(
+                      conv.otherUserId!,
+                    ))
                   Positioned(
                     right: 0,
                     bottom: 0,
@@ -991,7 +1017,9 @@ class _ChatListViewState extends State<ChatListView> {
                       if (unreadCount > 0)
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.primaryBlue,
                             borderRadius: BorderRadius.circular(10),

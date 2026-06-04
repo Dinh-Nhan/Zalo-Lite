@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/features/friends/widgets/demo_bio.dart';
+import 'package:frontend/features/friends/widgets/my_profile.dart';
 import 'package:frontend/views/auth/set_password_view.dart';
 import 'package:frontend/views/chat/chat_detail_view.dart';
 import 'package:go_router/go_router.dart';
@@ -164,6 +165,12 @@ GoRouter createRouter() {
           final user = state.extra as UserSearchModel;
 
           return UserProfileScreen(user: user);
+        },
+      ),
+      GoRoute(
+        path: '/my-profile',
+        builder: (context, state) {
+          return const MyProfileScreen();
         },
       ),
     ],

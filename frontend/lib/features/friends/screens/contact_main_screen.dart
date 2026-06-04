@@ -4,6 +4,8 @@ import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/features/friends/screens/add_friend_screen.dart';
 import 'package:frontend/features/friends/screens/friend_tab_content.dart';
 import 'package:frontend/features/friends/screens/group_tab_content.dart';
+import 'package:frontend/views/chat/chat_detail_view.dart';
+import 'package:frontend/widgets/search_overlay_screen.dart';
 
 class ContactsMainScreen extends StatefulWidget {
   const ContactsMainScreen({super.key});
@@ -20,7 +22,20 @@ class _ContactsMainScreenState extends State<ContactsMainScreen> with SingleTick
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
   }
-
+  Color _avatarColor(String name) {
+    final colors = [
+      const Color(0xFF4CAF50),
+      const Color(0xFF2196F3),
+      const Color(0xFFFF9800),
+      const Color(0xFF9C27B0),
+      const Color(0xFFE91E63),
+      const Color(0xFF00BCD4),
+      const Color(0xFF795548),
+      const Color(0xFF607D8B),
+    ];
+    if (name.isEmpty) return colors[0];
+    return colors[name.codeUnitAt(0) % colors.length];
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -34,16 +49,16 @@ class _ContactsMainScreenState extends State<ContactsMainScreen> with SingleTick
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const FriendSearchPage(),
+                builder: (_) => FriendSearchPage(),
               ),
             );
           },
 
           child: Container(
             height: 40,
-            margin: const EdgeInsets.only(left: 10),
+            margin: const EdgeInsets.only(left: 12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.18),
+              color: Colors.white.withValues(alpha: 0.25),
               borderRadius: BorderRadius.circular(6),
             ),
 
@@ -51,9 +66,9 @@ class _ContactsMainScreenState extends State<ContactsMainScreen> with SingleTick
               children: [
                 const SizedBox(width: 12),
 
-                const Icon(
+                Icon(
                   Icons.search,
-                  color: Colors.white70,
+                  color: Colors.white.withValues(alpha: 0.8),
                   size: 20,
                 ),
 
@@ -62,7 +77,7 @@ class _ContactsMainScreenState extends State<ContactsMainScreen> with SingleTick
                 Text(
                   'Tìm kiếm',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.8),
+                    color: Colors.white.withValues(alpha: 0.8),
                     fontSize: 15,
                   ),
                 ),
@@ -72,9 +87,13 @@ class _ContactsMainScreenState extends State<ContactsMainScreen> with SingleTick
         ),
         centerTitle: false,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.person_add_alt_1_outlined, color: Colors.white, size: 26),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddFriendScreen())),
+          Padding(
+            padding: const EdgeInsets.only(right: 6, left: 6),
+            child: IconButton(
+              padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
+              icon: const Icon(Icons.person_add_alt_1_outlined, color: Colors.white, size: 24),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddFriendScreen())),
+            ),
           ),
         ],
       ),

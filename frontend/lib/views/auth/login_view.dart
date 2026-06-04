@@ -137,8 +137,22 @@ class _LoginViewState extends State<LoginView> {
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
-                  if (value == null || value.isEmpty) return 'Vui lòng nhập email';
-                  if (!value.contains('@')) return 'Email không đúng định dạng';
+                  if (value == null || value.isEmpty) {
+                    return 'Vui lòng nhập email';
+                  }
+                  
+                  // Xóa khoảng trắng thừa ở đầu/cuối chuỗi trước khi kiểm tra
+                  final email = value.trim();
+
+                  // RegExp chuẩn hóa cho email phổ biến hiện nay
+                  final emailRegex = RegExp(
+                    r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+"
+                  );
+
+                  if (!emailRegex.hasMatch(email)) {
+                    return 'Email không đúng định dạng';
+                  }
+                  
                   return null;
                 },
                 decoration: InputDecoration(
@@ -160,9 +174,9 @@ class _LoginViewState extends State<LoginView> {
               TextFormField( // Đổi thành TextFormField
                 controller: _passwordController,
                 obscureText: !_isPasswordVisible,
-                validator: (value) {
-                  return Validator.password(value);
-                },
+                // validator: (value) {
+                //   return Validator.password(value);
+                // },
                 decoration: InputDecoration(
                   hintText: 'Mật khẩu',
                   hintStyle: const TextStyle(color: Colors.grey, fontSize: 16),

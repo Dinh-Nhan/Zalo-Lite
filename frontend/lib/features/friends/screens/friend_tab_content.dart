@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/config/app_colors.dart';
+import 'package:frontend/features/friends/screens/friend_birthday.dart';
 import 'package:frontend/features/friends/screens/friend_request_screen.dart';
 import 'package:frontend/views/chat/chat_detail_view.dart';
 import 'package:provider/provider.dart';
@@ -12,7 +13,6 @@ class FriendTabView extends StatefulWidget {
 }
 
 class _FriendTabViewState extends State<FriendTabView> {
-  // Trạng thái để lọc danh sách: 0 là Tất cả, 1 là Mới truy cập
   int _selectedFilterIndex = 0;
   @override
   void initState() {
@@ -55,13 +55,7 @@ class _FriendTabViewState extends State<FriendTabView> {
                 "Tất cả ${provider.friends.length}",
                 0,
               ),
-
               const SizedBox(width: 8),
-
-              _buildFilterChip(
-                "Mới truy cập ${provider.friends.length}",
-                1,
-              ),
             ],
           ),
         ),
@@ -92,10 +86,7 @@ class _FriendTabViewState extends State<FriendTabView> {
             ),
           ]
         ] else ...[
-          // Danh sách giả lập cho "Mới truy cập"
           _buildAlphabetHeader("Mới truy cập gần đây"),
-          // _buildContactItem("Nhật Minh (Online)", "https://i.pravatar.cc/150?u=5"),
-          // _buildContactItem("Thái Anh", "https://i.pravatar.cc/150?u=6"),
         ],
       ],
     );
@@ -127,7 +118,6 @@ class _FriendTabViewState extends State<FriendTabView> {
     );
   }
 
-  // 2. Widget Action Tile (Lời mời kết bạn/Sinh nhật) với InkWell
   Widget _buildActionTile(BuildContext context, IconData icon, Color color, String title, {String? trailing}) {
     return Material(
       color: Colors.white,
@@ -135,6 +125,9 @@ class _FriendTabViewState extends State<FriendTabView> {
         onTap: () {
           if (title == "Lời mời kết bạn") {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const FriendRequestScreen()));
+          }
+          if (title == "Sinh nhật") {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const FriendBirthdayScreen()));
           }
         },
         // Hiệu ứng highlight màu xám rất nhạt khi chạm nhanh
@@ -159,7 +152,6 @@ class _FriendTabViewState extends State<FriendTabView> {
     );
   }
 
-  // 3. Widget Danh sách bạn bè với hiệu ứng chạm và khoảng cách chuẩn
   Widget _buildContactItem(FriendSummaryModel friend) {
     return Material(
       color: Colors.white,
@@ -180,7 +172,6 @@ class _FriendTabViewState extends State<FriendTabView> {
         highlightColor: Colors.black.withOpacity(0.05),
         splashColor: Colors.transparent,
         child: ListTile(
-          // Tăng vertical lên để có padding top/bottom bên trong vùng chọn
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), 
           leading: CircleAvatar(
             backgroundImage: NetworkImage(friend.avatar),
@@ -188,7 +179,7 @@ class _FriendTabViewState extends State<FriendTabView> {
           ),
           title: Text(friend.fullName, style: const TextStyle(fontSize: 16)),
           trailing: SizedBox(
-            width: 100, // Tăng nhẹ width để icon không bị hẹp khi thêm padding
+            width: 100, 
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -211,7 +202,7 @@ class _FriendTabViewState extends State<FriendTabView> {
   Widget _buildAlphabetHeader(String char) => Container(
     width: double.infinity,
     padding: const EdgeInsets.only(left: 16, top: 8, bottom: 4, right: 16),
-    color: const Color.fromARGB(255, 255, 255, 255), // Nền xám nhạt cho header chữ cái
+    color: const Color.fromARGB(255, 255, 255, 255),
     child: Text(
       char, 
       style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black54, fontSize: 13)

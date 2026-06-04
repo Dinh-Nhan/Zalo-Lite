@@ -47,7 +47,6 @@ class DefaultFirebaseOptions {
     projectId: 'zalo-lite-v2',
     storageBucket: 'zalo-lite-v2.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyDlMEptedzwcIzIzH0gCxF29WpUTtthnEU',
     appId: '1:1004023558166:ios:749e2d878480914f094537',
@@ -56,7 +55,6 @@ class DefaultFirebaseOptions {
     storageBucket: 'zalo-lite-v2.firebasestorage.app',
     iosBundleId: 'com.example.frontend',
   );
-
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyAaxGgjUGYHJfLEHZ9OdvC29T-NlXGyjyo',
     appId: '1:1004023558166:web:e44c5cbc606d7d59094537',
@@ -67,21 +65,21 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyD_a8AxTDvB13GAmu8gXvNMr6eqXDnl2n8',
-    appId: '1:1040826455699:ios:a2fffd080e40e3c7675f66',
-    messagingSenderId: '1040826455699',
-    projectId: 'zalo-lite-47899',
-    storageBucket: 'zalo-lite-47899.firebasestorage.app',
+    apiKey: 'AIzaSyDlMEptedzwcIzIzH0gCxF29WpUTtthnEU',
+    appId: '1:1004023558166:ios:749e2d878480914f094537',
+    messagingSenderId: '1004023558166',
+    projectId: 'zalo-lite-v2',
+    storageBucket: 'zalo-lite-v2.firebasestorage.app',
     iosBundleId: 'com.example.frontend',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyCifnV49y6chIf-5Tfsyrh_jC6nurNe3UU',
-    appId: '1:1040826455699:web:8b009046c857e19e675f66',
-    messagingSenderId: '1040826455699',
-    projectId: 'zalo-lite-47899',
-    authDomain: 'zalo-lite-47899.firebaseapp.com',
-    storageBucket: 'zalo-lite-47899.firebasestorage.app',
+    apiKey: 'AIzaSyAaxGgjUGYHJfLEHZ9OdvC29T-NlXGyjyo',
+    appId: '1:1004023558166:web:f90a6f7dba144809094537',
+    messagingSenderId: '1004023558166',
+    projectId: 'zalo-lite-v2',
+    authDomain: 'zalo-lite-v2.firebaseapp.com',
+    storageBucket: 'zalo-lite-v2.firebasestorage.app',
   );
 
 }

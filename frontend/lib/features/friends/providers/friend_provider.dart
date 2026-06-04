@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import '../services/friend_hub_service.dart';
 import '../services/friend_service.dart';
 
+import '../../../services/auth_service.dart';
+
 enum LoadingState {
   idle,
   loading,
@@ -17,6 +19,9 @@ class FriendProvider extends ChangeNotifier {
   // =========================================================
   // STATE
   // =========================================================
+final Map<String, String?> _friendBirthdays = {};
+
+  Map<String, String?> get friendBirthdays => Map.unmodifiable(_friendBirthdays);
 
   List<FriendSummaryModel> _friends = [];
 
@@ -773,6 +778,27 @@ class FriendProvider extends ChangeNotifier {
     _hubSub = null;
 
     await _hub.disconnect();
+  }
+
+  Future<void> loadFriendBirthdays() async {
+    for (final friend in _friends) {
+      try {
+        final user =
+            await AuthService.getUserById(friend.friendId);
+
+        _friendBirthdays[friend.friendId] =
+            user.dateOfBirth;
+        debugPrint(
+          'Loaded birthday for ${friend.friendId}: ${user.dateOfBirth}',
+        );
+      } catch (e) {
+        debugPrint(
+          'Lỗi lấy ngày sinh ${friend.friendId}: $e',
+        );
+      }
+    }
+
+    notifyListeners();
   }
 
   // =========================================================
