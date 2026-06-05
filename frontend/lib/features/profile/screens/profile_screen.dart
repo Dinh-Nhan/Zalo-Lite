@@ -347,7 +347,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           physics: const AlwaysScrollableScrollPhysics(),
           headerSliverBuilder: (context, innerBoxIsScrolled) {
             return [
-              _buildProfileHeader(),
+              _buildProfileHeader(context),
               SliverPersistentHeader(
                 pinned: true,
                 delegate: _TabBarDelegate(
@@ -370,44 +370,49 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildProfileHeader() {
-    return SliverToBoxAdapter(
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-        color: Colors.white,
-        child: Column(
-          children: [
-            _buildAvatar(),
-            const SizedBox(height: 12),
-            Text(
-              _isOwnProfile ? _currentUserName : _targetUserName,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            if (!_isOwnProfile && _targetUserEmail != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                _targetUserEmail!,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
+  Widget _buildProfileHeader(BuildContext parentContext) {
+    return Consumer<ProfileProvider>(
+      builder: (context, provider, _) {
+        final bio = provider.userProfile?.bio?.trim() ?? '';
+        return SliverToBoxAdapter(
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            color: Colors.white,
+            child: Column(
+              children: [
+                _buildAvatar(),
+                const SizedBox(height: 12),
+                Text(
+                  _isOwnProfile ? _currentUserName : _targetUserName,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
-              ),
-            ],
-            const SizedBox(height: 16),
-            if (_isOwnProfile)
-              _buildOwnProfileActions()
-            else
-              _buildOtherProfileActions(),
-            const SizedBox(height: 12),
-            _buildStatRow(),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+                if (_isOwnProfile && bio.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _OwnProfileIntro(bio: bio),
+                ],
+                if (!_isOwnProfile && _targetUserEmail != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    _targetUserEmail!,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                if (!_isOwnProfile) _buildOtherProfileActions(),
+                _buildStatRow(),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -504,25 +509,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
 
     return avatarWidget;
-  }
-
-  Widget _buildOwnProfileActions() {
-    return Row(
-      children: [
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildActionButton(
-            icon: Icons.edit,
-            label: 'Chỉnh sửa',
-            filled: true,
-            onTap: () {
-              _tabController.animateTo(1);
-            },
-          ),
-        ),
-        const SizedBox(width: 16),
-      ],
-    );
   }
 
   Widget _buildOtherProfileActions() {
@@ -2528,6 +2514,29 @@ class _AvatarChoiceSheet extends StatelessWidget {
             Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 22),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _OwnProfileIntro extends StatelessWidget {
+  final String bio;
+
+  const _OwnProfileIntro({required this.bio});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Text(
+        bio,
+        style: const TextStyle(
+          fontSize: 16,
+          color: Colors.black,
+          height: 1.4,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
