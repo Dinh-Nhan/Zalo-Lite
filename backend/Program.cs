@@ -31,8 +31,9 @@ var builder = WebApplication.CreateBuilder(args);
 //     ProjectId = projectId
 // });
 
-// background service 
+// background services
 builder.Services.AddHostedService<StoryExpirationService>();
+builder.Services.AddHostedService<DisappearingMessageService>();
 
 
 //var builder = WebApplication.CreateBuilder(args);
@@ -47,8 +48,11 @@ builder.Host.UseSerilog((ctx, config) => config
 // ── Redis ──────────────────────────────────────────────────
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
-    var config = builder.Configuration["Redis:ConnectString"]!;
-    return ConnectionMultiplexer.Connect(config);
+    var connStr = builder.Configuration["Redis:ConnectString"]!;
+    var options = ConfigurationOptions.Parse(connStr);
+    options.AbortOnConnectFail = false; // không crash khi Redis offline
+    options.ConnectRetry = 2;
+    return ConnectionMultiplexer.Connect(options);
 });
 // ── Cloudinary ────────────────────────────────────────────────
 builder.Services.Configure<CloudinarySettings>(
@@ -79,7 +83,10 @@ builder.Services.AddSingleton(sp =>
     sp.GetRequiredService<FirebaseService>().FirestoreDb);
 
 builder.Services.AddScoped<UserService>();
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(opts =>
+        opts.JsonSerializerOptions.PropertyNamingPolicy =
+            System.Text.Json.JsonNamingPolicy.SnakeCaseLower);
 builder.Services.AddEndpointsApiExplorer();
 // add options using bearer token to verify access token when request api
 builder.Services.AddSwaggerGen(
@@ -107,7 +114,10 @@ builder.Services.AddSwaggerGen(
 );
 
 // ── SignalR ────────────────────────────────────────────────
-builder.Services.AddSignalR();
+builder.Services.AddSignalR()
+    .AddJsonProtocol(opts =>
+        opts.PayloadSerializerOptions.PropertyNamingPolicy =
+            System.Text.Json.JsonNamingPolicy.SnakeCaseLower);
 
 // ── CORS ───────────────────────────────────────────────────
 builder.Services.AddCors(opt =>
@@ -132,8 +142,11 @@ app.Services.GetRequiredService<FirebaseService>();
 // 1. Bắt exception toàn cục — phải đứng đầu tiên
 app.UseMiddleware<GlobalExceptionHandler>();
 
-// 2. HTTPS redirect
-app.UseHttpsRedirection();
+// 2. HTTPS redirect — bỏ qua khi dev vì thiết bị thật không tin certificate tự ký
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 // 3. Swagger (chỉ dev)
 if (app.Environment.IsDevelopment())
@@ -158,6 +171,7 @@ app.UseAuthorization();
 
 // 8. Endpoints
 app.MapControllers();
+app.MapHub<ChatHub>("/hubs/chat");
 app.MapHub<FriendHub>("/hubs/friend");
 
 app.Run();

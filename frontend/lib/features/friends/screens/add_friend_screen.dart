@@ -1,8 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:frontend/features/friends/providers/friend_provider.dart';
+import 'package:frontend/features/friends/widgets/demo_bio.dart';
+import 'package:frontend/features/friends/widgets/my_profile.dart';
 
 class AddFriendScreen extends StatefulWidget {
   const AddFriendScreen({super.key});
@@ -55,12 +56,12 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
       // Trường hợp tự tìm chính mình
       if (currentUserEmail != null &&
           email.toLowerCase() == currentUserEmail.toLowerCase()) {
-        
-        await delayFuture; // Chờ đủ thời gian loading
+
+        await delayFuture;
         if (!mounted) return;
-        
-        setState(() => _isLoading = false); 
-        context.push('/my-profile');
+
+        setState(() => _isLoading = false);
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const MyProfileScreen()));
         return;
       }
 
@@ -83,10 +84,10 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
         return;
       }
       
-      setState(() => _isLoading = false); // Mở khóa trước khi chuyển tiếp trang
-      context.push(
-        '/demo-profile',
-        extra: user,
+      setState(() => _isLoading = false);
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => UserProfileScreen(user: user)),
       );
     } catch (e) {
       debugPrint("LOI: $e");

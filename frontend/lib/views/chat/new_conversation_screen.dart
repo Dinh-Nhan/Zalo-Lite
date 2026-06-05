@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/features/friends/services/friend_service.dart';
+import 'package:frontend/services/chat/chat_service.dart';
+import 'package:frontend/views/chat/chat_screen.dart';
 
 class NewConversationScreen extends StatefulWidget {
   final String type; // 'private' or 'group'
@@ -36,13 +39,15 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
 
     try {
       // TODO: Load from API
-      // final users = await userService.getUsers();
-
-      // Mock data
-      await Future.delayed(Duration(seconds: 1));
+      final friends = await FriendService.getFriends();
 
       setState(() {
-        _allUsers = [];
+        _allUsers = friends
+            .map(
+              (f) =>
+                  UserItem(id: f.friendId, name: f.fullName, avatar: f.avatar),
+            )
+            .toList();
         _filteredUsers = _allUsers;
         _isLoading = false;
       });
@@ -84,6 +89,11 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
       return;
     }
 
+    if (widget.type == 'group' && _selectedUsers.length < 2) {
+      _showError('Nhóm phải có ít nhất 3 thành viên (bao gồm bạn)');
+      return;
+    }
+
     if (widget.type == 'group' && _groupNameController.text.trim().isEmpty) {
       _showError('Vui lòng nhập tên nhóm');
       return;
@@ -91,11 +101,21 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
 
     try {
       // TODO: Create conversation via API
-      // final conversation = await chatService.createConversation(...);
+      final conversation = await ChatService().createConversation(
+        type: widget.type,
+        participantIds: _selectedUsers.map((u) => u.id).toList(),
+        groupName: widget.type == 'group'
+            ? _groupNameController.text.trim()
+            : null,
+      );
 
+      if (!mounted) return;
       Navigator.pop(context);
-      _showSuccess(
-        'Đã tạo ${widget.type == 'group' ? 'nhóm' : 'cuộc hội thoại'}',
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatScreen(conversation: conversation),
+        ),
       );
     } catch (e) {
       _showError(
@@ -120,7 +140,9 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
           style: TextStyle(color: Colors.black),
         ),
         actions: [
-          if (_selectedUsers.isNotEmpty)
+          if (widget.type == 'group'
+                  ? _selectedUsers.length >= 2
+                  : _selectedUsers.isNotEmpty)
             TextButton(
               onPressed: widget.type == 'group'
                   ? _showGroupNameDialog
