@@ -39,10 +39,18 @@ class RegisterRequest {
 class AuthService {
   static Future<LoginResult> login(String email, String password) async {
     try {
-      final credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final credential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(
+            email: email.trim(),
+            password: password,
+          )
+          .timeout(
+            const Duration(seconds: 15),
+            onTimeout: () => throw FirebaseAuthException(
+              code: 'network-request-failed',
+              message: 'Kết nối quá thời gian. Vui lòng kiểm tra mạng.',
+            ),
+          );
 
       final user = credential.user;
 
@@ -55,7 +63,22 @@ class AuthService {
     } on FirebaseAuthException catch (e) {
       final msg = _mapFirebaseError(e.code);
       return LoginResult(errorCode: e.code, errorMessage: msg);
+    } on SocketException {
+      return const LoginResult(
+        errorCode: 'network-request-failed',
+        errorMessage: 'Không có kết nối mạng. Vui lòng kiểm tra WiFi/4G.',
+      );
     } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('network') ||
+          msg.contains('timeout') ||
+          msg.contains('socket') ||
+          msg.contains('recaptcha')) {
+        return const LoginResult(
+          errorCode: 'network-request-failed',
+          errorMessage: 'Lỗi kết nối mạng. Vui lòng thử lại.',
+        );
+      }
       return LoginResult(errorMessage: 'Lỗi không xác định: $e');
     }
   }
