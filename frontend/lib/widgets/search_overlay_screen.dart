@@ -4,7 +4,6 @@ import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/config/dark_mode_config.dart';
 import 'package:frontend/features/friends/services/friend_service.dart';
 import 'package:frontend/services/auth_service.dart';
-import 'package:frontend/views/chat/chat_detail_view.dart';
 
 /// Callback khi chọn một người dùng.
 typedef OnUserSelected = void Function({

@@ -1,6 +1,20 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiConfig {
-  static String get baseUrl =>
-      dotenv.env['API_BASE_URL'] ?? 'http://localhost:5244';
+  static String get baseUrl {
+    // 1. --dart-define=API_BASE_URL=... (ưu tiên cao nhất)
+    const dartDefine = String.fromEnvironment('API_BASE_URL');
+    if (dartDefine.isNotEmpty) return dartDefine;
+
+    // 2. .env file
+    final envUrl = dotenv.env['API_BASE_URL'];
+    if (envUrl != null && envUrl.isNotEmpty) return envUrl;
+
+    // 3. Auto-detect fallback
+    if (kIsWeb) return 'http://localhost:5244';
+    if (Platform.isAndroid) return 'http://10.0.2.2:5244';
+    return 'http://localhost:5244';
+  }
 }

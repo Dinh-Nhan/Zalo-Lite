@@ -3,7 +3,36 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:frontend/services/dio_client.dart';
+
+class UserModel {
+  final String email;
+  final String fullName;
+  final String dateOfBirth;
+  final String? avatar;
+  final String? bio;
+
+  UserModel({
+    required this.email,
+    required this.fullName,
+    required this.dateOfBirth,
+    this.avatar,
+    this.bio,
+  });
+
+  factory UserModel.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return UserModel(
+      email: json['email'] ?? '',
+      fullName: json['fullName'] ?? '',
+      dateOfBirth: json['dateOfBirth'] ?? '',
+      avatar: json['avatar'],
+      bio: json['bio'],
+    );
+  }
+}
 
 class LoginResult {
   final String? token;
@@ -112,9 +141,6 @@ class AuthService {
       throw Exception('Đăng ký thất bại: $e');
     }
   }
-
-  /// Hàm xóa sạch dấu vết user (Dữ liệu Backend + Firebase Auth)
-  /// Thường dùng cho chức năng "Xóa tài khoản" hoặc "Rollback" khi đăng ký lỗi
   static Future<void> deleteAccountAndData() async {
     // 1. Kiểm tra Authentication: Nếu không có user đang đăng nhập thì không làm gì cả
     final user = FirebaseAuth.instance.currentUser;
@@ -126,8 +152,6 @@ class AuthService {
     final uid = user.uid;
 
     try {
-      // 2. Kiểm tra Dữ liệu (Firestore/Backend):
-      // Tìm document ID dựa trên email vì ID document đang bị lệch với UID
       final querySnapshot = await FirebaseFirestore.instance
           .collection('users')
           .where('email', isEqualTo: email)
@@ -201,6 +225,7 @@ class AuthService {
         print("Thành công: Xác thực OTP khớp.");
         return true;
       }
+      print("Thất bại: Xác thực OTP không khớp.");
       return false;
     } on DioException catch (e) {
       String errorMsg = e.response?.data?['message'] ?? "Mã OTP không hợp lệ";
@@ -210,7 +235,17 @@ class AuthService {
     }
   }
 
-  // frontend/services/auth_service.dart
+  static Future<UserModel> getUserById(String userId) async {
+    final response = await DioClient.instance.get(
+      '/api/User/$userId',
+    );
+
+    print(response.data);
+
+    return UserModel.fromJson(
+      response.data['result'],
+    );
+  }
 
   static Future<void> updateUserInfo({
     required String fullName,

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:frontend/config/api_config.dart';
 import 'package:signalr_netcore/signalr_client.dart';
 
 import 'friend_service.dart';
@@ -30,8 +31,6 @@ class FriendRealtimeEvent {
 ///   // khi dispose:
 ///   await hub.disconnect();
 class FriendHubService {
-  // static const String _baseUrl = 'http://10.0.2.2:5244';
-  static const String _baseUrl = 'http://localhost:5244';
   static const String _hubPath = '/hubs/friend';
 
   HubConnection? _connection;
@@ -54,7 +53,7 @@ class FriendHubService {
       return;
     }
 
-    final url = '$_baseUrl$_hubPath?access_token=$token';
+    final url = '${ApiConfig.baseUrl}$_hubPath?access_token=$token';
 
     _connection = HubConnectionBuilder()
         .withUrl(

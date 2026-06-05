@@ -1,8 +1,16 @@
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
+import '../../features/calling/screens/call_screen.dart';
+import '../../models/call_model.dart';
 import '../../models/chat/conversation.dart';
+import '../../providers/call_provider.dart';
 import '../../models/chat/message.dart';
+import '../../providers/chat_provider.dart';
 import '../../widgets/chat/message_bubble.dart';
 import '../../widgets/chat/typing_indicator.dart';
 import 'group_info_screen.dart';
@@ -16,15 +24,15 @@ class ChatScreen extends StatefulWidget {
   _ChatScreenState createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
+  late ChatProvider _chatProvider;
 
   List<Message> _messages = [];
   bool _isLoading = true;
   bool _isSending = false;
-  bool _showScrollToBottom = false;
 
   // Typing indicator
   bool _isTyping = false;
@@ -34,16 +42,78 @@ class _ChatScreenState extends State<ChatScreen> {
   // Reply
   Message? _replyToMessage;
 
+  // Track IDs đã load từ history — không animate
+  final Set<String> _historyIds = {};
+  bool _historyLoaded = false;
+
+  @override
+  void didUpdateWidget(ChatScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.conversation.id != widget.conversation.id) {
+      _historyIds.clear();
+      _historyLoaded = false;
+      _scrolledToUnread = false;
+      _initialUnreadCount = 0;
+      // Wide-screen: conversation thay đổi nhưng widget không rebuild lại từ đầu,
+      // cần trigger lại visibility để reset badge và markAsRead đúng lúc
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          context.read<ChatProvider>().setConversationVisible(true);
+        }
+      });
+    }
+  }
+
+  // Scroll tracking
+  int _prevMessageCount = 0;
+  bool _initialScrollDone = false;
+  bool _showScrollToBottom = false;
+
+  // Jump-to-reply: GlobalKey per message + highlight
+  final Map<String, GlobalKey> _messageKeys = {};
+  String? _highlightedMessageId;
+
+  // Unread tracking
+  int _initialUnreadCount = 0;
+  bool _scrolledToUnread = false;
+  final GlobalKey _firstUnreadKey = GlobalKey();
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _chatProvider = context.read<ChatProvider>();
+  }
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadMessages();
     _setupScrollListener();
     _setupSignalR();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<ChatProvider>().setConversationVisible(true);
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) return;
+    final provider = context.read<ChatProvider>();
+    if (state == AppLifecycleState.resumed) {
+      provider.setConversationVisible(true);
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      provider.setConversationVisible(false);
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _chatProvider
+      ..setConversationVisible(false)
+      ..closeConversation();
     _messageController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
@@ -53,45 +123,25 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _setupScrollListener() {
     _scrollController.addListener(() {
-      if (_scrollController.offset > 200) {
-        if (!_showScrollToBottom) {
-          setState(() => _showScrollToBottom = true);
-        }
-      } else {
-        if (_showScrollToBottom) {
-          setState(() => _showScrollToBottom = false);
-        }
+      // reverse: true → offset 0 = bottom (tin mới nhất)
+      final atBottom = _scrollController.offset <= 80;
+      if (atBottom && _showScrollToBottom) {
+        setState(() => _showScrollToBottom = false);
+      } else if (!atBottom && !_showScrollToBottom) {
+        setState(() => _showScrollToBottom = true);
       }
     });
   }
 
   void _setupSignalR() {
-    // TODO: Setup SignalR listeners
-    // chatService.signalRService.onReceiveMessage = _handleReceiveMessage;
-    // chatService.signalRService.onUserTyping = _handleUserTyping;
-    // chatService.signalRService.onMessageRead = _handleMessageRead;
+    // ChatProvider handles all SignalR events via its callbacks.
+    // State is synced in build() via context.watch<ChatProvider>().
   }
 
   Future<void> _loadMessages() async {
-    setState(() => _isLoading = true);
-
-    try {
-      // TODO: Load from API
-      // final messages = await chatService.getMessages(widget.conversation.id);
-
-      // Mock data for demo
-      await Future.delayed(Duration(seconds: 1));
-
-      setState(() {
-        _messages = [];
-        _isLoading = false;
-      });
-
-      _scrollToBottom();
-    } catch (e) {
-      setState(() => _isLoading = false);
-      _showError('Không thể tải tin nhắn');
-    }
+    // openConversation() was already called from ChatListView before navigating here.
+    // Messages will arrive via ChatProvider notifyListeners() → build() sync below.
+    _scrollToBottom();
   }
 
   void _handleReceiveMessage(Message message) {
@@ -119,108 +169,191 @@ class _ChatScreenState extends State<ChatScreen> {
     final content = _messageController.text.trim();
     if (content.isEmpty || _isSending) return;
 
-    setState(() => _isSending = true);
+    _messageController.clear();
+    final replyId = _replyToMessage?.id;
+    setState(() => _replyToMessage = null);
 
-    try {
-      // TODO: Send via SignalR
-      // await chatService.signalRService.sendMessage(
-      //   conversationId: widget.conversation.id,
-      //   type: 'text',
-      //   content: content,
-      //   replyToMessageId: _replyToMessage?.id,
-      // );
-
-      _messageController.clear();
-      setState(() {
-        _replyToMessage = null;
-        _isSending = false;
-      });
-      _scrollToBottom();
-    } catch (e) {
-      setState(() => _isSending = false);
-      _showError('Không thể gửi tin nhắn');
-    }
+    await context.read<ChatProvider>().sendMessage(
+      content: content,
+      replyToMessageId: replyId,
+    );
+    _scrollToBottom();
   }
 
   void _onTyping() {
-    // TODO: Send typing indicator
-    // chatService.signalRService.userTyping(widget.conversation.id, true);
-
+    context.read<ChatProvider>().sendTyping(true);
     _typingTimer?.cancel();
-    _typingTimer = Timer(Duration(seconds: 2), () {
-      // chatService.signalRService.userTyping(widget.conversation.id, false);
+    _typingTimer = Timer(const Duration(seconds: 2), () {
+      context.read<ChatProvider>().sendTyping(false);
     });
   }
 
-  void _scrollToBottom() {
-    Future.delayed(Duration(milliseconds: 100), () {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+  Future<void> _jumpToMessage(String messageId) async {
+    final key = _messageKeys[messageId];
+    if (key?.currentContext == null) return;
+
+    // Scroll đến tin nhắn gốc (instant)
+    await Scrollable.ensureVisible(
+      key!.currentContext!,
+      alignment: 0.3,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+
+    // Highlight flash → fade
+    if (!mounted) return;
+    setState(() => _highlightedMessageId = messageId);
+    await Future.delayed(const Duration(milliseconds: 900));
+    if (!mounted) return;
+    setState(() => _highlightedMessageId = null);
+  }
+
+  void _scrollToBottom({bool instant = false}) {
+    if (!_scrollController.hasClients) return;
+    // reverse: true → "bottom" (tin mới nhất) = minScrollExtent (0)
+    if (instant) {
+      _scrollController.jumpTo(0);
+    } else {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: _buildAppBar(),
-      body: Column(
-        children: [
-          // Pinned message
-          if (widget.conversation.pinnedMessageId != null)
-            _buildPinnedMessage(),
+    // Sync state from provider on each rebuild triggered by ChatProvider.notifyListeners()
+    final chat = context.watch<ChatProvider>();
+    _messages = chat.messages;
+    _isTyping = chat.isOtherTyping;
+    _typingUserId = chat.typingUserId;
+    _isLoading = chat.messagesState == ChatLoadingState.loading;
 
-          // Messages
-          Expanded(
-            child: Stack(
-              children: [
-                _isLoading
-                    ? Center(child: CircularProgressIndicator())
-                    : _buildMessageList(),
+    // Đánh dấu toàn bộ tin nhắn đã load là history (không animate)
+    if (!_historyLoaded && chat.messagesState == ChatLoadingState.success) {
+      _historyIds.addAll(_messages.map((m) => m.id));
+      _initialUnreadCount = chat.openedWithUnreadCount;
+      _historyLoaded = true;
+    }
 
-                // Scroll to bottom button
-                if (_showScrollToBottom)
-                  Positioned(
-                    right: 16,
-                    bottom: 16,
-                    child: FloatingActionButton(
-                      mini: true,
-                      backgroundColor: Colors.white,
-                      onPressed: _scrollToBottom,
-                      child: Icon(Icons.arrow_downward, color: Colors.blue),
+    // Scroll đến tin chưa đọc đầu tiên (1 lần duy nhất)
+    if (_historyLoaded && !_scrolledToUnread && _messages.isNotEmpty) {
+      _scrolledToUnread = true;
+      if (_initialUnreadCount > 0 && _initialUnreadCount < _messages.length) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_firstUnreadKey.currentContext != null) {
+            Scrollable.ensureVisible(
+              _firstUnreadKey.currentContext!,
+              alignment: 0.2,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+      }
+    }
+
+    // Scroll to bottom khi:
+    // 1. Lần đầu messages load xong
+    // 2. Có tin nhắn mới (count tăng)
+    final currentCount = _messages.length;
+    if (currentCount > 0 &&
+        (!_initialScrollDone || currentCount > _prevMessageCount)) {
+      _prevMessageCount = currentCount;
+      if (!_initialScrollDone) _initialScrollDone = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    }
+    // Scroll khi typing indicator xuất hiện
+    if (_isTyping) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    }
+
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) {
+          context.read<ChatProvider>().setConversationVisible(false);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFE8ECF1),
+        resizeToAvoidBottomInset: true,
+        appBar: _buildAppBar(),
+        body: Column(
+          children: [
+            if ((chat.activeConversation ?? widget.conversation).pinnedMessageId != null)
+              _buildPinnedMessage(chat.activeConversation ?? widget.conversation),
+
+            Expanded(
+              child: Stack(
+                children: [
+                  _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _buildMessageList(),
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOut,
+                    right: 12,
+                    bottom: _showScrollToBottom ? 12 : -56,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: _showScrollToBottom ? 1.0 : 0.0,
+                      child: GestureDetector(
+                        onTap: _scrollToBottom,
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.15),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: Color(0xFF0068FF),
+                            size: 24,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
-          ),
 
-          // Typing indicator
-          if (_isTyping && _typingUserId != null)
-            TypingIndicator(userName: _getTypingUserName()),
+            if (_replyToMessage != null) _buildReplyPreview(),
 
-          // Reply preview
-          if (_replyToMessage != null) _buildReplyPreview(),
-
-          // Input area
-          _buildInputArea(),
-        ],
-      ),
-    );
+            _buildInputArea(),
+          ],
+        ),
+      ), // end Scaffold
+    ); // end PopScope
   }
 
   PreferredSizeWidget _buildAppBar() {
+    final isOnline =
+        widget.conversation.type == 'private' &&
+        widget.conversation.otherUserId != null &&
+        context.read<ChatProvider>().isUserOnline(
+          widget.conversation.otherUserId!,
+        );
+
     return AppBar(
-      backgroundColor: Colors.white,
-      elevation: 1,
+      backgroundColor: const Color(0xFF0068FF),
+      elevation: 0,
       leading: IconButton(
-        icon: Icon(Icons.arrow_back, color: Colors.black),
-        onPressed: () => Navigator.pop(context),
+        icon: const Icon(Icons.arrow_back, color: Colors.white),
+        onPressed: () => Navigator.of(context).pop(),
       ),
+      titleSpacing: 0,
       title: InkWell(
         onTap: _openConversationInfo,
         child: Row(
@@ -228,53 +361,66 @@ class _ChatScreenState extends State<ChatScreen> {
             Stack(
               children: [
                 CircleAvatar(
-                  radius: 20,
+                  radius: 19,
                   backgroundImage: widget.conversation.displayAvatar.isNotEmpty
                       ? NetworkImage(widget.conversation.displayAvatar)
                       : null,
-                  backgroundColor: Colors.grey[300],
+                  backgroundColor: Colors.white.withValues(alpha: 0.3),
                   child: widget.conversation.displayAvatar.isEmpty
                       ? Text(
-                          widget.conversation.displayName[0].toUpperCase(),
-                          style: TextStyle(fontSize: 16),
+                          widget.conversation.displayName.isNotEmpty
+                              ? widget.conversation.displayName[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
                         )
                       : null,
                 ),
-                if (widget.conversation.type == 'private' &&
-                    widget.conversation.otherUserOnline == true)
+                if (isOnline)
                   Positioned(
                     right: 0,
                     bottom: 0,
                     child: Container(
-                      width: 12,
-                      height: 12,
+                      width: 11,
+                      height: 11,
                       decoration: BoxDecoration(
-                        color: Colors.green,
+                        color: const Color(0xFF00CC44),
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
+                        border: Border.all(
+                          color: const Color(0xFF0068FF),
+                          width: 2,
+                        ),
                       ),
                     ),
                   ),
               ],
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     widget.conversation.displayName,
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 16,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
                       fontWeight: FontWeight.w600,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    widget.conversation.displayStatus,
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    isOnline
+                        ? 'Đang hoạt động'
+                        : widget.conversation.displayStatus,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),
@@ -284,56 +430,56 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       actions: [
         IconButton(
-          icon: Icon(Icons.videocam, color: Colors.black),
+          icon: const Icon(Icons.call_outlined, color: Colors.white, size: 22),
+          onPressed: _startVoiceCall,
+        ),
+        IconButton(
+          icon: const Icon(
+            Icons.videocam_outlined,
+            color: Colors.white,
+            size: 24,
+          ),
           onPressed: _startVideoCall,
         ),
         IconButton(
-          icon: Icon(Icons.call, color: Colors.black),
-          onPressed: _startVoiceCall,
-        ),
-        PopupMenuButton(
-          icon: Icon(Icons.more_vert, color: Colors.black),
-          itemBuilder: (context) => [
-            PopupMenuItem(value: 'search', child: Text('Tìm kiếm')),
-            PopupMenuItem(
-              value: 'mute',
-              child: Text(
-                widget.conversation.isMuted ? 'Bật thông báo' : 'Tắt thông báo',
-              ),
-            ),
-            PopupMenuItem(value: 'media', child: Text('Xem ảnh/video')),
-            PopupMenuItem(value: 'clear', child: Text('Xóa lịch sử')),
-          ],
-          onSelected: _handleMenuAction,
+          icon: const Icon(Icons.info_outline, color: Colors.white, size: 22),
+          onPressed: _openConversationInfo,
         ),
       ],
     );
   }
 
-  Widget _buildPinnedMessage() {
+  Widget _buildPinnedMessage(Conversation conv) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.blue[50],
-        border: Border(bottom: BorderSide(color: Colors.blue[100]!)),
-      ),
+      color: Colors.white,
       child: Row(
         children: [
-          Icon(Icons.push_pin, size: 16, color: Colors.blue),
-          SizedBox(width: 8),
+          Container(width: 3, height: 40, color: const Color(0xFF0068FF)),
+          const SizedBox(width: 10),
+          const Icon(Icons.push_pin_rounded, size: 13, color: Color(0xFF0068FF)),
+          const SizedBox(width: 6),
           Expanded(
-            child: Text(
-              widget.conversation.pinnedMessageContent ?? 'Tin nhắn đã ghim',
-              style: TextStyle(fontSize: 14),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Tin nhắn đã ghim', style: TextStyle(fontSize: 10, color: Color(0xFF0068FF), fontWeight: FontWeight.w600)),
+                Text(
+                  conv.pinnedMessageContent ?? '',
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF333333)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
-          IconButton(
-            icon: Icon(Icons.close, size: 18),
-            onPressed: _unpinMessage,
-            padding: EdgeInsets.zero,
-            constraints: BoxConstraints(),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: _unpinMessage,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: const Icon(Icons.close, size: 16, color: Color(0xFFAAAAAA)),
+            ),
           ),
         ],
       ),
@@ -341,18 +487,18 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildMessageList() {
-    if (_messages.isEmpty) {
+    if (_messages.isEmpty && !_isTyping) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.chat_bubble_outline, size: 80, color: Colors.grey[300]),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
               'Chưa có tin nhắn nào',
               style: TextStyle(fontSize: 16, color: Colors.grey[600]),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               'Gửi tin nhắn để bắt đầu cuộc trò chuyện',
               style: TextStyle(fontSize: 14, color: Colors.grey[500]),
@@ -362,30 +508,141 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
+    // reverse: true — index 0 = bottom (tin mới nhất / typing indicator)
+    // Khi bàn phím mở, bottom luôn visible → không cần scroll thủ công
+    final totalItems = _messages.length + (_isTyping ? 1 : 0);
+
     return ListView.builder(
       controller: _scrollController,
-      padding: EdgeInsets.symmetric(vertical: 8),
-      itemCount: _messages.length,
+      reverse: true,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: totalItems,
       itemBuilder: (context, index) {
-        final message = _messages[index];
-        final showDateSeparator = _shouldShowDateSeparator(index);
+        // index 0 = bottom = typing indicator (nếu có)
+        if (_isTyping && index == 0) {
+          return const TypingIndicator(key: ValueKey('typing'));
+        }
+
+        // Tính index thực trong _messages (0 = cũ nhất, length-1 = mới nhất)
+        final msgIndex = _messages.length - 1 - (_isTyping ? index - 1 : index);
+        if (msgIndex < 0 || msgIndex >= _messages.length)
+          return const SizedBox.shrink();
+
+        final message = _messages[msgIndex];
+        final prev = msgIndex > 0 ? _messages[msgIndex - 1] : null; // cũ hơn
+        final next = msgIndex < _messages.length - 1
+            ? _messages[msgIndex + 1]
+            : null; // mới hơn
+
+        final sameAsPrev =
+            prev != null &&
+            prev.senderId == message.senderId &&
+            message.createdAt.difference(prev.createdAt).inMinutes < 3;
+        final sameAsNext =
+            next != null &&
+            next.senderId == message.senderId &&
+            next.createdAt.difference(message.createdAt).inMinutes < 3;
+
+        final isLastInGroup = !sameAsNext;
+        final isFirstInGroup = !sameAsPrev;
+
+        // Date separator: hiện ở trên tin nhắn CŨ NHẤT của mỗi ngày
+        final showDateSeparator =
+            prev == null ||
+            prev.createdAt.day != message.createdAt.day ||
+            prev.createdAt.month != message.createdAt.month ||
+            prev.createdAt.year != message.createdAt.year;
+
+        // Tạo / tái dùng GlobalKey cho mỗi message
+        final msgKey = _messageKeys.putIfAbsent(message.id, () => GlobalKey());
+
+        // Kiểm tra tin reply-to có phải của mình không
+        final replyToIsMine =
+            message.replyToMessageId != null &&
+            _messages.any((m) => m.id == message.replyToMessageId && m.isMine);
+
+        final bubble = MessageBubble(
+          key: msgKey,
+          message: message,
+          showAvatar: !message.isMine && isLastInGroup,
+          showSenderName:
+              !message.isMine &&
+              isFirstInGroup &&
+              widget.conversation.type == 'group',
+          showMeta: isLastInGroup,
+          isGroupTop: isFirstInGroup && sameAsNext,
+          isGroupMiddle: sameAsPrev && sameAsNext,
+          isGroupBottom: sameAsPrev && isLastInGroup,
+          highlighted: _highlightedMessageId == message.id,
+          replyToIsMine: replyToIsMine,
+          onReplyPreviewTap: message.replyToMessageId != null
+              ? () => _jumpToMessage(message.replyToMessageId!)
+              : null,
+          onReact: (emoji) => _reactToMessage(message.id, emoji),
+          onPin: () async {
+            try {
+              await context.read<ChatProvider>().pinMessage(message.id, message.content);
+            } catch (e) {
+              debugPrint('[pin] error: $e');
+              if (mounted) _showError('Pin lỗi: $e');
+            }
+          },
+          onReply: () => setState(() => _replyToMessage = message),
+          onForward: () => _forwardMessage(message),
+          onCopy: () => _copyMessage(message),
+          onEdit: () => _editMessage(message),
+          onDelete: () => _deleteMessage(message),
+          onHideForMe: () =>
+              context.read<ChatProvider>().hideMessageForMe(message.id),
+          onInfo: () => _showMessageInfo(message),
+        );
+
+        final isNew = !_historyIds.contains(message.id);
+        final bubbleWidget = isNew
+            ? _AnimatedBubble(isMine: message.isMine, child: bubble)
+            : bubble;
+
+        // Hiện divider "X tin chưa đọc" tại tin chưa đọc đầu tiên
+        final isFirstUnread =
+            _initialUnreadCount > 0 &&
+            msgIndex == _messages.length - _initialUnreadCount;
 
         return Column(
+          key: isFirstUnread ? _firstUnreadKey : ValueKey(message.id),
           children: [
             if (showDateSeparator) _buildDateSeparator(message.createdAt),
-            MessageBubble(
-              message: message,
-              onReact: (emoji) => _reactToMessage(message.id, emoji),
-              onReply: () => _replyToMessage = message,
-              onForward: () => _forwardMessage(message),
-              onCopy: () => _copyMessage(message),
-              onEdit: () => _editMessage(message),
-              onDelete: () => _deleteMessage(message),
-              onInfo: () => _showMessageInfo(message),
+            if (isFirstUnread) _buildUnreadDivider(_initialUnreadCount),
+            _SwipeToReplyWrapper(
+              isMine: message.isMine,
+              onReply: () => setState(() => _replyToMessage = message),
+              child: bubbleWidget,
             ),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildUnreadDivider(int count) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Expanded(child: Divider(color: Colors.red.shade300, thickness: 0.8)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Text(
+              '$count tin nhắn chưa đọc',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.red.shade400,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(child: Divider(color: Colors.red.shade300, thickness: 0.8)),
+        ],
+      ),
     );
   }
 
@@ -394,14 +651,14 @@ class _ChatScreenState extends State<ChatScreen> {
       padding: EdgeInsets.symmetric(vertical: 8),
       child: Center(
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.grey[200],
-            borderRadius: BorderRadius.circular(12),
+            color: Colors.black.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Text(
             _formatDate(date),
-            style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+            style: const TextStyle(fontSize: 11, color: Colors.white),
           ),
         ),
       ),
@@ -410,41 +667,39 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildReplyPreview() {
     return Container(
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        border: Border(
-          top: BorderSide(color: Colors.grey[300]!),
-          left: BorderSide(color: Colors.blue, width: 3),
-        ),
-      ),
+      color: Colors.white,
       child: Row(
         children: [
+          Container(width: 3, height: 48, color: const Color(0xFF0068FF)),
+          const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Trả lời ${_replyToMessage!.senderName}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Trả lời ${_replyToMessage!.senderName}',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF0068FF)),
                   ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  _replyToMessage!.content,
-                  style: TextStyle(fontSize: 14),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    _replyToMessage!.content,
+                    style: const TextStyle(fontSize: 13, color: Color(0xFF666666)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
           ),
-          IconButton(
-            icon: Icon(Icons.close, size: 20),
-            onPressed: () => setState(() => _replyToMessage = null),
+          GestureDetector(
+            onTap: () => setState(() => _replyToMessage = null),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Icon(Icons.close, size: 18, color: Color(0xFFAAAAAA)),
+            ),
           ),
         ],
       ),
@@ -452,93 +707,121 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildInputArea() {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: Icon(Icons.add_circle_outline, color: Colors.blue),
-            onPressed: _showAttachmentOptions,
-          ),
-          Expanded(
-            child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      focusNode: _focusNode,
-                      onChanged: (_) => _onTyping(),
-                      decoration: InputDecoration(
-                        hintText: 'Aa',
-                        border: InputBorder.none,
-                      ),
-                      maxLines: null,
-                      textCapitalization: TextCapitalization.sentences,
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      Icons.emoji_emotions_outlined,
-                      color: Colors.grey[600],
-                    ),
-                    onPressed: _showEmojiPicker,
-                    padding: EdgeInsets.zero,
-                    constraints: BoxConstraints(),
-                  ),
-                ],
-              ),
+    final hasText = _messageController.text.trim().isNotEmpty;
+    const iconColor = Color(0xFF707070);
+
+    Widget iconBtn(IconData icon, VoidCallback onTap, {double size = 22}) =>
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(20),
+            child: SizedBox(
+              width: 38,
+              height: 38,
+              child: Icon(icon, color: iconColor, size: size),
             ),
           ),
-          SizedBox(width: 8),
-          _isSending
-              ? SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: Center(
-                    child: CircularProgressIndicator(strokeWidth: 2),
+        );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: const Color(0xFFEEEEEE), width: 0.5)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // + button bên trái
+              iconBtn(Icons.add_circle_outline_rounded, _showAttachmentOptions, size: 26),
+
+              // Text field giữa
+              Expanded(
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 38, maxHeight: 120),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF2F2F2),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                )
-              : IconButton(
-                  icon: Icon(
-                    _messageController.text.trim().isEmpty
-                        ? Icons.thumb_up
-                        : Icons.send,
-                    color: Colors.blue,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _messageController,
+                          focusNode: _focusNode,
+                          onChanged: (_) { _onTyping(); setState(() {}); },
+                          decoration: const InputDecoration(
+                            hintText: 'Aa',
+                            hintStyle: TextStyle(color: Color(0xFFBBBBBB), fontSize: 15),
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                            isDense: true,
+                          ),
+                          style: const TextStyle(fontSize: 15, height: 1.4),
+                          maxLines: null,
+                          textCapitalization: TextCapitalization.sentences,
+                        ),
+                      ),
+                      // Emoji icon bên phải trong field
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4, bottom: 2),
+                        child: InkWell(
+                          onTap: _showEmojiPicker,
+                          borderRadius: BorderRadius.circular(16),
+                          child: const SizedBox(
+                            width: 34,
+                            height: 34,
+                            child: Icon(Icons.emoji_emotions_outlined, color: Color(0xFF999999), size: 21),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  onPressed: _messageController.text.trim().isEmpty
-                      ? _sendLike
-                      : _sendMessage,
                 ),
-        ],
+              ),
+
+              // Bên phải: khi chưa gõ → sticker + ảnh + mic; khi gõ → send
+              if (hasText) ...[
+                GestureDetector(
+                  onTap: _sendMessage,
+                  child: _isSending
+                      ? const SizedBox(
+                          width: 38, height: 38,
+                          child: Padding(padding: EdgeInsets.all(9), child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0068FF))),
+                        )
+                      : Container(
+                          width: 38, height: 38,
+                          decoration: const BoxDecoration(color: Color(0xFF0068FF), shape: BoxShape.circle),
+                          child: const Icon(Icons.send_rounded, color: Colors.white, size: 19),
+                        ),
+                ),
+              ] else ...[
+                iconBtn(Icons.image_outlined, _pickImageFromGallery, size: 23),
+                iconBtn(Icons.mic_none_rounded, _recordAudio, size: 23),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  bool _shouldShowDateSeparator(int index) {
-    if (index == 0) return true;
-
-    final currentDate = _messages[index].createdAt;
-    final previousDate = _messages[index - 1].createdAt;
-
-    return currentDate.day != previousDate.day ||
-        currentDate.month != previousDate.month ||
-        currentDate.year != previousDate.year;
+  Widget _inputIconBtn(IconData icon, {required VoidCallback onPressed}) {
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(20),
+        child: Icon(icon, color: const Color(0xFF606060), size: 22),
+      ),
+    );
   }
 
   String _formatDate(DateTime date) {
@@ -684,12 +967,67 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  void _startVideoCall() {
-    _showInfo('Tính năng gọi video đang được phát triển');
-  }
+  void _startVideoCall() => _startCall(isVideo: true);
+  void _startVoiceCall() => _startCall(isVideo: false);
 
-  void _startVoiceCall() {
-    _showInfo('Tính năng gọi thoại đang được phát triển');
+  Future<void> _startCall({required bool isVideo}) async {
+    final conv = widget.conversation;
+    final otherUserId = conv.otherUserId;
+    if (otherUserId == null) return;
+
+    final chatProvider = context.read<ChatProvider>();
+    final callProvider = context.read<CallProvider>();
+    final myUid = chatProvider.currentUid ?? '';
+
+    final call = CallModel(
+      conversationId: conv.id,
+      callerId: myUid,
+      calleeId: otherUserId,
+      remoteName: conv.displayName,
+      remoteAvatar: conv.displayAvatar,
+      isVideo: isVideo,
+      isIncoming: false,
+      status: CallStatus.dialing,
+    );
+
+    final me = conv.participants.where((p) => p.userId == myUid).firstOrNull;
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+    debugPrint('[Call] myUid=$myUid');
+    debugPrint('[Call] me.displayName=${me?.displayName}');
+    debugPrint('[Call] cachedSenderName=${chatProvider.cachedSenderName}');
+    debugPrint('[Call] firebaseEmail=${firebaseUser?.email}');
+    debugPrint(
+      '[Call] participants=${conv.participants.map((p) => "${p.userId}:${p.userName}").join(", ")}',
+    );
+
+    final myName = [
+      me?.displayName,
+      chatProvider.cachedSenderName,
+      firebaseUser?.displayName,
+      firebaseUser?.email?.split('@').first,
+      myUid,
+    ].firstWhere((s) => s != null && s.isNotEmpty, orElse: () => myUid)!;
+    debugPrint('[Call] myName=$myName');
+    final myAvatar = me?.avatar ?? chatProvider.cachedSenderAvatar ?? '';
+
+    // Báo cho đối phương qua SignalR
+    await chatProvider.initiateCall(
+      conversationId: conv.id,
+      calleeId: otherUserId,
+      callType: isVideo ? 'video' : 'voice',
+      callerName: myName,
+      callerAvatar: myAvatar,
+    );
+
+    callProvider.startOutgoingCall(call);
+
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => CallScreen(call: call),
+      ),
+    );
   }
 
   void _handleMenuAction(String action) {
@@ -712,12 +1050,13 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _unpinMessage() {
-    _showInfo('Đã bỏ ghim tin nhắn');
+    context.read<ChatProvider>().unpinMessage().catchError((e) {
+      if (mounted) _showError('Không thể bỏ ghim tin nhắn');
+    });
   }
 
   void _reactToMessage(String messageId, String emoji) {
-    // TODO: React via SignalR
-    _showInfo('Đã thả cảm xúc');
+    context.read<ChatProvider>().reactToMessage(messageId, emoji);
   }
 
   void _forwardMessage(Message message) {
@@ -735,27 +1074,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _deleteMessage(Message message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Thu hồi tin nhắn'),
-        content: Text('Bạn có chắc chắn muốn thu hồi tin nhắn này?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Hủy'),
-          ),
-          TextButton(
-            onPressed: () {
-              // TODO: Delete via SignalR
-              Navigator.pop(context);
-              _showSuccess('Đã thu hồi tin nhắn');
-            },
-            child: Text('Thu hồi', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
+    context.read<ChatProvider>().deleteMessage(message.id);
   }
 
   void _showMessageInfo(Message message) {
@@ -864,4 +1183,185 @@ class _ChatScreenState extends State<ChatScreen> {
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
   }
+}
+
+/// Swipe-to-reply: kéo phải (tin người khác) hoặc kéo trái (tin mình)
+class _SwipeToReplyWrapper extends StatefulWidget {
+  final Widget child;
+  final bool isMine;
+  final VoidCallback? onReply;
+
+  const _SwipeToReplyWrapper({
+    required this.child,
+    required this.isMine,
+    this.onReply,
+  });
+
+  @override
+  State<_SwipeToReplyWrapper> createState() => _SwipeToReplyWrapperState();
+}
+
+class _SwipeToReplyWrapperState extends State<_SwipeToReplyWrapper>
+    with SingleTickerProviderStateMixin {
+  double _offset = 0;
+  bool _triggered = false;
+  late final AnimationController _ctrl;
+  Animation<double>? _returnAnim;
+
+  static const double _threshold = 56;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _ctrl.addListener(() {
+      if (mounted && _returnAnim != null) {
+        setState(() => _offset = _returnAnim!.value);
+      }
+    });
+    _ctrl.addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
+        setState(() {
+          _offset = 0;
+          _triggered = false;
+          _returnAnim = null;
+        });
+        _ctrl.reset();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _onUpdate(DragUpdateDetails d) {
+    if (_ctrl.isAnimating) return;
+    final dx = d.delta.dx;
+    // isMine: chỉ kéo trái (dx < 0), other: chỉ kéo phải (dx > 0)
+    if (widget.isMine && dx > 0) return;
+    if (!widget.isMine && dx < 0) return;
+
+    setState(() {
+      _offset += dx;
+      final max = _threshold * 1.3;
+      _offset = widget.isMine ? _offset.clamp(-max, 0) : _offset.clamp(0, max);
+    });
+
+    if (_offset.abs() >= _threshold && !_triggered) {
+      _triggered = true;
+      HapticFeedback.mediumImpact();
+      widget.onReply?.call();
+    }
+  }
+
+  void _onEnd(DragEndDetails _) {
+    _returnAnim = Tween<double>(
+      begin: _offset,
+      end: 0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut));
+    _ctrl.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = (_offset.abs() / _threshold).clamp(0.0, 1.0);
+
+    return GestureDetector(
+      onHorizontalDragUpdate: _onUpdate,
+      onHorizontalDragEnd: _onEnd,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Icon reply xuất hiện phía sau khi kéo
+          Positioned(
+            left: widget.isMine ? null : 10,
+            right: widget.isMine ? 10 : null,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: Opacity(
+                opacity: progress,
+                child: Transform.scale(
+                  scale: 0.5 + 0.5 * progress,
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade400,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.reply_rounded,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Bubble trượt theo ngón tay
+          Transform.translate(offset: Offset(_offset, 0), child: widget.child),
+        ],
+      ),
+    );
+  }
+}
+
+/// Slide + fade animation cho tin nhắn mới xuất hiện
+class _AnimatedBubble extends StatefulWidget {
+  final Widget child;
+  final bool isMine;
+
+  const _AnimatedBubble({required this.child, required this.isMine});
+
+  @override
+  State<_AnimatedBubble> createState() => _AnimatedBubbleState();
+}
+
+class _AnimatedBubbleState extends State<_AnimatedBubble>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<Offset> _slide;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    );
+
+    // Slide từ bên phải (mine) hoặc bên trái + nhẹ từ dưới lên
+    _slide = Tween<Offset>(
+      begin: Offset(widget.isMine ? 0.25 : -0.25, 0.08),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+
+    _fade = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+    opacity: _fade,
+    child: SlideTransition(position: _slide, child: widget.child),
+  );
 }

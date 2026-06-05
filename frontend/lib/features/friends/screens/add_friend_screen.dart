@@ -1,8 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:frontend/features/friends/friends.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:frontend/features/friends/providers/friend_provider.dart';
+import 'package:frontend/features/friends/widgets/demo_bio.dart';
+import 'package:frontend/features/friends/widgets/my_profile.dart';
+
 class AddFriendScreen extends StatefulWidget {
   const AddFriendScreen({super.key});
 
@@ -13,6 +15,7 @@ class AddFriendScreen extends StatefulWidget {
 class _AddFriendScreenState extends State<AddFriendScreen> {
   final TextEditingController _phoneController = TextEditingController();
   bool _isInputNotEmpty = false;
+  bool _isLoading = false; // Biến trạng thái chặn spam và bật loading
 
   @override
   void initState() {
@@ -21,25 +24,55 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
       setState(() => _isInputNotEmpty = _phoneController.text.trim().isNotEmpty);
     });
   }
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    super.dispose();
+  }
   
   Future<void> _findUser() async {
+    // Nếu đang trong quá trình tìm kiếm thì block hoàn toàn, không chạy code phía dưới
+    if (_isLoading) return; 
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    // Tạo hiệu ứng đợi mượt mà và chặn spam tối thiểu trong 1-2 giây
+    final Future delayFuture = Future.delayed(const Duration(milliseconds: 1500));
+
     try {
       final email = _phoneController.text.trim();
 
-      if (email.isEmpty) return;
+      if (email.isEmpty) {
+        setState(() => _isLoading = false);
+        return;
+      }
+      
+      // Email hiện tại của user đăng nhập
+      final currentUserEmail = FirebaseAuth.instance.currentUser?.email;
 
-      debugPrint("B1");
+      // Trường hợp tự tìm chính mình
+      if (currentUserEmail != null &&
+          email.toLowerCase() == currentUserEmail.toLowerCase()) {
+
+        await delayFuture;
+        if (!mounted) return;
+
+        setState(() => _isLoading = false);
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const MyProfileScreen()));
+        return;
+      }
 
       final provider = context.read<FriendProvider>();
-
       final user = await provider.findUserByEmail(email);
 
-      debugPrint("B4");
+      await delayFuture; // Chờ đủ thời gian loading để UI không bị giật lag
+      if (!mounted) return;
 
       if (user == null) {
-        debugPrint("B5");
-
-        if (!mounted) return;
+        setState(() => _isLoading = false); // Mở khóa nút bấm
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -48,74 +81,67 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
             ),
           ),
         );
-
         return;
       }
-
-      debugPrint("B6");
-
-      if (!mounted) return;
-
-      context.push(
-        '/demo-profile',
-        extra: user,
+      
+      setState(() => _isLoading = false);
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => UserProfileScreen(user: user)),
       );
     } catch (e) {
       debugPrint("LOI: $e");
+      
+      await delayFuture;
+      if (mounted) {
+        setState(() => _isLoading = false); // Giải phóng nút khi có lỗi hệ thống
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Lỗi: $e"),
-        ),
-      );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Lỗi: $e"),
+          ),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F2F4), // Nền xám nhạt tổng thể
+      backgroundColor: const Color(0xFFF1F2F4), 
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
         leading: const BackButton(color: Colors.black),
+        titleSpacing: 8,
         title: const Text("Thêm bạn", style: TextStyle(color: Colors.black, fontSize: 17, fontWeight: FontWeight.w600)),
         centerTitle: false,
       ),
       body: Column(
         children: [
-          // --- VÙNG 1: Nền xám chứa Card QR ---
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 24),
             child: _buildQRCard(),
           ),
-
-          // --- VÙNG 2: Dải trắng chứa Input SĐT ---
           Container(
             color: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: _buildPhoneInput(),
           ),
-
-          // const SizedBox(height: 12), // Khoảng đệm xám phân cách lớn hơn một chút
           const Padding(
-            padding: EdgeInsets.only(left: 16, right: 16), // Divider thụt đầu dòng chuẩn
+            padding: EdgeInsets.only(left: 16, right: 16),
             child: Divider(height: 0.5, color: Color(0xFFE5E9F0)),
           ),
-          // --- VÙNG 3: Dải trắng chứa các chức năng phụ ---
           Container(
             color: Colors.white,
             child: Column(
               children: [
                 _buildOptionItem(Icons.qr_code_scanner_rounded, "Quét mã QR"),
-                // const SizedBox(height: 12),
                 _buildOptionItem(Icons.person_search_rounded, "Bạn bè có thể quen"),
               ],
             ),
           ),
-
-          // --- VÙNG 4: Nền xám cuối cùng ---
           const Expanded(
             child: Padding(
               padding: EdgeInsets.only(bottom: 24, top: 24),
@@ -161,6 +187,9 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
   }
   
   Widget _buildPhoneInput() {
+    // Điều kiện active nút: Input có chữ VÀ hệ thống KHÔNG nằm trong trạng thái loading
+    final bool isButtonEnabled = _isInputNotEmpty && !_isLoading;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
@@ -178,6 +207,7 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
                   Expanded(
                     child: TextField(
                       controller: _phoneController,
+                      enabled: !_isLoading, // Disable luôn ô nhập văn bản khi đang tìm kiếm
                       keyboardType: TextInputType.emailAddress,
                       style: const TextStyle(fontSize: 16),
                       decoration: const InputDecoration(
@@ -188,7 +218,7 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
                       ),
                     ),
                   ),
-                  if (_isInputNotEmpty)
+                  if (_isInputNotEmpty && !_isLoading)
                     IconButton(
                       icon: const Icon(Icons.cancel, size: 20, color: Colors.grey),
                       onPressed: () {
@@ -202,13 +232,24 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
           const SizedBox(width: 12),
           CircleAvatar(
             radius: 24,
-            backgroundColor: _isInputNotEmpty ? const Color(0xFF0068FF) : const Color(0xFFE5E9F0),
-            child: IconButton(
-              icon: Icon(Icons.arrow_forward, color: _isInputNotEmpty ? Colors.white : Colors.grey.shade400),
-              onPressed: _isInputNotEmpty
-              ? _findUser
-              : null,
-            ),
+            backgroundColor: isButtonEnabled ? const Color(0xFF0068FF) : const Color(0xFFE5E9F0),
+            child: _isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : IconButton(
+                    // Truyền null vào onPressed sẽ lập tức disable nút bấm theo cơ chế của Flutter
+                    icon: Icon(
+                      Icons.arrow_forward, 
+                      color: isButtonEnabled ? Colors.white : Colors.grey.shade400
+                    ),
+                    onPressed: isButtonEnabled ? _findUser : null,
+                  ),
           ),
         ],
       ),
@@ -217,12 +258,13 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
 
   Widget _buildOptionItem(IconData icon, String title) {
     return ListTile(
-      contentPadding: EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 4),
+      contentPadding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 4),
       leading: Icon(icon, color: const Color(0xFF0068FF), size: 26),
       title: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w400)),
-      // trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 22),
-      onTap: () {
-        
+      // Vô hiệu hóa sự kiện bấm của các option khi đang trong quá trình tải dữ liệu
+      onTap: _isLoading ? null : () {
+        // Xử lý sự kiện bấm thông thường ở đây
       },
-    );}
+    );
+  }
 }

@@ -22,11 +22,12 @@ class _LoginViewState extends State<LoginView> {
   
   bool _isPasswordVisible = false;
   bool _isLoading = false;
-  bool _isFormValid = false; // Biến theo dõi trạng thái form
+  bool _isFormValid = false;
 
   String? _apiStatus;
   String? _apiBody;
   bool _apiSuccess = false;
+  String? _debugError;
 
   // Hàm kiểm tra form mỗi khi người dùng nhập liệu
   void _validateForm() {
@@ -40,52 +41,37 @@ class _LoginViewState extends State<LoginView> {
 
     setState(() {
       _isLoading = true;
-      _apiStatus = null;
-      _apiBody = null;
+      _debugError = null;
     });
-    
-    final result = await AuthService.login(
-      _emailController.text.trim(),
-      _passwordController.text,
-    );
-    
-    if (!mounted) return;
 
-    if (result.isSuccess) {
-      try {
-        
-        final friendProvider = context.read<FriendProvider>();
-        final response = await DioClient.instance.get(
-          '/api/auth/profile',
-        );
-        //final profile = response.data['result'];
-        // await friendProvider.setCurrentUid(profile['id']);
-        final firebaseUid = FirebaseAuth.instance.currentUser!.uid;
+    try {
+      final result = await AuthService.login(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
 
-        await friendProvider.setCurrentUid(firebaseUid);
-        await friendProvider.loadAll();
-        await friendProvider.startRealtime();
+      if (!mounted) return;
 
+      if (result.isSuccess) {
+        setState(() => _debugError = 'Firebase OK, chờ auth state...');
+        await FirebaseAuth.instance
+            .authStateChanges()
+            .firstWhere((u) => u != null)
+            .timeout(const Duration(seconds: 5));
         if (!mounted) return;
-
+        setState(() => _debugError = 'Auth state OK, navigating...');
         context.go('/chat-list');
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi khởi tạo dữ liệu: $e'),
-          ),
-        );
+      } else {
+        setState(() {
+          _isLoading = false;
+          _debugError = result.errorMessage ?? result.errorCode ?? 'Unknown error';
+        });
       }
-    } else {
+    } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _apiSuccess = false;
-        _apiStatus = 'Login thất bại';
-
-        _apiBody = result.errorMessage ??
-            (result.errorCode != null
-                ? 'Code: ${result.errorCode}'
-                : null);
+        _debugError = 'Exception: $e';
       });
     }
   }
@@ -136,14 +122,37 @@ class _LoginViewState extends State<LoginView> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 16),
+              if (_debugError != null)
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  color: Colors.red.shade50,
+                  child: Text(
+                    _debugError!,
+                    style: const TextStyle(color: Colors.red, fontSize: 12),
+                  ),
+                ),
 
               // --- Email field
               TextFormField( 
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
-                  if (value == null || value.isEmpty) return 'Vui lòng nhập email';
-                  if (!value.contains('@')) return 'Email không đúng định dạng';
+                  if (value == null || value.isEmpty) {
+                    return 'Vui lòng nhập email';
+                  }
+                  
+                  // Xóa khoảng trắng thừa ở đầu/cuối chuỗi trước khi kiểm tra
+                  final email = value.trim();
+
+                  // RegExp chuẩn hóa cho email phổ biến hiện nay
+                  final emailRegex = RegExp(
+                    r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+"
+                  );
+
+                  if (!emailRegex.hasMatch(email)) {
+                    return 'Email không đúng định dạng';
+                  }
+                  
                   return null;
                 },
                 decoration: InputDecoration(
@@ -165,9 +174,9 @@ class _LoginViewState extends State<LoginView> {
               TextFormField( // Đổi thành TextFormField
                 controller: _passwordController,
                 obscureText: !_isPasswordVisible,
-                validator: (value) {
-                  return Validator.password(value);
-                },
+                // validator: (value) {
+                //   return Validator.password(value);
+                // },
                 decoration: InputDecoration(
                   hintText: 'Mật khẩu',
                   hintStyle: const TextStyle(color: Colors.grey, fontSize: 16),
@@ -214,7 +223,7 @@ class _LoginViewState extends State<LoginView> {
                   width: double.infinity,
                   child: ElevatedButton(
                     // 3. Logic Enable/Disable: Nếu đang load HOẶC form chưa valid thì null (Disable)
-                    onPressed: (_isLoading || !_isFormValid) ? null : _handleLogin,
+                    onPressed: _isLoading ? null : _handleLogin,
                     style: ElevatedButton.styleFrom(
                       // Màu khi disable sẽ tự động nhạt đi, màu chính khi enable
                       backgroundColor: const Color(0xFF0068FF),
