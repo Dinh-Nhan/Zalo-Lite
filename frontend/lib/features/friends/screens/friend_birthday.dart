@@ -138,14 +138,22 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
         id: '${friend.friendId}_$currentYear',
         name: friend.fullName,
         date: DateTime(currentYear, dob.month, dob.day),
+<<<<<<< HEAD
         avatarUrl: friend.avatar,
+=======
+        avatarUrl: friend.avatar ?? '',
+>>>>>>> origin/dev
       ));
 
       tempAll.add(BirthdayModel(
         id: '${friend.friendId}_${currentYear + 1}',
         name: friend.fullName,
         date: DateTime(currentYear + 1, dob.month, dob.day),
+<<<<<<< HEAD
         avatarUrl: friend.avatar,
+=======
+        avatarUrl: friend.avatar ?? '',
+>>>>>>> origin/dev
       ));
     }
     
@@ -494,7 +502,11 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
         image: DecorationImage(
           image: NetworkImage(imageUrl),
           fit: BoxFit.cover,
+<<<<<<< HEAD
           colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.35), BlendMode.darken),
+=======
+          colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.35), BlendMode.darken),
+>>>>>>> origin/dev
         ),
       ),
       alignment: Alignment.bottomLeft,

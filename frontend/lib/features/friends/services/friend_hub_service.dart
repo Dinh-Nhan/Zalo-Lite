@@ -50,12 +50,30 @@ class FriendHubService {
         )
         .withAutomaticReconnect(retryDelays: [2000, 5000, 10000, 30000]).build();
 
+    // _connection!.on('FriendRequestReceived', (args) {
+    //   final data = _parseArgs(args);
+    //   if (data == null) return;
+    //   _emit(FriendHubEvent.friendRequestReceived, data);
+    // });
     _connection!.on('FriendRequestReceived', (args) {
+      debugPrint('========== REALTIME RECEIVED ==========');
+      debugPrint(args.toString());
+
       final data = _parseArgs(args);
-      if (data == null) return;
+
+      debugPrint('PARSED DATA = $data');
+
+      if (data == null) {
+        debugPrint('PARSE FAILED');
+        return;
+      }
+
+      debugPrint('senderId = ${data.senderId}');
+      debugPrint('addresseeId = ${data.addresseeId}');
+      debugPrint('status = ${data.status}');
+
       _emit(FriendHubEvent.friendRequestReceived, data);
     });
-
     _connection!.on('FriendRequestAccepted', (args) {
       final data = _parseArgs(args);
       if (data == null) return;
@@ -108,9 +126,23 @@ class FriendHubService {
     }
   }
 
+  // void _emit(FriendHubEvent type, FriendshipModel friendship) {
+  //   if (!_controller.isClosed) {
+  //     _controller.add(FriendRealtimeEvent(type: type, friendship: friendship));
+  //   }
+  // }
   void _emit(FriendHubEvent type, FriendshipModel friendship) {
+    debugPrint('EMIT EVENT');
+    debugPrint(friendship.senderId);
+    debugPrint(friendship.addresseeId);
+
     if (!_controller.isClosed) {
-      _controller.add(FriendRealtimeEvent(type: type, friendship: friendship));
+      _controller.add(
+        FriendRealtimeEvent(
+          type: type,
+          friendship: friendship,
+        ),
+      );
     }
   }
 

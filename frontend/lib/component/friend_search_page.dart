@@ -1,11 +1,18 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+<<<<<<< HEAD
 import 'package:firebase_auth/firebase_auth.dart';
+=======
+>>>>>>> origin/dev
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/providers/chat_provider.dart';
 import 'package:frontend/services/chat/chat_service.dart';
 import 'package:frontend/views/chat/chat_screen.dart';
+<<<<<<< HEAD
+=======
+import 'package:go_router/go_router.dart';
+>>>>>>> origin/dev
 import 'package:provider/provider.dart';
 
 class FriendSearchPage extends StatefulWidget {
@@ -19,8 +26,13 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
   final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
 
+<<<<<<< HEAD
   List<FriendSummaryModel> _filteredFriends = [];
   List<UserSearchModel> _results = [];
+=======
+  List<UserSearchModel> _results = [];
+
+>>>>>>> origin/dev
   bool _isSearching = false;
   bool _hasError = false;
   bool _hasSearched = false;
@@ -28,8 +40,11 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
   @override
   void initState() {
     super.initState();
+<<<<<<< HEAD
     final provider = context.read<FriendProvider>();
     _filteredFriends = provider.friends;
+=======
+>>>>>>> origin/dev
   }
 
   @override
@@ -38,7 +53,10 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
     _controller.dispose();
     super.dispose();
   }
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/dev
   Future<void> _performSearch(String query) async {
     setState(() {
       _isSearching = true;
@@ -46,23 +64,34 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
     });
 
     try {
+<<<<<<< HEAD
       final provider = context.read<FriendProvider>();
       final keyword = query.trim().toLowerCase();
       final localFriends = provider.friends.where((f) {
         return f.fullName.toLowerCase().contains(keyword);
       }).toList();
+=======
+>>>>>>> origin/dev
       final results = await FriendService.searchUsers(query);
 
       if (!mounted) return;
 
       setState(() {
+<<<<<<< HEAD
         _filteredFriends = localFriends;
         _results = results.where((u) => !provider.isFriend(u.id)).toList();
+=======
+        _results = results;
+>>>>>>> origin/dev
         _isSearching = false;
         _hasSearched = true;
       });
     } catch (_) {
       if (!mounted) return;
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/dev
       setState(() {
         _results = [];
         _isSearching = false;
@@ -71,6 +100,7 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
       });
     }
   }
+<<<<<<< HEAD
 
   void _onChanged(String value) {
     _debounce?.cancel();
@@ -80,6 +110,15 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
       final provider = context.read<FriendProvider>();
       setState(() {
         _filteredFriends = provider.friends;
+=======
+  void _onChanged(String value) {
+    _debounce?.cancel();
+
+    final keyword = value.trim();
+
+    if (keyword.isEmpty) {
+      setState(() {
+>>>>>>> origin/dev
         _results = [];
         _hasSearched = false;
         _hasError = false;
@@ -88,6 +127,7 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
       return;
     }
 
+<<<<<<< HEAD
     _debounce = Timer(const Duration(milliseconds: 500), () => _performSearch(keyword));
   }
 
@@ -96,6 +136,18 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
     _controller.clear();
     setState(() {
       _filteredFriends = provider.friends;
+=======
+    _debounce = Timer(
+      const Duration(milliseconds: 500),
+      () => _performSearch(keyword),
+    );
+  }
+
+  void _clear() {
+    _controller.clear();
+
+    setState(() {
+>>>>>>> origin/dev
       _results = [];
       _hasSearched = false;
       _hasError = false;
@@ -103,6 +155,11 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
     });
   }
 
+<<<<<<< HEAD
+=======
+  // ================= USER TILE CORE =================
+
+>>>>>>> origin/dev
   Widget _buildUserTile({
     required String name,
     required String avatar,
@@ -111,18 +168,40 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
   }) {
     return Container(
       decoration: const BoxDecoration(
+<<<<<<< HEAD
         border: Border(bottom: BorderSide(color: Color(0xFFEAEAEA))),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+=======
+        border: Border(
+          bottom: BorderSide(color: Color(0xFFEAEAEA)),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 10,
+        ),
+>>>>>>> origin/dev
         child: Row(
           children: [
             CircleAvatar(
               radius: 24,
+<<<<<<< HEAD
               backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
               child: avatar.isEmpty ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?') : null,
             ),
             const SizedBox(width: 12),
+=======
+              backgroundImage:
+                  avatar.isNotEmpty ? NetworkImage(avatar) : null,
+              child: avatar.isEmpty ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?', ) : null,
+            ),
+
+            const SizedBox(width: 12),
+
+>>>>>>> origin/dev
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -131,7 +210,14 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
                     name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+<<<<<<< HEAD
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+=======
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+>>>>>>> origin/dev
                   ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 3),
@@ -139,20 +225,41 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
                       subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+<<<<<<< HEAD
                       style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+=======
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+>>>>>>> origin/dev
                     ),
                   ],
                 ],
               ),
             ),
+<<<<<<< HEAD
             const SizedBox(width: 8),
             SizedBox(width: 120, child: Align(alignment: Alignment.centerRight, child: trailing)),
+=======
+
+            const SizedBox(width: 8),
+
+            SizedBox(
+              width: 120,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: trailing,
+              ),
+            ),
+>>>>>>> origin/dev
           ],
         ),
       ),
     );
   }
 
+<<<<<<< HEAD
   Widget _friendTile(FriendSummaryModel f) {
     return _buildUserTile(
       name: f.fullName,
@@ -182,22 +289,48 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
     final provider = context.watch<FriendProvider>();
     final sent = provider.pendingSent.any((f) => f.addresseeId == user.id);
     final received = provider.getReceivedRequest(user.id);
+=======
+  // ================= SEARCH TILE =================
+
+  Widget _searchTile(UserSearchModel user) {
+    final provider = context.watch<FriendProvider>();
+
+    final sent = provider.pendingSent.any(
+      (f) => f.addresseeId == user.id,
+    );
+
+    final received = provider.getReceivedRequest(user.id);
+
+>>>>>>> origin/dev
     final isFriend = provider.isFriend(user.id);
 
     Widget action;
 
+<<<<<<< HEAD
     if (isSelf) {
       action = const SizedBox.shrink();
     } else if (isFriend) {
       action = IconButton(
         icon: const Icon(Icons.chat_bubble_outline, color: AppColors.primaryBlue),
+=======
+    if (isFriend) {
+      action = IconButton(
+        icon: const Icon(
+          Icons.chat_bubble_outline,
+          color: AppColors.primaryBlue,
+        ),
+>>>>>>> origin/dev
         onPressed: () async {
           final chatProvider = context.read<ChatProvider>();
           final conversation = await ChatService().createConversation(
             type: 'private',
             participantIds: [user.id],
           );
+<<<<<<< HEAD
           if (!mounted) return;
+=======
+          if (!context.mounted) return;
+>>>>>>> origin/dev
           unawaited(chatProvider.openConversation(conversation));
           Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => ChatScreen(conversation: conversation)),
@@ -229,40 +362,88 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
           onPressed: () {
             provider.cancelFriendRequest(user.id);
           },
+<<<<<<< HEAD
           child: const Text('Thu hồi', style: TextStyle(fontSize: 12)),
+=======
+          child: const Text(
+            'Thu hồi',
+            style: TextStyle(fontSize: 12),
+          ),
+>>>>>>> origin/dev
         ),
       );
     } else {
       action = SizedBox(
         height: 32,
         child: ElevatedButton(
+<<<<<<< HEAD
           style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryBlue, elevation: 0),
           onPressed: () {
             provider.sendFriendRequest(user.id);
           },
           child: const Text('Kết bạn', style: TextStyle(color: Colors.white, fontSize: 12)),
+=======
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primaryBlue,
+            elevation: 0,
+          ),
+          onPressed: () {
+            provider.sendFriendRequest(user.id);
+          },
+          child: const Text(
+            'Kết bạn',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+            ),
+          ),
+>>>>>>> origin/dev
         ),
       );
     }
 
     return _buildUserTile(
+<<<<<<< HEAD
       name: user.fullName.isNotEmpty ? user.fullName : user.email,
+=======
+      name: user.fullName.isNotEmpty
+          ? user.fullName
+          : user.email,
+>>>>>>> origin/dev
       avatar: user.avatar,
       subtitle: user.email,
       trailing: action,
     );
   }
 
+<<<<<<< HEAD
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
+=======
+  // ================= BUILD =================
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<FriendProvider>();
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF3F4F6),
+
+>>>>>>> origin/dev
       appBar: AppBar(
         backgroundColor: AppColors.primaryBlue,
         elevation: 0,
         titleSpacing: 0,
         leading: const BackButton(color: Colors.white),
+<<<<<<< HEAD
         title: Container(
+=======
+
+        title: Container(
+          // margin: const EdgeInsets.only(right: 8),
+>>>>>>> origin/dev
           height: 40,
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.25),
@@ -275,6 +456,7 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
             cursorColor: Colors.white,
             decoration: InputDecoration(
               hintText: 'Tìm bạn bè, email...',
+<<<<<<< HEAD
               hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 14),
               border: InputBorder.none,
               prefixIcon: Icon(Icons.search, color: Colors.white.withValues(alpha: 0.8), size: 20),
@@ -286,6 +468,29 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
                       constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                     )
                   : null,
+=======
+              hintStyle: TextStyle(
+                color: Colors.white.withValues(alpha: 0.7),
+                fontSize: 14,
+              ),
+              border: InputBorder.none,
+              prefixIcon: Icon(Icons.search, color: Colors.white.withValues(alpha: 0.8), size: 20),
+              suffixIcon: _controller.text.isNotEmpty
+                ? IconButton(
+                    onPressed: _clear,
+                    icon: const Icon(
+                      Icons.close,
+                      size: 14,
+                      color: Colors.white70,
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 28,
+                      minHeight: 28,
+                    ),
+                  )
+                : null,
+>>>>>>> origin/dev
             ),
             onChanged: (v) {
               setState(() {});
@@ -304,6 +509,7 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
           ),
         ],
       ),
+<<<<<<< HEAD
       body: Column(
         children: [
           if (_isSearching) const LinearProgressIndicator(minHeight: 2),
@@ -335,10 +541,66 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
                     child: Center(child: Text('Có lỗi xảy ra khi tìm kiếm')),
                   ),
               ],
+=======
+
+      body: Column(
+        children: [
+          if (_isSearching)
+            const LinearProgressIndicator(minHeight: 2),
+
+          Expanded(
+            child: Builder(
+              builder: (_) {
+                if (_hasError) {
+                  return const Center(
+                    child: Text('Không thể kết nối'),
+                  );
+                }
+
+                if (_isSearching && _results.isEmpty) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
+
+                if (_hasSearched && _results.isEmpty) {
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.search_off,
+                          size: 64,
+                          color: Colors.grey,
+                        ),
+                        SizedBox(height: 12),
+                        Text(
+                          'Không tìm thấy người dùng',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  itemCount: _results.length,
+                  itemBuilder: (_, index) {
+                    return _searchTile(_results[index]);
+                  },
+                );
+              },
+>>>>>>> origin/dev
             ),
           ),
         ],
       ),
     );
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> origin/dev

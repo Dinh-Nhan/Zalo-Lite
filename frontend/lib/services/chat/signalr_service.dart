@@ -121,6 +121,18 @@ class SignalRService {
     await _hubConnection?.invoke('Heartbeat', args: [userId]);
   }
 
+  Future<void> setOnline() async {
+    await _hubConnection?.invoke('SetOnline', args: [userId]);
+  }
+
+  Future<void> setOffline() async {
+    await _hubConnection?.invoke('SetOffline', args: [userId]);
+  }
+
+  Future<void> heartbeat() async {
+    await _hubConnection?.invoke('Heartbeat', args: [userId]);
+  }
+
   bool get isConnected => _hubConnection?.state == HubConnectionState.Connected;
 
   Future<void> sendMessage({

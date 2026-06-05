@@ -20,7 +20,11 @@ class GroupItemWidget extends StatelessWidget {
       color: Colors.white,
       child: InkWell(
         onTap: () {}, // Xử lý khi nhấn vào nhóm
+<<<<<<< HEAD
         highlightColor: Colors.black.withValues(alpha: 0.05),
+=======
+        highlightColor: Colors.black.withOpacity(0.05),
+>>>>>>> origin/dev
         splashColor: Colors.transparent,
         child: ListTile(
           // Tăng padding vertical để đồng bộ với nút "Tạo nhóm"

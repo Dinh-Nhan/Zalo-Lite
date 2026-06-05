@@ -9,7 +9,10 @@ class ZaloListTile extends StatelessWidget {
   final VoidCallback? onTap;
 
   const ZaloListTile({
+<<<<<<< HEAD
     super.key,
+=======
+>>>>>>> origin/dev
     required this.leading,
     required this.title,
     this.subtitle,
@@ -33,7 +36,11 @@ class ZaloListTile extends StatelessWidget {
 class ZaloAvatar extends StatelessWidget {
   final String imageUrl;
   final bool isGroup;
+<<<<<<< HEAD
   const ZaloAvatar({super.key, required this.imageUrl, this.isGroup = false});
+=======
+  const ZaloAvatar({required this.imageUrl, this.isGroup = false});
+>>>>>>> origin/dev
 
   @override
   Widget build(BuildContext context) {
