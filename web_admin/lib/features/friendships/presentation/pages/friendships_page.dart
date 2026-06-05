@@ -7,6 +7,7 @@ import '../../../../core/extensions/context_extension.dart';
 import '../../../../shared/widgets/common_widgets.dart';
 import '../providers/friendship_provider.dart';
 import '../../domain/models/admin_friendship.dart';
+import '../../../users/presentation/providers/user_provider.dart';
 
 // ============================================================
 // FRIENDSHIPS PAGE
@@ -130,8 +131,8 @@ class _FriendshipTable extends ConsumerWidget {
             decoration:
                 const BoxDecoration(color: AppColors.surfaceVariant),
             children: [
-              _th('Sender ID'),
-              _th('Addressee'),
+              _th('Sender (Người gửi)'),
+              _th('Receiver (Người nhận)'),
               _th('Status'),
               _th('Source'),
               _th('Created'),
@@ -148,20 +149,10 @@ class _FriendshipTable extends ConsumerWidget {
                     : AppColors.surfaceVariant.withOpacity(0.3),
               ),
               children: [
-                _td(SelectableText(item.senderId,
-                    style: AppTextStyles.bodySmall)),
-                _td(Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (item.addresseeName != null)
-                      Text(item.addresseeName!,
-                          style: AppTextStyles.labelLarge,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                    SelectableText(item.addresseeId,
-                        style: AppTextStyles.caption),
-                  ],
+                _td(_UserCell(userId: item.senderId)),
+                _td(_UserCell(
+                  userId: item.addresseeId,
+                  fallbackName: item.addresseeName,
                 )),
                 _td(StatusBadge.fromString(item.status)),
                 _td(Text(item.sourceType, style: AppTextStyles.caption)),
@@ -243,6 +234,78 @@ class _StatusDropdown extends StatelessWidget {
             DropdownMenuItem(value: 'blocked', child: Text('Blocked')),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _UserCell extends ConsumerWidget {
+  final String userId;
+  final String? fallbackName;
+
+  const _UserCell({required this.userId, this.fallbackName});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userAsync = ref.watch(userDetailStreamProvider(userId));
+    return userAsync.when(
+      data: (user) {
+        final name = user?.displayName ?? fallbackName ?? 'Unknown';
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              name,
+              style: AppTextStyles.labelLarge,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            SelectableText(
+              userId,
+              style: AppTextStyles.caption,
+            ),
+          ],
+        );
+      },
+      loading: () => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (fallbackName != null)
+            Text(
+              fallbackName!,
+              style: AppTextStyles.labelLarge,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            )
+          else
+            const SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(strokeWidth: 1.5),
+            ),
+          SelectableText(
+            userId,
+            style: AppTextStyles.caption,
+          ),
+        ],
+      ),
+      error: (_, __) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            fallbackName ?? 'Error',
+            style: AppTextStyles.labelLarge,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          SelectableText(
+            userId,
+            style: AppTextStyles.caption,
+          ),
+        ],
       ),
     );
   }
