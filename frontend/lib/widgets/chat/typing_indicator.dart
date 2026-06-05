@@ -1,62 +1,69 @@
 import 'package:flutter/material.dart';
 
 class TypingIndicator extends StatefulWidget {
-  final String userName;
-
-  const TypingIndicator({super.key, required this.userName});
+  const TypingIndicator({super.key});
 
   @override
-  _TypingIndicatorState createState() => _TypingIndicatorState();
+  State<TypingIndicator> createState() => _TypingIndicatorState();
 }
 
 class _TypingIndicatorState extends State<TypingIndicator>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+  late final AnimationController _ctrl;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      duration: Duration(milliseconds: 1500),
+    _ctrl = AnimationController(
       vsync: this,
+      duration: const Duration(milliseconds: 900),
     )..repeat();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(10, 2, 10, 4),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: Colors.grey[300],
-            child: Text(
-              widget.userName[0].toUpperCase(),
-              style: TextStyle(fontSize: 12),
-            ),
-          ),
-          SizedBox(width: 8),
+          // Avatar placeholder (cùng width với bubble)
+          const SizedBox(width: 28),
+          const SizedBox(width: 6),
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.grey[200],
-              borderRadius: BorderRadius.circular(18),
+              color: Colors.white,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(18),
+                topRight: Radius.circular(18),
+                bottomLeft: Radius.circular(5),
+                bottomRight: Radius.circular(18),
+              ),
+              border: Border.all(color: const Color(0xFFE8E8E8), width: 0.8),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1),
+                ),
+              ],
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildDot(0),
-                SizedBox(width: 4),
-                _buildDot(1),
-                SizedBox(width: 4),
-                _buildDot(2),
+                _Dot(controller: _ctrl, delay: 0.0),
+                const SizedBox(width: 4),
+                _Dot(controller: _ctrl, delay: 0.2),
+                const SizedBox(width: 4),
+                _Dot(controller: _ctrl, delay: 0.4),
               ],
             ),
           ),
@@ -64,20 +71,33 @@ class _TypingIndicatorState extends State<TypingIndicator>
       ),
     );
   }
+}
 
-  Widget _buildDot(int index) {
+class _Dot extends StatelessWidget {
+  final AnimationController controller;
+  final double delay;
+
+  const _Dot({required this.controller, required this.delay});
+
+  @override
+  Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final value = (_controller.value - (index * 0.2)) % 1.0;
-        final opacity = value < 0.5 ? value * 2 : (1 - value) * 2;
-
-        return Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: Colors.grey[600]!.withOpacity(0.3 + opacity * 0.7),
-            shape: BoxShape.circle,
+      animation: controller,
+      builder: (_, __) {
+        // Bounce: 0→-6→0 theo sine, mỗi chấm lệch phase
+        final t = ((controller.value - delay) % 1.0);
+        final bounce = t < 0.5
+            ? -6.0 * (t * 2) * (1 - t * 2)
+            : 0.0;
+        return Transform.translate(
+          offset: Offset(0, bounce),
+          child: Container(
+            width: 7,
+            height: 7,
+            decoration: const BoxDecoration(
+              color: Color(0xFF999999),
+              shape: BoxShape.circle,
+            ),
           ),
         );
       },

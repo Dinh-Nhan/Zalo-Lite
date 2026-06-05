@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accept_text">Chấp nhận</string>
+    <string name="decline_text">Từ chối</string>
+    <string name="text_missed_call">Cuộc gọi nhỡ</string>
+    <string name="text_call_back">Gọi lại</string>
+    <string name="call_header">Cuộc gọi đến</string>
+</resources>

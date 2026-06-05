@@ -2,6 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/features/friends/friends.dart';
+import 'package:frontend/providers/chat_provider.dart';
+import 'package:frontend/services/chat/chat_service.dart';
+import 'package:frontend/views/chat/chat_screen.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -187,16 +190,16 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
           Icons.chat_bubble_outline,
           color: AppColors.primaryBlue,
         ),
-        onPressed: () {
-          context.push(
-            '/chat-detail',
-            extra: {
-              'conversationId': user.id,
-              'contactName': user.fullName,
-              'avatarColor': Colors.blue,
-              'isGroup': false,
-              'memberCount': null,
-            },
+        onPressed: () async {
+          final chatProvider = context.read<ChatProvider>();
+          final conversation = await ChatService().createConversation(
+            type: 'private',
+            participantIds: [user.id],
+          );
+          if (!context.mounted) return;
+          unawaited(chatProvider.openConversation(conversation));
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => ChatScreen(conversation: conversation)),
           );
         },
       );

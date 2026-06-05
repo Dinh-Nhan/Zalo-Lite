@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/features/friends/friends.dart';
 import 'package:provider/provider.dart';
-import 'package:frontend/views/chat/chat_detail_view.dart';
+import 'dart:async';
+import 'package:frontend/providers/chat_provider.dart';
+import 'package:frontend/services/chat/chat_service.dart';
+import 'package:frontend/views/chat/chat_screen.dart';
 import 'request_item.dart';
 
 class ReceivedRequestsTab extends StatefulWidget {
@@ -131,22 +134,16 @@ class _ReceivedRequestsTabState
             // MESSAGE
             // =====================
 
-            onMessage: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ChatDetailView(
-                    conversationId:
-                        request.senderId,
-
-                    contactName:
-                        request.senderName ??
-                        'Người dùng',
-
-                    avatarColor:
-                        Colors.blue,
-                  ),
-                ),
+            onMessage: () async {
+              final chatProvider = context.read<ChatProvider>();
+              final conversation = await ChatService().createConversation(
+                type: 'private',
+                participantIds: [request.senderId],
+              );
+              if (!context.mounted) return;
+              unawaited(chatProvider.openConversation(conversation));
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => ChatScreen(conversation: conversation)),
               );
             },
           ),

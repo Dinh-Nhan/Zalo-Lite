@@ -73,10 +73,10 @@ class Conversation {
           : null,
       createdAt: DateTime.parse(
         json['created_at'] ?? DateTime.now().toIso8601String(),
-      ),
+      ).toLocal(),
       updatedAt: DateTime.parse(
         json['updated_at'] ?? DateTime.now().toIso8601String(),
-      ),
+      ).toLocal(),
       groupName: json['group_name'],
       groupAvatarUrl: json['group_avatar_url'],
       groupDescription: json['group_description'],
@@ -88,7 +88,7 @@ class Conversation {
       otherUserAvatar: json['other_user_avatar'],
       otherUserOnline: json['other_user_online'],
       otherUserLastSeen: json['other_user_last_seen'] != null
-          ? DateTime.parse(json['other_user_last_seen'])
+          ? DateTime.parse(json['other_user_last_seen']).toLocal()
           : null,
       isMuted: json['is_muted'] ?? false,
       isPinned: json['is_pinned'] ?? false,
@@ -99,11 +99,46 @@ class Conversation {
     );
   }
 
+  Conversation copyWith({
+    Message? lastMessage,
+    int? unreadCount,
+    DateTime? updatedAt,
+  }) {
+    return Conversation(
+      id: id,
+      type: type,
+      participants: participants,
+      lastMessage: lastMessage ?? this.lastMessage,
+      createdAt: createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      groupName: groupName,
+      groupAvatarUrl: groupAvatarUrl,
+      groupDescription: groupDescription,
+      createdBy: createdBy,
+      onlyAdminCanSend: onlyAdminCanSend,
+      onlyAdminCanEditInfo: onlyAdminCanEditInfo,
+      otherUserId: otherUserId,
+      otherUserName: otherUserName,
+      otherUserAvatar: otherUserAvatar,
+      otherUserOnline: otherUserOnline,
+      otherUserLastSeen: otherUserLastSeen,
+      isMuted: isMuted,
+      isPinned: isPinned,
+      unreadCount: unreadCount ?? this.unreadCount,
+      isArchived: isArchived,
+      pinnedMessageId: pinnedMessageId,
+      pinnedMessageContent: pinnedMessageContent,
+    );
+  }
+
   String get displayName {
     if (type == 'group') {
-      return groupName ?? 'Nhóm';
+      final name = groupName?.trim();
+      return (name != null && name.isNotEmpty) ? name : 'Nhóm';
     }
-    return otherUserName ?? 'Người dùng';
+    final name = otherUserName?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return otherUserId ?? 'Người dùng';
   }
 
   String get displayAvatar {

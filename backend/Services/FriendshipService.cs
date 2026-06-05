@@ -673,7 +673,8 @@ public class FriendshipService(
             {
                 FriendshipId = entries[i].FriendshipId,
                 FriendId     = user.Id,
-                FullName     = $"{user.FirstName} {user.LastName}".Trim(),
+                FirstName    = user.FirstName,
+                LastName     = user.LastName,
                 Avatar       = user.Avatar,
                 FriendsSince = entries[i].Since
             });

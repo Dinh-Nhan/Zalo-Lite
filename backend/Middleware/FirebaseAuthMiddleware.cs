@@ -12,7 +12,6 @@ public class FirebaseAuthMiddleware(RequestDelegate _next, ILogger<FirebaseAuthM
         if (!string.IsNullOrEmpty(header) && header.StartsWith("Bearer "))
         {
             var token = header.Substring("Bearer ".Length);
-            logger.LogInformation("[MiddleWare Auth: {token}]", token);
 
             try
             {
@@ -42,6 +41,16 @@ public class FirebaseAuthMiddleware(RequestDelegate _next, ILogger<FirebaseAuthM
                 }
 
                 context.Items["User"] = decoded;
+
+                // Set ClaimsPrincipal để User.GetUid() hoạt động trong controllers
+                var claims = new[]
+                {
+                    new System.Security.Claims.Claim(
+                        System.Security.Claims.ClaimTypes.NameIdentifier, decoded.Uid)
+                };
+                var identity = new System.Security.Claims.ClaimsIdentity(claims, "Firebase");
+                context.User = new System.Security.Claims.ClaimsPrincipal(identity);
+
                 logger.LogInformation("Token verified OK — uid={Uid}", decoded.Uid);
             }
             catch (Exception ex)

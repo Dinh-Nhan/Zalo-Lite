@@ -174,9 +174,9 @@ Widget _buildStatusOrTimer(CallProvider prov, CallModel call) {
   String displaySubtitle = "";
   if (call.status == CallStatus.dialing) {
     displaySubtitle = "Đang đổ chuông...";
-  } else if (prov.statusText.isNotEmpty) {
+  } else if (false) {
     // statusText lấy từ Provider (ví dụ: "Người nhận hiện đang bận")
-    displaySubtitle = prov.statusText; 
+    displaySubtitle = ""; 
   }
 
   return Text(

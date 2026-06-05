@@ -194,4 +194,17 @@ public class UserService(FirestoreDb db, RedisService _redis, ILogger<UserServic
 
         return users;
     }
+
+    public async Task SaveFcmTokenAsync(string userId, string token)
+    {
+        await db.Collection("users").Document(userId).UpdateAsync("fcm_token", token);
+    }
+
+    public async Task<string?> GetFcmTokenAsync(string userId)
+    {
+        var doc = await db.Collection("users").Document(userId).GetSnapshotAsync();
+        if (!doc.Exists) return null;
+        var user = doc.ConvertTo<User>();
+        return user.FcmToken;
+    }
 }
