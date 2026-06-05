@@ -12,7 +12,8 @@ class AdminUser {
   final String email;
   final String avatar;
   final String bio;
-  final bool status; // true=active, false=banned
+  final bool status; // legacy field
+  final bool isEnable; // true = active, false = disabled
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -25,13 +26,14 @@ class AdminUser {
     required this.avatar,
     required this.bio,
     required this.status,
+    required this.isEnable,
     required this.createdAt,
     required this.updatedAt,
   });
 
   String get displayName => '$firstName $lastName'.trim();
-  bool get isActive => status;
-  bool get isBanned => !status;
+  bool get isActive => isEnable; // dùng is_enable làm nguồn sự thật
+  bool get isBanned => !isEnable;
 
   factory AdminUser.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -44,6 +46,7 @@ class AdminUser {
       avatar: data['avatar'] as String? ?? '',
       bio: data['bio'] as String? ?? '',
       status: data['status'] as bool? ?? true,
+      isEnable: data['is_enable'] as bool? ?? true,
       createdAt: (data['created_at'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updated_at'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -51,6 +54,7 @@ class AdminUser {
 
   AdminUser copyWith({
     bool? status,
+    bool? isEnable,
   }) {
     return AdminUser(
       id: id,
@@ -61,6 +65,7 @@ class AdminUser {
       avatar: avatar,
       bio: bio,
       status: status ?? this.status,
+      isEnable: isEnable ?? this.isEnable,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );

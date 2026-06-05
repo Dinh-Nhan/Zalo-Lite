@@ -114,7 +114,7 @@ class _FeedbackTable extends StatelessWidget {
         columnWidths: const {
           0: FlexColumnWidth(2),
           1: FlexColumnWidth(2),
-          2: FixedColumnWidth(90),
+          2: FixedColumnWidth(120),
           3: FixedColumnWidth(140),
           4: FixedColumnWidth(120),
         },

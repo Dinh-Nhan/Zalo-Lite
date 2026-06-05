@@ -35,8 +35,8 @@ class FeedsPage extends ConsumerWidget {
                   children: [
                     Text('Feed Management', style: AppTextStyles.displayMedium),
                     feedsAsync.when(
-                      data: (feeds) =>
-                          Text('${feeds.length} posts', style: AppTextStyles.bodySmall),
+                      data: (feeds) => Text('${feeds.length} posts',
+                          style: AppTextStyles.bodySmall),
                       loading: () => const SizedBox.shrink(),
                       error: (_, __) => const SizedBox.shrink(),
                     ),
@@ -138,7 +138,7 @@ class _FeedTable extends ConsumerWidget {
         columnWidths: const {
           0: FlexColumnWidth(3),
           1: FixedColumnWidth(80),
-          2: FixedColumnWidth(90),
+          2: FixedColumnWidth(100),
           3: FixedColumnWidth(80),
           4: FixedColumnWidth(80),
           5: FixedColumnWidth(120),
@@ -146,8 +146,7 @@ class _FeedTable extends ConsumerWidget {
         },
         children: [
           TableRow(
-            decoration:
-                const BoxDecoration(color: AppColors.surfaceVariant),
+            decoration: const BoxDecoration(color: AppColors.surfaceVariant),
             children: [
               _th('Caption'),
               _th('Type'),
@@ -186,9 +185,8 @@ class _FeedTable extends ConsumerWidget {
                                 ? feed.caption
                                 : '(No caption)',
                             style: AppTextStyles.labelLarge.copyWith(
-                              color: feed.isDisabled
-                                  ? AppColors.textMuted
-                                  : null,
+                              color:
+                                  feed.isDisabled ? AppColors.textMuted : null,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -202,7 +200,8 @@ class _FeedTable extends ConsumerWidget {
                 _td(StatusBadge.fromString(feed.privacy)),
                 _td(Text('${feed.likeCount}', style: AppTextStyles.bodySmall)),
                 _td(Text('${feed.viewCount}', style: AppTextStyles.bodySmall)),
-                _td(Text(feed.createdAt.dateOnly, style: AppTextStyles.caption)),
+                _td(Text(feed.createdAt.dateOnly,
+                    style: AppTextStyles.caption)),
                 _tdActions(_FeedActions(feed: feed)),
               ],
             );

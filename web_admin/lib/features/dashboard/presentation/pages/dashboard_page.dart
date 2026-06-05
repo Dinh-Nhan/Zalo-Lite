@@ -107,7 +107,7 @@ class _StatsGrid extends ConsumerWidget {
           physics: const NeverScrollableScrollPhysics(),
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          childAspectRatio: 2.0,
+          childAspectRatio: 1.5,
           children: List.generate(
               4,
               (_) => const StatCard(
@@ -125,7 +125,7 @@ class _StatsGrid extends ConsumerWidget {
           physics: const NeverScrollableScrollPhysics(),
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          childAspectRatio: 2.0,
+          childAspectRatio: 1.5,
           children: [
             StatCard(
               title: 'Total Users',

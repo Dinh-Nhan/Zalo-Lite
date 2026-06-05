@@ -30,7 +30,7 @@ class StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
@@ -67,7 +67,7 @@ class StatCard extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const Spacer(),
 
         // Value
         Text(value, style: AppTextStyles.statNumber),
@@ -132,10 +132,10 @@ class StatCard extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _SkeletonBox(width: 80, height: 14),
-            _SkeletonBox(width: 42, height: 42, radius: 10),
+            _SkeletonBox(width: 38, height: 38, radius: 10),
           ],
         ),
-        const SizedBox(height: 16),
+        const Spacer(),
         _SkeletonBox(width: 120, height: 28),
         const SizedBox(height: 8),
         _SkeletonBox(width: 160, height: 12),

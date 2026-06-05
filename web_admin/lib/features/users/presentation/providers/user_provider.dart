@@ -51,6 +51,30 @@ class UserActionNotifier extends StateNotifier<AsyncValue<void>> {
     state = await AsyncValue.guard(() => _repo.unbanUser(userId));
   }
 
+  /// Enable user: set is_enable = true
+  Future<void> enableUser(String userId) async {
+    state = const AsyncLoading();
+    try {
+      await _repo.enableUser(userId);
+      state = const AsyncData(null);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      rethrow;
+    }
+  }
+
+  /// Disable user (soft-delete): set is_enable = false
+  Future<void> disableUser(String userId) async {
+    state = const AsyncLoading();
+    try {
+      await _repo.disableUser(userId);
+      state = const AsyncData(null);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      rethrow;
+    }
+  }
+
   Future<void> deleteUser(String userId) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() => _repo.deleteUser(userId));

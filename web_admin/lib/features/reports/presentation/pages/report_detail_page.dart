@@ -7,6 +7,8 @@ import '../../../../core/extensions/datetime_extension.dart';
 import '../../../../core/extensions/context_extension.dart';
 import '../../../../shared/widgets/common_widgets.dart';
 import '../providers/report_provider.dart';
+import '../../../feeds/presentation/providers/feed_provider.dart';
+import '../../../users/presentation/providers/user_provider.dart';
 
 // ============================================================
 // REPORT DETAIL PAGE
@@ -103,6 +105,27 @@ class _ReportDetailPageState extends ConsumerState<ReportDetailPage> {
                 ),
               ),
               const SizedBox(height: 16),
+
+              // Target Detail Card
+              if (report.targetType == 'post') ...[
+                SectionCard(
+                  title: 'Reported Content (Post)',
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: _ReportedFeedContent(feedId: report.targetId),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ] else if (report.targetType == 'user') ...[
+                SectionCard(
+                  title: 'Reported User Details',
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: _ReportedUserContent(userId: report.targetId),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
 
               // Description
               SectionCard(
@@ -252,6 +275,147 @@ class _InfoItem extends StatelessWidget {
           SelectableText(value, style: AppTextStyles.bodyMedium),
         ],
       ),
+    );
+  }
+}
+
+class _ReportedFeedContent extends ConsumerWidget {
+  final String feedId;
+  const _ReportedFeedContent({required this.feedId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final feedAsync = ref.watch(feedDetailStreamProvider(feedId));
+
+    return feedAsync.when(
+      loading: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: CircularProgressIndicator(),
+        ),
+      ),
+      error: (e, _) => Text(
+        'Error loading feed: $e',
+        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.error),
+      ),
+      data: (feed) {
+        if (feed == null) {
+          return Text(
+            'Feed not found or has been deleted.',
+            style: AppTextStyles.bodyMedium,
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (feed.caption.isNotEmpty) ...[
+              SelectableText(
+                feed.caption,
+                style: AppTextStyles.bodyMedium.copyWith(height: 1.5),
+              ),
+              const SizedBox(height: 16),
+            ],
+            if (feed.media.isNotEmpty)
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: feed.media.map((item) {
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      item.url,
+                      width: 150,
+                      height: 150,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          width: 150,
+                          height: 150,
+                          color: AppColors.surface,
+                          child: const Icon(
+                            Icons.broken_image,
+                            color: AppColors.textSecondary,
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                }).toList(),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ReportedUserContent extends ConsumerWidget {
+  final String userId;
+  const _ReportedUserContent({required this.userId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userAsync = ref.watch(userDetailStreamProvider(userId));
+
+    return userAsync.when(
+      loading: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: CircularProgressIndicator(),
+        ),
+      ),
+      error: (e, _) => Text(
+        'Error loading user: $e',
+        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.error),
+      ),
+      data: (user) {
+        if (user == null) {
+          return Text(
+            'User not found.',
+            style: AppTextStyles.bodyMedium,
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 32,
+              backgroundImage: user.avatar.isNotEmpty
+                  ? NetworkImage(user.avatar)
+                  : null,
+              child: user.avatar.isEmpty
+                  ? const Icon(Icons.person, size: 32)
+                  : null,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.displayName,
+                    style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    user.email,
+                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
+                  ),
+                  if (user.bio.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      user.bio,
+                      style: AppTextStyles.bodyMedium.copyWith(fontStyle: FontStyle.italic),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

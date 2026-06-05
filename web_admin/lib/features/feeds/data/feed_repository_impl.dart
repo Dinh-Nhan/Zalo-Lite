@@ -57,7 +57,7 @@ class FeedRepositoryImpl implements FeedRepository {
   @override
   Future<void> disableFeed(String feedId) async {
     try {
-      await _collection.doc(feedId).update({'isEnable': false});
+      await _collection.doc(feedId).update({'is_enable': false});
     } on FirebaseException catch (e) {
       throw FirestoreException(e.message ?? 'Failed to disable feed');
     }
@@ -66,7 +66,7 @@ class FeedRepositoryImpl implements FeedRepository {
   @override
   Future<void> enableFeed(String feedId) async {
     try {
-      await _collection.doc(feedId).update({'isEnable': true});
+      await _collection.doc(feedId).update({'is_enable': true});
     } on FirebaseException catch (e) {
       throw FirestoreException(e.message ?? 'Failed to enable feed');
     }

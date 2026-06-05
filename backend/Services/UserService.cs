@@ -104,6 +104,24 @@ public class UserService(FirestoreDb db, RedisService _redis, ILogger<UserServic
         logger.LogInformation("User deleted: {UserId}", id);
     }
 
+    /// <summary>Enable hoặc disable user (soft-delete). Admin chỉnh is_enable.</summary>
+    public async Task SetEnableAsync(string id, bool enable)
+    {
+        var docRef = db.Collection(Collection).Document(id);
+        var snapshot = await docRef.GetSnapshotAsync();
+
+        if (!snapshot.Exists)
+            throw new AppException(ErrorCode.USER_NOT_FOUND);
+
+        await docRef.UpdateAsync(new Dictionary<string, object>
+        {
+            ["is_enable"] = enable,
+            ["updated_at"] = Timestamp.FromDateTime(DateTime.UtcNow)
+        });
+
+        logger.LogInformation("User {UserId} is_enable set to {Enable}", id, enable);
+    }
+
     public async Task<UserResponse> UpdateAvatarAsync(string userId, UpdateAvatarRequest request)
     {
         var docRef = db.Collection(Collection).Document(userId);

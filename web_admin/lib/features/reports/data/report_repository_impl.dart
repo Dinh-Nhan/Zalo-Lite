@@ -45,11 +45,35 @@ class ReportRepositoryImpl implements ReportRepository {
   @override
   Future<void> resolveReport(String reportId, String adminNote) async {
     try {
-      await _col.doc(reportId).update({
+      final reportDoc = await _col.doc(reportId).get();
+      if (!reportDoc.exists) return;
+
+      final data = reportDoc.data();
+      final targetType = data?['target_type'] as String?;
+      final targetId = data?['target_id'] as String?;
+
+      final batch = _db.batch();
+
+      batch.update(_col.doc(reportId), {
         'status': AppConstants.reportResolved,
         'admin_note': adminNote,
         'resolved_at': FieldValue.serverTimestamp(),
       });
+
+      if (targetType != null && targetId != null) {
+        if (targetType == 'post') {
+          batch.update(_db.collection('feeds').doc(targetId), {
+            'is_enable': false,
+            'moderation_status': 'flagged',
+          });
+        } else if (targetType == 'user') {
+          batch.update(_db.collection('users').doc(targetId), {
+            'is_enable': false,
+          });
+        }
+      }
+
+      await batch.commit();
     } on FirebaseException catch (e) {
       throw FirestoreException(e.message ?? 'Failed to resolve report');
     }
@@ -58,11 +82,35 @@ class ReportRepositoryImpl implements ReportRepository {
   @override
   Future<void> rejectReport(String reportId, String adminNote) async {
     try {
-      await _col.doc(reportId).update({
+      final reportDoc = await _col.doc(reportId).get();
+      if (!reportDoc.exists) return;
+
+      final data = reportDoc.data();
+      final targetType = data?['target_type'] as String?;
+      final targetId = data?['target_id'] as String?;
+
+      final batch = _db.batch();
+
+      batch.update(_col.doc(reportId), {
         'status': AppConstants.reportRejected,
         'admin_note': adminNote,
         'resolved_at': FieldValue.serverTimestamp(),
       });
+
+      if (targetType != null && targetId != null) {
+        if (targetType == 'post') {
+          batch.update(_db.collection('feeds').doc(targetId), {
+            'is_enable': true,
+            'moderation_status': 'approved',
+          });
+        } else if (targetType == 'user') {
+          batch.update(_db.collection('users').doc(targetId), {
+            'is_enable': true,
+          });
+        }
+      }
+
+      await batch.commit();
     } on FirebaseException catch (e) {
       throw FirestoreException(e.message ?? 'Failed to reject report');
     }

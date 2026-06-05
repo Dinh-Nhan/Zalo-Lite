@@ -120,8 +120,8 @@ class _FriendshipTable extends ConsumerWidget {
         columnWidths: const {
           0: FlexColumnWidth(2),
           1: FlexColumnWidth(2),
-          2: FixedColumnWidth(100),
-          3: FixedColumnWidth(110),
+          2: FixedColumnWidth(120),
+          3: FixedColumnWidth(120),
           4: FixedColumnWidth(130),
           5: FixedColumnWidth(80),
         },

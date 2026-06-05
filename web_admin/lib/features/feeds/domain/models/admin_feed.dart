@@ -79,8 +79,8 @@ class AdminFeed {
       likes: List<String>.from(statsMap['likes'] as List? ?? []),
       createdAt:
           (data['create_at'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      // Existing docs without 'isEnable' field default to true (enabled)
-      isEnabled: data['isEnable'] as bool? ?? true,
+      // Existing docs without 'is_enable' field default to true (enabled)
+      isEnabled: data['is_enable'] as bool? ?? true,
       authorName: data['author_name'] as String?,
       authorAvatar: data['author_avatar'] as String?,
     );

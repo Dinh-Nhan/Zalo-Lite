@@ -85,8 +85,8 @@ class _UsersPageState extends ConsumerState<UsersPage> {
                     ref.read(userStatusFilterProvider.notifier).state = v,
                 items: const {
                   null: 'All Status',
-                  'active': 'Active',
-                  'banned': 'Banned',
+                  'enabled': 'Enabled',
+                  'disabled': 'Disabled',
                 },
               ),
             ],
@@ -231,7 +231,7 @@ class _UserTable extends ConsumerWidget {
                   ),
                 ),
                 _td(StatusBadge.fromString(
-                    user.isActive ? 'active' : 'banned')),
+                    user.isEnable ? 'active' : 'disabled')),
                 _td(Text(user.createdAt.dateOnly,
                     style: AppTextStyles.caption)),
                 _td(_UserActions(user: user)),
@@ -284,9 +284,9 @@ class _UserActions extends ConsumerWidget {
           ),
         ),
         const SizedBox(width: 12),
-        // Ban / Unban
+        // Enable / Disable
         Tooltip(
-          message: user.isActive ? 'Ban user' : 'Unban user',
+          message: user.isEnable ? 'Disable user' : 'Enable user',
           child: IconButton(
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
@@ -294,38 +294,46 @@ class _UserActions extends ConsumerWidget {
             onPressed: () async {
               final confirmed = await ConfirmDialog.show(
                 context,
-                title: user.isActive ? 'Ban User' : 'Unban User',
-                message: user.isActive
-                    ? 'Are you sure you want to ban ${user.displayName}?'
-                    : 'Are you sure you want to unban ${user.displayName}?',
-                confirmLabel: user.isActive ? 'Ban' : 'Unban',
-                isDanger: user.isActive,
+                title: user.isEnable ? 'Disable User' : 'Enable User',
+                message: user.isEnable
+                    ? 'Disable ${user.displayName}? They will no longer be able to log in.'
+                    : 'Enable ${user.displayName}? They will be able to log in again.',
+                confirmLabel: user.isEnable ? 'Disable' : 'Enable',
+                isDanger: user.isEnable,
               );
               if (confirmed == true) {
-                if (user.isActive) {
-                  await notifier.banUser(user.id);
-                } else {
-                  await notifier.unbanUser(user.id);
-                }
-                if (context.mounted) {
-                  context.showSnackBar(
-                    user.isActive ? 'User banned' : 'User unbanned',
-                    isSuccess: true,
-                  );
+                try {
+                  if (user.isEnable) {
+                    await notifier.disableUser(user.id);
+                  } else {
+                    await notifier.enableUser(user.id);
+                  }
+                  if (context.mounted) {
+                    context.showSnackBar(
+                      user.isEnable ? 'User disabled' : 'User enabled',
+                      isSuccess: true,
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    context.showSnackBar(e.toString(), isError: true);
+                  }
                 }
               }
             },
             icon: Icon(
-              user.isActive ? Icons.block_rounded : Icons.check_circle_outline,
+              user.isEnable
+                  ? Icons.block_rounded
+                  : Icons.check_circle_outline_rounded,
               size: 18,
             ),
-            color: user.isActive ? AppColors.warning : AppColors.success,
+            color: user.isEnable ? AppColors.warning : AppColors.success,
           ),
         ),
         const SizedBox(width: 12),
-        // Delete
+        // Delete permanently
         Tooltip(
-          message: 'Delete user',
+          message: 'Delete user permanently',
           child: IconButton(
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),

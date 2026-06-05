@@ -27,10 +27,10 @@ class UserRepositoryImpl implements UserRepository {
     Query<Map<String, dynamic>> query =
         _collection.orderBy('created_at', descending: true);
 
-    if (statusFilter == 'active') {
-      query = query.where('status', isEqualTo: true);
-    } else if (statusFilter == 'banned') {
-      query = query.where('status', isEqualTo: false);
+    if (statusFilter == 'enabled') {
+      query = query.where('is_enable', isEqualTo: true);
+    } else if (statusFilter == 'disabled') {
+      query = query.where('is_enable', isEqualTo: false);
     }
 
     query = query.limit(limit);
@@ -80,6 +80,30 @@ class UserRepositoryImpl implements UserRepository {
       });
     } on FirebaseException catch (e) {
       throw FirestoreException(e.message ?? 'Failed to unban user');
+    }
+  }
+
+  @override
+  Future<void> enableUser(String userId) async {
+    try {
+      await _collection.doc(userId).update({
+        'is_enable': true,
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+    } on FirebaseException catch (e) {
+      throw FirestoreException(e.message ?? 'Failed to enable user');
+    }
+  }
+
+  @override
+  Future<void> disableUser(String userId) async {
+    try {
+      await _collection.doc(userId).update({
+        'is_enable': false,
+        'updated_at': FieldValue.serverTimestamp(),
+      });
+    } on FirebaseException catch (e) {
+      throw FirestoreException(e.message ?? 'Failed to disable user');
     }
   }
 
