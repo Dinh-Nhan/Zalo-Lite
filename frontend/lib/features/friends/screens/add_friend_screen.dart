@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:frontend/features/friends/providers/friend_provider.dart';
 import 'package:frontend/features/friends/widgets/demo_bio.dart';
 import 'package:frontend/features/friends/widgets/my_profile.dart';
-
+import 'package:qr_flutter/qr_flutter.dart';
 class AddFriendScreen extends StatefulWidget {
   const AddFriendScreen({super.key});
 
@@ -68,7 +68,7 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
       final provider = context.read<FriendProvider>();
       final user = await provider.findUserByEmail(email);
 
-      await delayFuture; // Chờ đủ thời gian loading để UI không bị giật lag
+      await delayFuture;
       if (!mounted) return;
 
       if (user == null) {
@@ -94,7 +94,7 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
       
       await delayFuture;
       if (mounted) {
-        setState(() => _isLoading = false); // Giải phóng nút khi có lỗi hệ thống
+        setState(() => _isLoading = false);
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -122,7 +122,7 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 24),
-            child: _buildQRCard(),
+            child: _buildQRCard(FirebaseAuth.instance.currentUser!.uid),
           ),
           Container(
             color: Colors.white,
@@ -133,15 +133,15 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
             padding: EdgeInsets.only(left: 16, right: 16),
             child: Divider(height: 0.5, color: Color(0xFFE5E9F0)),
           ),
-          Container(
-            color: Colors.white,
-            child: Column(
-              children: [
-                _buildOptionItem(Icons.qr_code_scanner_rounded, "Quét mã QR"),
-                _buildOptionItem(Icons.person_search_rounded, "Bạn bè có thể quen"),
-              ],
-            ),
-          ),
+          // Container(
+          //   color: Colors.white,
+          //   child: Column(
+          //     children: [
+          //       _buildOptionItem(Icons.qr_code_scanner_rounded, "Quét mã QR"),
+          //       _buildOptionItem(Icons.person_search_rounded, "Bạn bè có thể quen"),
+          //     ],
+          //   ),
+          // ),
           const Expanded(
             child: Padding(
               padding: EdgeInsets.only(bottom: 24, top: 24),
@@ -158,30 +158,44 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
       ),
     );
   }
-
-  Widget _buildQRCard() {
+  Widget _buildQRCard(String uid) {
     return Center(
-      child: Container(
-        width: MediaQuery.of(context).size.width * 0.62,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: const Color(0xFF4A689A),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("Khánh Hà", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-              child: const Icon(Icons.qr_code_2_rounded, size: 160, color: Colors.black),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            const Text("Quét mã để thêm bạn Zalo với tôi", style: TextStyle(color: Colors.white70, fontSize: 13)),
-          ],
-        ),
+            child: QrImageView(
+              data: uid,
+              version: QrVersions.auto,
+              size: 220,
+              eyeStyle: const QrEyeStyle(
+                eyeShape: QrEyeShape.square,
+                color: Color(0xFF0068FF),
+              ),
+              dataModuleStyle: const QrDataModuleStyle(
+                dataModuleShape: QrDataModuleShape.square,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Cho bạn bè quét mã này để kết bạn',
+            style: TextStyle(color: Colors.grey, fontSize: 14),
+          ),
+        ],
       ),
     );
   }
@@ -256,15 +270,15 @@ class _AddFriendScreenState extends State<AddFriendScreen> {
     );
   }
 
-  Widget _buildOptionItem(IconData icon, String title) {
-    return ListTile(
-      contentPadding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 4),
-      leading: Icon(icon, color: const Color(0xFF0068FF), size: 26),
-      title: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w400)),
-      // Vô hiệu hóa sự kiện bấm của các option khi đang trong quá trình tải dữ liệu
-      onTap: _isLoading ? null : () {
-        // Xử lý sự kiện bấm thông thường ở đây
-      },
-    );
-  }
+  // Widget _buildOptionItem(IconData icon, String title) {
+  //   return ListTile(
+  //     contentPadding: const EdgeInsets.only(left: 16, right: 16, top: 4, bottom: 4),
+  //     leading: Icon(icon, color: const Color(0xFF0068FF), size: 26),
+  //     title: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w400)),
+  //     // Vô hiệu hóa sự kiện bấm của các option khi đang trong quá trình tải dữ liệu
+  //     onTap: _isLoading ? null : () {
+  //       // Xử lý sự kiện bấm thông thường ở đây
+  //     },
+  //   );
+  // }
 }

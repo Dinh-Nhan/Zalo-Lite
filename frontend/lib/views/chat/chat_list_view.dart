@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:frontend/features/calling/screens/incoming_call_screen.dart';
+import 'package:frontend/features/friends/screens/qr_friend_screen.dart';
 import 'package:frontend/models/call_model.dart';
 import 'package:frontend/providers/call_provider.dart';
 import 'package:flutter_callkeep/flutter_callkeep.dart';
@@ -553,7 +554,13 @@ void _showFeedbackFlow(BuildContext context) {
             _buildHeaderIconButton(
               Icons.qr_code_scanner,
               isDark,
-              () {},
+              () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const QrFriendScreen(),
+                  ),
+                );
+              },
               iconColor: Colors.white,
             ),
             _buildHeaderIconButton(

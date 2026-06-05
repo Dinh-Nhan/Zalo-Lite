@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/features/friends/friends.dart';
+import 'package:frontend/features/friends/screens/qr_friend_screen.dart';
 import 'package:frontend/providers/chat_provider.dart';
 import 'package:frontend/services/chat/chat_service.dart';
 import 'package:frontend/views/chat/chat_screen.dart';
@@ -14,12 +15,28 @@ class FriendSearchPage extends StatefulWidget {
   @override
   State<FriendSearchPage> createState() => _FriendSearchPageState();
 }
+class SearchResultItem {
+  final String id;
+  final String name;
+  final String email;
+  final String avatar;
 
+  final bool isFriend;
+
+  const SearchResultItem({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.avatar,
+    required this.isFriend,
+  });
+}
 class _FriendSearchPageState extends State<FriendSearchPage> {
   final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
 
-  List<UserSearchModel> _results = [];
+  // List<UserSearchModel> _results = [];
+  List<SearchResultItem> _results = [];
 
   bool _isSearching = false;
   bool _hasError = false;
@@ -36,14 +53,93 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
     _controller.dispose();
     super.dispose();
   }
-  Future<void> _performSearch(String query) async {
+  // Future<void> _performSearch(String query) async {
+  //   setState(() {
+  //     _isSearching = true;
+  //     _hasError = false;
+  //   });
+
+  //   try {
+  //     final results = await FriendService.searchUsers(query);
+
+  //     if (!mounted) return;
+
+  //     setState(() {
+  //       _results = results;
+  //       _isSearching = false;
+  //       _hasSearched = true;
+  //     });
+  //   } catch (_) {
+  //     if (!mounted) return;
+
+  //     setState(() {
+  //       _results = [];
+  //       _isSearching = false;
+  //       _hasError = true;
+  //       _hasSearched = true;
+  //     });
+  //   }
+  // }
+  Future<void> _performSearch(String keyword) async {
+    final provider = context.read<FriendProvider>();
+
     setState(() {
       _isSearching = true;
       _hasError = false;
     });
 
     try {
-      final results = await FriendService.searchUsers(query);
+      final Map<String, SearchResultItem> merged = {};
+
+      // =====================================
+      // 1. TÌM TRONG BẠN BÈ
+      // =====================================
+
+      final friendMatches = provider.friends.where((f) {
+        return f.fullName.toLowerCase().contains(
+          keyword.toLowerCase(),
+        );
+      });
+
+      for (final friend in friendMatches) {
+        merged[friend.friendId] = SearchResultItem(
+          id: friend.friendId,
+          name: friend.fullName,
+          email: '',
+          avatar: friend.avatar,
+          isFriend: true,
+        );
+      }
+
+      // =====================================
+      // 2. GỌI API SEARCH
+      // =====================================
+
+      final apiResults =
+          await FriendService.searchUsers(keyword);
+
+      for (final user in apiResults) {
+        merged.putIfAbsent(
+          user.id,
+          () => SearchResultItem(
+            id: user.id,
+            name: user.fullName,
+            email: user.email,
+            avatar: user.avatar,
+            isFriend: provider.isFriend(user.id),
+          ),
+        );
+      }
+
+      final results = merged.values.toList();
+
+      // Bạn bè lên đầu
+
+      results.sort((a, b) {
+        if (a.isFriend == b.isFriend) return 0;
+
+        return a.isFriend ? -1 : 1;
+      });
 
       if (!mounted) return;
 
@@ -52,7 +148,7 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
         _isSearching = false;
         _hasSearched = true;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
 
       setState(() {
@@ -94,7 +190,7 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
       _isSearching = false;
     });
   }
-
+  
   // ================= USER TILE CORE =================
 
   Widget _buildUserTile({
@@ -171,7 +267,8 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
 
   // ================= SEARCH TILE =================
 
-  Widget _searchTile(UserSearchModel user) {
+  // Widget _searchTile(UserSearchModel user) {
+  Widget _searchTile(SearchResultItem user) {
     final provider = context.watch<FriendProvider>();
 
     final sent = provider.pendingSent.any(
@@ -180,8 +277,8 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
 
     final received = provider.getReceivedRequest(user.id);
 
-    final isFriend = provider.isFriend(user.id);
-
+    // final isFriend = provider.isFriend(user.id);
+    final isFriend = user.isFriend;
     Widget action;
 
     if (isFriend) {
@@ -257,11 +354,12 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
     }
 
     return _buildUserTile(
-      name: user.fullName.isNotEmpty
-          ? user.fullName
-          : user.email,
+      name: user.name,
       avatar: user.avatar,
-      subtitle: user.email,
+      // subtitle: user.email,
+      subtitle: user.isFriend
+        ? 'Bạn bè'
+        : user.email,
       trailing: action,
     );
   }
@@ -329,7 +427,13 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
             child: IconButton(
               padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
               icon: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 20),
-              onPressed: () {},
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const QrFriendScreen(),
+                  ),
+                );
+              },
             ),
           ),
         ],

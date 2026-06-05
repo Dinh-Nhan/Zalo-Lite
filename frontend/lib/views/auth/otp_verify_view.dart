@@ -144,7 +144,7 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
       bool isValid = await AuthService.verifyOtp(widget.email, otp);
 
       if (isValid) {
-        _showSuccessDialog(); // Nếu đúng, hiện thông báo thành công
+        // _showSuccessDialog(); // Nếu đúng, hiện thông báo thành công
       } else {
         _showErrorDialog(); // Nếu sai, hiện dialog lỗi
         // setState(() => _errorMessage = "Mã xác thực không chính xác.");

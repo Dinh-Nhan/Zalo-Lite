@@ -105,6 +105,7 @@ class _QrFriendScreenState extends State<QrFriendScreen>
         backgroundColor: AppColors.primaryBlue,
         foregroundColor: Colors.white,
         title: const Text('Mã QR kết bạn'),
+        centerTitle: false,
         bottom: TabBar(
           controller: _tabController,
           labelColor: Colors.white,
