@@ -188,4 +188,122 @@ class ChatService {
   Future<void> saveFcmToken(String token) async {
     await _dio.post('/api/user/fcm-token', data: {'token': token});
   }
+
+  // ── Pin message ───────────────────────────────────────────────
+
+  Future<Conversation> pinMessage(String conversationId, String messageId) async {
+    final response = await _dio.post(
+      '/api/chat/conversations/$conversationId/pin/$messageId',
+    );
+    return Conversation.fromJson(response.data['result']);
+  }
+
+  Future<Conversation> unpinMessage(String conversationId) async {
+    final response = await _dio.delete(
+      '/api/chat/conversations/$conversationId/pin',
+    );
+    return Conversation.fromJson(response.data['result']);
+  }
+
+  // ── Conversation settings ─────────────────────────────────────
+
+  Future<Map<String, dynamic>> getConversationSettings(String conversationId) async {
+    final response = await _dio.get(
+      '/api/chat/conversations/$conversationId/settings',
+    );
+    return response.data['result'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateConversationSettings(
+    String conversationId, {
+    bool? isNotificationEnabled,
+    String? theme,
+    String? backgroundUrl,
+    String? emojiSet,
+    bool? autoDownloadMedia,
+  }) async {
+    final response = await _dio.put(
+      '/api/chat/conversations/$conversationId/settings',
+      data: {
+        if (isNotificationEnabled != null) 'is_notification_enabled': isNotificationEnabled,
+        if (theme != null) 'theme': theme,
+        if (backgroundUrl != null) 'background_url': backgroundUrl,
+        if (emojiSet != null) 'emoji_set': emojiSet,
+        if (autoDownloadMedia != null) 'auto_download_media': autoDownloadMedia,
+      },
+    );
+    return response.data['result'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> setDisappearingDuration(
+    String conversationId, {
+    required int durationSeconds,
+  }) async {
+    final response = await _dio.put(
+      '/api/chat/conversations/$conversationId/settings/disappearing',
+      data: {'duration_seconds': durationSeconds},
+    );
+    return response.data['result'] as Map<String, dynamic>;
+  }
+
+  // ── Nickname ──────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> setNickname(
+    String conversationId,
+    String userId, {
+    String? nickname,
+  }) async {
+    final response = await _dio.put(
+      '/api/chat/conversations/$conversationId/members/$userId/nickname',
+      data: {'nickname': nickname},
+    );
+    return response.data['result'] as Map<String, dynamic>;
+  }
+
+  // ── Group settings ────────────────────────────────────────────
+
+  Future<Conversation> updateGroupSettings(
+    String conversationId, {
+    bool? onlyAdminCanSend,
+    bool? onlyAdminCanEditInfo,
+    bool? approvalRequiredToJoin,
+  }) async {
+    final response = await _dio.put(
+      '/api/chat/conversations/$conversationId/group-settings',
+      data: {
+        if (onlyAdminCanSend != null) 'only_admin_can_send': onlyAdminCanSend,
+        if (onlyAdminCanEditInfo != null) 'only_admin_can_edit_info': onlyAdminCanEditInfo,
+        if (approvalRequiredToJoin != null) 'approval_required_to_join': approvalRequiredToJoin,
+      },
+    );
+    return Conversation.fromJson(response.data['result']);
+  }
+
+  // ── Join requests ─────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> createJoinRequest(String conversationId) async {
+    final response = await _dio.post(
+      '/api/chat/conversations/$conversationId/join-requests',
+    );
+    return response.data['result'] as Map<String, dynamic>;
+  }
+
+  Future<List<Map<String, dynamic>>> getJoinRequests(String conversationId) async {
+    final response = await _dio.get(
+      '/api/chat/conversations/$conversationId/join-requests',
+    );
+    return (response.data['result'] as List).cast<Map<String, dynamic>>();
+  }
+
+  Future<void> approveJoinRequest(String conversationId, String userId) async {
+    await _dio.post(
+      '/api/chat/conversations/$conversationId/join-requests/$userId/approve',
+    );
+  }
+
+  Future<void> rejectJoinRequest(String conversationId, String userId) async {
+    await _dio.post(
+      '/api/chat/conversations/$conversationId/join-requests/$userId/reject',
+    );
+  }
 }

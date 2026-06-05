@@ -189,9 +189,22 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           _buildIconButton(
             icon: Icons.person_add_alt_1_outlined,
             onTap: () async {
-              await context
-                  .read<FriendProvider>()
-                  .sendFriendRequest(widget.user.id);
+              try {
+                await context
+                    .read<FriendProvider>()
+                    .sendFriendRequest(widget.user.id);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Đã gửi lời mời kết bạn')),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Lỗi: $e')),
+                  );
+                }
+              }
             },
           ),
         ],

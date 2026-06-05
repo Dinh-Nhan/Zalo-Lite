@@ -1,12 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/features/friends/screens/friend_birthday.dart';
 import 'package:frontend/features/friends/screens/friend_request_screen.dart';
-import 'package:frontend/providers/chat_provider.dart';
-import 'package:frontend/services/chat/chat_service.dart';
+import 'package:frontend/views/chat/chat_detail_view.dart';
 import 'package:frontend/views/chat/chat_screen.dart';
 import 'package:provider/provider.dart';
 
@@ -30,7 +27,7 @@ class _FriendTabViewState extends State<FriendTabView> {
           Icons.people_alt,
           const Color.fromARGB(255, 255, 255, 255),
           "Lời mời kết bạn",
-          trailing: "${provider.pendingReceived.length + provider.pendingSent.length}",
+          trailing: "${provider.pendingReceived.length}",
         ),
         _buildActionTile(
           context,
@@ -82,7 +79,7 @@ class _FriendTabViewState extends State<FriendTabView> {
     Future.microtask(() async {
       final provider = context.read<FriendProvider>();
 
-      await provider.loadAll();
+      await provider.loadFriends();
     });
   }
 
@@ -156,25 +153,10 @@ class _FriendTabViewState extends State<FriendTabView> {
     return Material(
       color: Colors.white,
       child: InkWell(
-        onTap: () async {
-          final chatProvider = context.read<ChatProvider>();
-
-          final cached = chatProvider.conversations.where((c) =>
-            c.type == 'private' &&
-            c.participants.any((p) => p.userId == friend.friendId),
-          ).firstOrNull;
-
-          final conversation = cached ?? await ChatService().createConversation(
-            type: 'private',
-            participantIds: [friend.friendId],
-          );
-
-          if (!context.mounted) return;
-
-          unawaited(chatProvider.openConversation(conversation));
-
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => ChatScreen(conversation: conversation)),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => ChatScreen()),
           );
         },
         highlightColor: Colors.black.withOpacity(0.05),

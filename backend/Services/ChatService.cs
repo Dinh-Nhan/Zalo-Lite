@@ -80,6 +80,9 @@ public class ChatService
                 return await MapConversationToResponse(existing, currentUserId);
         }
 
+        if (request.Type == "group" && request.ParticipantIds.Count < 2)
+            throw new AppException(ErrorCode.GROUP_MIN_MEMBERS);
+
         var allIds = new List<string>(request.ParticipantIds) { currentUserId };
         var participants = new List<UserConver>();
 
@@ -490,7 +493,7 @@ public class ChatService
 
         var conversation = convDoc.ConvertTo<Conversation>();
         var participant = RequireParticipant(conversation, userId);
-        if (conversation.OnlyAdminCanEditInfo && participant.Role != "admin")
+        if (conversation.Type == "group" && conversation.OnlyAdminCanEditInfo && participant.Role != "admin")
             throw new AppException(ErrorCode.FORBIDDEN);
 
         var msgDoc = await _db.Collection("conversations")
@@ -528,7 +531,7 @@ public class ChatService
 
         var conversation = convDoc.ConvertTo<Conversation>();
         var participant = RequireParticipant(conversation, userId);
-        if (conversation.OnlyAdminCanEditInfo && participant.Role != "admin")
+        if (conversation.Type == "group" && conversation.OnlyAdminCanEditInfo && participant.Role != "admin")
             throw new AppException(ErrorCode.FORBIDDEN);
 
         if (conversation.PinnedMessageId == null)

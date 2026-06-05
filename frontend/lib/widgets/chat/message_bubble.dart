@@ -18,6 +18,7 @@ class MessageBubble extends StatelessWidget {
   final VoidCallback? onForward;
   final VoidCallback? onCopy;
   final VoidCallback? onEdit;
+  final Future<void> Function()? onPin;
   final VoidCallback? onDelete;       // Gỡ tin cho tất cả (sender only)
   final VoidCallback? onHideForMe;    // Xóa ở phía mình (bất kỳ ai)
   final VoidCallback? onInfo;
@@ -39,14 +40,15 @@ class MessageBubble extends StatelessWidget {
     this.onForward,
     this.onCopy,
     this.onEdit,
+    this.onPin,
     this.onDelete,
     this.onHideForMe,
     this.onInfo,
   });
 
-  static const _zaloBlue    = Color(0xFF0068FF);  // sender bg
+  static const _zaloBlue       = Color(0xFF0068FF);
   static const _receivedBg     = Color(0xFFFFFFFF);
-  static const _receivedBorder = Color(0xFFE8E8E8);
+  static const _receivedBorder = Color(0xFFE5E5E5);
 
   @override
   Widget build(BuildContext context) {
@@ -135,20 +137,21 @@ class MessageBubble extends StatelessWidget {
   Widget _buildBubble() {
     final isMine = message.isMine;
 
-    // Góc nhỏ (5) ở phía nối với tin trước/sau cùng nhóm
-    const r = Radius.circular(18);
-    const rSmall = Radius.circular(5);
+    const r = Radius.circular(20);
+    const rTail = Radius.circular(4);
+    const rMid = Radius.circular(6);
+    // Zalo: góc nhọn hơn ở cạnh "đuôi" (gần avatar), góc tròn ở cạnh xa
     final radius = isMine
         ? BorderRadius.only(
             topLeft: r,
-            topRight: isGroupBottom || isGroupMiddle ? rSmall : r,
+            topRight: (isGroupBottom || isGroupMiddle) ? rMid : r,
             bottomLeft: r,
-            bottomRight: isGroupTop || isGroupMiddle ? rSmall : rSmall,
+            bottomRight: (isGroupTop || isGroupMiddle) ? rMid : rTail,
           )
         : BorderRadius.only(
-            topLeft: isGroupBottom || isGroupMiddle ? rSmall : r,
+            topLeft: (isGroupBottom || isGroupMiddle) ? rMid : r,
             topRight: r,
-            bottomLeft: isGroupTop || isGroupMiddle ? rSmall : rSmall,
+            bottomLeft: (isGroupTop || isGroupMiddle) ? rMid : rTail,
             bottomRight: r,
           );
 
@@ -515,85 +518,53 @@ class MessageBubble extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (_) => Container(
-        margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        decoration: BoxDecoration(
+        margin: const EdgeInsets.fromLTRB(0, 0, 0, 0),
+        decoration: const BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 4),
+            // Handle bar
             Container(
-              width: 36,
-              height: 4,
+              width: 40, height: 4,
               margin: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
+              decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
             ),
             // Quick reactions
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: ['❤️', '👍', '😂', '😮', '😢', '😡'].map((e) {
                   return GestureDetector(
-                    onTap: () {
-                      Navigator.pop(context);
-                      onReact?.call(e);
-                    },
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF5F5F5),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                          child: Text(e,
-                              style: const TextStyle(fontSize: 22))),
+                    onTap: () { Navigator.pop(context); onReact?.call(e); },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: 46, height: 46,
+                      decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFF5F5F5)),
+                      child: Center(child: Text(e, style: const TextStyle(fontSize: 24))),
                     ),
                   );
                 }).toList(),
               ),
             ),
-            const Divider(height: 1),
-            _actionTile(Icons.reply_rounded, 'Trả lời', () {
-              Navigator.pop(context);
-              onReply?.call();
-            }),
-            _actionTile(Icons.shortcut_rounded, 'Chuyển tiếp', () {
-              Navigator.pop(context);
-              onForward?.call();
-            }),
-            _actionTile(Icons.copy_rounded, 'Sao chép', () {
-              Navigator.pop(context);
-              onCopy?.call();
-            }),
+            Divider(height: 1, color: Colors.grey[200]),
+            _actionTile(Icons.reply_rounded, 'Trả lời', () { Navigator.pop(context); onReply?.call(); }),
+            _actionTile(Icons.push_pin_outlined, 'Ghim tin nhắn', () async { Navigator.pop(context); await onPin?.call(); }),
+            _actionTile(Icons.copy_rounded, 'Sao chép', () { Navigator.pop(context); onCopy?.call(); }),
+            _actionTile(Icons.shortcut_rounded, 'Chuyển tiếp', () { Navigator.pop(context); onForward?.call(); }),
             if (message.isMine && message.type == 'text')
-              _actionTile(Icons.edit_rounded, 'Chỉnh sửa', () {
-                Navigator.pop(context);
-                onEdit?.call();
-              }),
-            _actionTile(Icons.info_outline_rounded, 'Thông tin', () {
-              Navigator.pop(context);
-              onInfo?.call();
-            }),
-            // Xóa ở phía mình — ai cũng có thể làm
-            _actionTile(Icons.delete_outline_rounded, 'Xóa ở phía bạn', () {
-              Navigator.pop(context);
-              onHideForMe?.call();
-            }, color: Colors.red),
-            // Gỡ tin cho tất cả — chỉ người gửi và tin chưa bị gỡ
+              _actionTile(Icons.edit_rounded, 'Chỉnh sửa', () { Navigator.pop(context); onEdit?.call(); }),
+            _actionTile(Icons.info_outline_rounded, 'Thông tin', () { Navigator.pop(context); onInfo?.call(); }),
+            Divider(height: 1, color: Colors.grey[200]),
+            _actionTile(Icons.delete_outline_rounded, 'Xóa ở phía bạn', () { Navigator.pop(context); onHideForMe?.call(); }, color: Colors.red),
             if (message.isMine && !message.isDeleted)
-              _actionTile(Icons.remove_circle_outline_rounded, 'Gỡ tin nhắn', () {
-                Navigator.pop(context);
-                onDelete?.call();
-              }, color: Colors.red),
-            const SizedBox(height: 8),
+              _actionTile(Icons.remove_circle_outline_rounded, 'Thu hồi tin nhắn', () { Navigator.pop(context); onDelete?.call(); }, color: Colors.red),
+            const SizedBox(height: 16),
           ],
         ),
       ),

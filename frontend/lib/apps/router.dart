@@ -4,7 +4,9 @@ import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/features/friends/widgets/demo_bio.dart';
 import 'package:frontend/features/friends/widgets/my_profile.dart';
 import 'package:frontend/views/auth/set_password_view.dart';
-import 'package:frontend/views/chat/chat_detail_view.dart';
+import 'package:frontend/views/chat/chat_screen.dart';
+import 'package:frontend/providers/chat_provider.dart';
+import 'package:frontend/services/chat/chat_service.dart';
 import 'package:go_router/go_router.dart';
 
 // Views
@@ -144,20 +146,6 @@ GoRouter createRouter() {
       GoRoute(
         path: '/chat-list',
         builder: (context, state) => const ChatListView(),
-      ),
-      GoRoute(
-        path: '/chat-detail',
-        builder: (context, state) {
-          final data = state.extra as Map;
-
-          return ChatDetailView(
-            conversationId: data['conversationId'],
-            contactName: data['contactName'],
-            avatarColor: data['avatarColor'],
-            isGroup: data['isGroup'] ?? false,
-            memberCount: data['memberCount'],
-          );
-        },
       ),
       GoRoute(
         path: '/demo-profile',

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:frontend/features/calling/screens/incoming_call_screen.dart';
 import 'package:frontend/models/call_model.dart';
@@ -17,14 +18,14 @@ import 'package:frontend/models/chat/conversation.dart';
 import 'package:frontend/providers/chat_provider.dart';
 import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/utils/app_localizations.dart';
-import 'package:frontend/views/chat/chat_detail_view.dart';
+import 'package:frontend/services/chat/chat_service.dart';
 import 'package:frontend/views/chat/chat_screen.dart';
 import 'package:frontend/views/contacts/contacts_view.dart';
 import 'package:frontend/views/settings/settings_dialog.dart';
 import 'package:frontend/widgets/search_overlay_screen.dart';
-import 'package:frontend/component/friend_search_page.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:frontend/views/chat/new_conversation_screen.dart';
 
 /// Man hinh danh sach tin nhan - Thiet ke giong Zalo Web
 class ChatListView extends StatefulWidget {
@@ -542,7 +543,11 @@ class _ChatListViewState extends State<ChatListView> {
             _buildHeaderIconButton(
               Icons.add,
               isDark,
-              () {},
+              () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const NewConversationScreen(type: 'group'),
+                ),
+              ),
               iconColor: Colors.white,
             ),
           ],
@@ -592,7 +597,15 @@ class _ChatListViewState extends State<ChatListView> {
           ),
           const SizedBox(width: 8),
           _buildHeaderIconButton(Icons.person_add_outlined, isDark, () {}),
-          _buildHeaderIconButton(Icons.group_add_outlined, isDark, () {}),
+          _buildHeaderIconButton(
+            Icons.group_add_outlined,
+            isDark,
+            () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const NewConversationScreen(type: 'group'),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -603,17 +616,18 @@ class _ChatListViewState extends State<ChatListView> {
       PageRouteBuilder(
         pageBuilder: (_, __, ___) => SearchOverlayScreen(
           onBack: () => Navigator.of(context).pop(),
-          onSearchResultTap: ({required userId, required name, avatar}) {
+          onSearchResultTap: ({required userId, required name, avatar}) async {
             Navigator.of(context).pop();
-            final avatarColor = _avatarColor(name);
+            final chatProvider = context.read<ChatProvider>();
+            final conversation = await ChatService().createConversation(
+              type: 'private',
+              participantIds: [userId],
+            );
+            if (!context.mounted) return;
+            unawaited(chatProvider.openConversation(conversation));
             Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (context) => ChatDetailView(
-                  conversationId: 'user_$userId',
-                  contactName: name,
-                  avatarColor: avatarColor,
-                  isGroup: false,
-                ),
+                builder: (_) => ChatScreen(conversation: conversation),
               ),
             );
           },
@@ -891,154 +905,130 @@ class _ChatListViewState extends State<ChatListView> {
       conv.lastMessage?.createdAt ?? conv.updatedAt,
     );
 
-    return InkWell(
-      onTap: () => _onConversationTap(conv),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                conv.displayAvatar.isNotEmpty
-                    ? CircleAvatar(
-                        radius: 24,
-                        backgroundImage: NetworkImage(conv.displayAvatar),
-                      )
-                    : CircleAvatar(
-                        radius: 24,
-                        backgroundColor: avatarColor,
-                        child: Text(
-                          _getInitials(name),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
+    final isOnline = !isGroup && conv.otherUserId != null &&
+        context.read<ChatProvider>().isUserOnline(conv.otherUserId!);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _onConversationTap(conv),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              // Avatar stack
+              SizedBox(
+                width: 52, height: 52,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    conv.displayAvatar.isNotEmpty
+                        ? CircleAvatar(radius: 26, backgroundImage: NetworkImage(conv.displayAvatar))
+                        : CircleAvatar(
+                            radius: 26,
+                            backgroundColor: avatarColor,
+                            child: Text(_getInitials(name), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 17)),
                           ),
-                        ),
-                      ),
-                if (isGroup)
-                  Positioned(
-                    left: -4,
-                    bottom: -4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.orange,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: AppColors.getSurface(isDark),
-                          width: 2,
-                        ),
-                      ),
-                      child: Text(
-                        memberCount.toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                if (!isGroup &&
-                    conv.otherUserId != null &&
-                    context.read<ChatProvider>().isUserOnline(
-                      conv.otherUserId!,
-                    ))
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: Colors.green,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.getSurface(isDark),
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          name,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: unreadCount > 0
-                                ? FontWeight.w600
-                                : FontWeight.w500,
-                            color: AppColors.getTextPrimary(isDark),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Text(
-                        lastMessageTime,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.getTextSecondary(isDark),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          lastMessage,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: unreadCount > 0
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                            color: AppColors.getTextSecondary(isDark),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (unreadCount > 0)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
+                    // Group member count badge
+                    if (isGroup)
+                      Positioned(
+                        right: -2, bottom: -2,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                           decoration: BoxDecoration(
-                            color: AppColors.primaryBlue,
-                            borderRadius: BorderRadius.circular(10),
+                            color: const Color(0xFFFF8C00),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.getSurface(isDark), width: 1.5),
                           ),
+                          child: Text(memberCount.toString(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    // Online dot
+                    if (isOnline)
+                      Positioned(
+                        right: 1, bottom: 1,
+                        child: Container(
+                          width: 13, height: 13,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00CC44),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AppColors.getSurface(isDark), width: 2),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Text content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
                           child: Text(
-                            unreadCount > 99 ? '99+' : unreadCount.toString(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
+                            name,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: unreadCount > 0 ? FontWeight.w700 : FontWeight.w500,
+                              color: AppColors.getTextPrimary(isDark),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          lastMessageTime,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: unreadCount > 0 ? AppColors.primaryBlue : AppColors.getTextSecondary(isDark),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            lastMessage,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: unreadCount > 0 ? FontWeight.w600 : FontWeight.normal,
+                              color: unreadCount > 0
+                                  ? AppColors.getTextPrimary(isDark)
+                                  : AppColors.getTextSecondary(isDark),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (unreadCount > 0) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            constraints: const BoxConstraints(minWidth: 20),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryBlue,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              unreadCount > 99 ? '99+' : unreadCount.toString(),
+                              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.center,
                             ),
                           ),
-                        ),
-                    ],
-                  ),
-                ],
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1434,42 +1424,24 @@ class _ChatListViewState extends State<ChatListView> {
   Widget _buildBottomNavigation(bool isDark) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1A1A1A) : AppColors.getSurface(isDark),
+        color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
         border: Border(
-          top: BorderSide(color: AppColors.getDivider(isDark), width: 1),
+          top: BorderSide(color: AppColors.getDivider(isDark), width: 0.5),
         ),
+        boxShadow: isDark ? null : [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 8, offset: const Offset(0, -2)),
+        ],
       ),
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
+        child: SizedBox(
+          height: 56,
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildBottomNavItem(
-                Icons.chat_bubble,
-                Icons.chat_bubble_outline,
-                0,
-                isDark,
-              ),
-              _buildBottomNavItem(
-                Icons.contacts,
-                Icons.contacts_outlined,
-                1,
-                isDark,
-              ),
-              _buildBottomNavItem(
-                Icons.auto_stories,
-                Icons.auto_stories_outlined,
-                2,
-                isDark,
-              ),
-              _buildBottomNavItem(
-                Icons.person,
-                Icons.person_outline,
-                3,
-                isDark,
-              ),
+              _buildBottomNavItem(Icons.chat_bubble, Icons.chat_bubble_outline, 0, 'Tin nhắn', isDark),
+              _buildBottomNavItem(Icons.contacts, Icons.contacts_outlined, 1, 'Danh bạ', isDark),
+              _buildBottomNavItem(Icons.auto_stories, Icons.auto_stories_outlined, 2, 'Khám phá', isDark),
+              _buildBottomNavItem(Icons.person, Icons.person_outline, 3, 'Cá nhân', isDark),
             ],
           ),
         ),
@@ -1481,19 +1453,22 @@ class _ChatListViewState extends State<ChatListView> {
     IconData activeIcon,
     IconData inactiveIcon,
     int index,
+    String label,
     bool isDark,
   ) {
     final isSelected = _selectedNavIndex == index;
-    return IconButton(
-      onPressed: () {
-        setState(() => _selectedNavIndex = index);
-      },
-      icon: Icon(
-        isSelected ? activeIcon : inactiveIcon,
-        color: isSelected
-            ? AppColors.primaryBlue
-            : AppColors.getTextSecondary(isDark),
-        size: 26,
+    final color = isSelected ? AppColors.primaryBlue : AppColors.getTextSecondary(isDark);
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _selectedNavIndex = index),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(isSelected ? activeIcon : inactiveIcon, color: color, size: 24),
+            const SizedBox(height: 3),
+            Text(label, style: TextStyle(fontSize: 10, color: color, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal)),
+          ],
+        ),
       ),
     );
   }

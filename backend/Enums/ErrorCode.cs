@@ -41,6 +41,9 @@ namespace backend.Enums
         [ErrorMeta(4001, "Already in conversation", HttpStatusCode.Conflict)]
         ALREADY_IN_CONVERSATION,
 
+        [ErrorMeta(4002, "Group conversation requires at least 3 members", HttpStatusCode.BadRequest)]
+        GROUP_MIN_MEMBERS,
+
         // Common - 9xxx
         [ErrorMeta(9000, "Validation failed", HttpStatusCode.UnprocessableEntity)]
         VALIDATION_ERROR,

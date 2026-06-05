@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../features/calling/screens/call_screen.dart';
@@ -27,6 +28,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
+  late ChatProvider _chatProvider;
 
   List<Message> _messages = [];
   bool _isLoading = true;
@@ -77,6 +79,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final GlobalKey _firstUnreadKey = GlobalKey();
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _chatProvider = context.read<ChatProvider>();
+  }
+
+  @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
@@ -95,7 +103,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       provider.setConversationVisible(true);
     } else if (state == AppLifecycleState.paused ||
-               state == AppLifecycleState.inactive) {
+        state == AppLifecycleState.inactive) {
       provider.setConversationVisible(false);
     }
   }
@@ -103,7 +111,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    context.read<ChatProvider>()
+    _chatProvider
       ..setConversationVisible(false)
       ..closeConversation();
     _messageController.dispose();
@@ -124,7 +132,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       }
     });
   }
-
 
   void _setupSignalR() {
     // ChatProvider handles all SignalR events via its callbacks.
@@ -266,80 +273,85 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     return PopScope(
       canPop: true,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop) context.read<ChatProvider>().setConversationVisible(false);
+        if (didPop) {
+          context.read<ChatProvider>().setConversationVisible(false);
+        }
       },
       child: Scaffold(
-      backgroundColor: const Color(0xFFE8ECF1),
-      resizeToAvoidBottomInset: true,
-      appBar: _buildAppBar(),
-      body: Column(
-        children: [
-          if (widget.conversation.pinnedMessageId != null)
-            _buildPinnedMessage(),
+        backgroundColor: const Color(0xFFE8ECF1),
+        resizeToAvoidBottomInset: true,
+        appBar: _buildAppBar(),
+        body: Column(
+          children: [
+            if ((chat.activeConversation ?? widget.conversation).pinnedMessageId != null)
+              _buildPinnedMessage(chat.activeConversation ?? widget.conversation),
 
-          Expanded(
-            child: Stack(
-              children: [
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _buildMessageList(),
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOut,
-                  right: 12,
-                  bottom: _showScrollToBottom ? 12 : -56,
-                  child: AnimatedOpacity(
+            Expanded(
+              child: Stack(
+                children: [
+                  _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _buildMessageList(),
+                  AnimatedPositioned(
                     duration: const Duration(milliseconds: 200),
-                    opacity: _showScrollToBottom ? 1.0 : 0.0,
-                    child: GestureDetector(
-                      onTap: _scrollToBottom,
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.15),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          color: Color(0xFF0068FF),
-                          size: 24,
+                    curve: Curves.easeOut,
+                    right: 12,
+                    bottom: _showScrollToBottom ? 12 : -56,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: _showScrollToBottom ? 1.0 : 0.0,
+                      child: GestureDetector(
+                        onTap: _scrollToBottom,
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.15),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: Color(0xFF0068FF),
+                            size: 24,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
 
-          if (_replyToMessage != null) _buildReplyPreview(),
+            if (_replyToMessage != null) _buildReplyPreview(),
 
-          _buildInputArea(),
-        ],
-      ),
+            _buildInputArea(),
+          ],
+        ),
       ), // end Scaffold
     ); // end PopScope
   }
 
   PreferredSizeWidget _buildAppBar() {
-    final isOnline = widget.conversation.type == 'private' &&
+    final isOnline =
+        widget.conversation.type == 'private' &&
         widget.conversation.otherUserId != null &&
-        context.read<ChatProvider>().isUserOnline(widget.conversation.otherUserId!);
+        context.read<ChatProvider>().isUserOnline(
+          widget.conversation.otherUserId!,
+        );
 
     return AppBar(
       backgroundColor: const Color(0xFF0068FF),
       elevation: 0,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back, color: Colors.white),
-        onPressed: () => Navigator.pop(context),
+        onPressed: () => Navigator.of(context).pop(),
       ),
       titleSpacing: 0,
       title: InkWell(
@@ -360,9 +372,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                               ? widget.conversation.displayName[0].toUpperCase()
                               : '?',
                           style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold),
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
                         )
                       : null,
                 ),
@@ -376,7 +389,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       decoration: BoxDecoration(
                         color: const Color(0xFF00CC44),
                         shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFF0068FF), width: 2),
+                        border: Border.all(
+                          color: const Color(0xFF0068FF),
+                          width: 2,
+                        ),
                       ),
                     ),
                   ),
@@ -398,10 +414,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    isOnline ? 'Đang hoạt động' : widget.conversation.displayStatus,
+                    isOnline
+                        ? 'Đang hoạt động'
+                        : widget.conversation.displayStatus,
                     style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        fontSize: 11),
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),
@@ -415,7 +434,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           onPressed: _startVoiceCall,
         ),
         IconButton(
-          icon: const Icon(Icons.videocam_outlined, color: Colors.white, size: 24),
+          icon: const Icon(
+            Icons.videocam_outlined,
+            color: Colors.white,
+            size: 24,
+          ),
           onPressed: _startVideoCall,
         ),
         IconButton(
@@ -426,25 +449,37 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildPinnedMessage() {
+  Widget _buildPinnedMessage(Conversation conv) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-      color: const Color(0xFFEDF4FF),
+      color: Colors.white,
       child: Row(
         children: [
-          const Icon(Icons.push_pin_rounded, size: 14, color: Color(0xFF0068FF)),
-          const SizedBox(width: 8),
+          Container(width: 3, height: 40, color: const Color(0xFF0068FF)),
+          const SizedBox(width: 10),
+          const Icon(Icons.push_pin_rounded, size: 13, color: Color(0xFF0068FF)),
+          const SizedBox(width: 6),
           Expanded(
-            child: Text(
-              widget.conversation.pinnedMessageContent ?? 'Tin nhắn đã ghim',
-              style: const TextStyle(fontSize: 13, color: Color(0xFF333333)),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Tin nhắn đã ghim', style: TextStyle(fontSize: 10, color: Color(0xFF0068FF), fontWeight: FontWeight.w600)),
+                Text(
+                  conv.pinnedMessageContent ?? '',
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF333333)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
+          const SizedBox(width: 8),
           GestureDetector(
             onTap: _unpinMessage,
-            child: const Icon(Icons.close, size: 16, color: Color(0xFF888888)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: const Icon(Icons.close, size: 16, color: Color(0xFFAAAAAA)),
+            ),
           ),
         ],
       ),
@@ -459,11 +494,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           children: [
             Icon(Icons.chat_bubble_outline, size: 80, color: Colors.grey[300]),
             const SizedBox(height: 16),
-            Text('Chưa có tin nhắn nào',
-                style: TextStyle(fontSize: 16, color: Colors.grey[600])),
+            Text(
+              'Chưa có tin nhắn nào',
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+            ),
             const SizedBox(height: 8),
-            Text('Gửi tin nhắn để bắt đầu cuộc trò chuyện',
-                style: TextStyle(fontSize: 14, color: Colors.grey[500])),
+            Text(
+              'Gửi tin nhắn để bắt đầu cuộc trò chuyện',
+              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+            ),
           ],
         ),
       );
@@ -486,40 +525,48 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
         // Tính index thực trong _messages (0 = cũ nhất, length-1 = mới nhất)
         final msgIndex = _messages.length - 1 - (_isTyping ? index - 1 : index);
-        if (msgIndex < 0 || msgIndex >= _messages.length) return const SizedBox.shrink();
+        if (msgIndex < 0 || msgIndex >= _messages.length)
+          return const SizedBox.shrink();
 
         final message = _messages[msgIndex];
-        final prev = msgIndex > 0 ? _messages[msgIndex - 1] : null;   // cũ hơn
-        final next = msgIndex < _messages.length - 1 ? _messages[msgIndex + 1] : null; // mới hơn
+        final prev = msgIndex > 0 ? _messages[msgIndex - 1] : null; // cũ hơn
+        final next = msgIndex < _messages.length - 1
+            ? _messages[msgIndex + 1]
+            : null; // mới hơn
 
-        final sameAsPrev = prev != null &&
+        final sameAsPrev =
+            prev != null &&
             prev.senderId == message.senderId &&
             message.createdAt.difference(prev.createdAt).inMinutes < 3;
-        final sameAsNext = next != null &&
+        final sameAsNext =
+            next != null &&
             next.senderId == message.senderId &&
             next.createdAt.difference(message.createdAt).inMinutes < 3;
 
-        final isLastInGroup  = !sameAsNext;
+        final isLastInGroup = !sameAsNext;
         final isFirstInGroup = !sameAsPrev;
 
         // Date separator: hiện ở trên tin nhắn CŨ NHẤT của mỗi ngày
-        final showDateSeparator = prev == null ||
-            prev.createdAt.day   != message.createdAt.day   ||
+        final showDateSeparator =
+            prev == null ||
+            prev.createdAt.day != message.createdAt.day ||
             prev.createdAt.month != message.createdAt.month ||
-            prev.createdAt.year  != message.createdAt.year;
+            prev.createdAt.year != message.createdAt.year;
 
         // Tạo / tái dùng GlobalKey cho mỗi message
         final msgKey = _messageKeys.putIfAbsent(message.id, () => GlobalKey());
 
         // Kiểm tra tin reply-to có phải của mình không
-        final replyToIsMine = message.replyToMessageId != null &&
+        final replyToIsMine =
+            message.replyToMessageId != null &&
             _messages.any((m) => m.id == message.replyToMessageId && m.isMine);
 
         final bubble = MessageBubble(
           key: msgKey,
           message: message,
           showAvatar: !message.isMine && isLastInGroup,
-          showSenderName: !message.isMine &&
+          showSenderName:
+              !message.isMine &&
               isFirstInGroup &&
               widget.conversation.type == 'group',
           showMeta: isLastInGroup,
@@ -532,12 +579,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               ? () => _jumpToMessage(message.replyToMessageId!)
               : null,
           onReact: (emoji) => _reactToMessage(message.id, emoji),
+          onPin: () async {
+            try {
+              await context.read<ChatProvider>().pinMessage(message.id, message.content);
+            } catch (e) {
+              debugPrint('[pin] error: $e');
+              if (mounted) _showError('Pin lỗi: $e');
+            }
+          },
           onReply: () => setState(() => _replyToMessage = message),
           onForward: () => _forwardMessage(message),
           onCopy: () => _copyMessage(message),
           onEdit: () => _editMessage(message),
           onDelete: () => _deleteMessage(message),
-          onHideForMe: () => context.read<ChatProvider>().hideMessageForMe(message.id),
+          onHideForMe: () =>
+              context.read<ChatProvider>().hideMessageForMe(message.id),
           onInfo: () => _showMessageInfo(message),
         );
 
@@ -547,7 +603,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             : bubble;
 
         // Hiện divider "X tin chưa đọc" tại tin chưa đọc đầu tiên
-        final isFirstUnread = _initialUnreadCount > 0 &&
+        final isFirstUnread =
+            _initialUnreadCount > 0 &&
             msgIndex == _messages.length - _initialUnreadCount;
 
         return Column(
@@ -610,41 +667,39 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Widget _buildReplyPreview() {
     return Container(
-      padding: EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        border: Border(
-          top: BorderSide(color: Colors.grey[300]!),
-          left: BorderSide(color: Colors.blue, width: 3),
-        ),
-      ),
+      color: Colors.white,
       child: Row(
         children: [
+          Container(width: 3, height: 48, color: const Color(0xFF0068FF)),
+          const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Trả lời ${_replyToMessage!.senderName}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Trả lời ${_replyToMessage!.senderName}',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF0068FF)),
                   ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  _replyToMessage!.content,
-                  style: TextStyle(fontSize: 14),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    _replyToMessage!.content,
+                    style: const TextStyle(fontSize: 13, color: Color(0xFF666666)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
           ),
-          IconButton(
-            icon: Icon(Icons.close, size: 20),
-            onPressed: () => setState(() => _replyToMessage = null),
+          GestureDetector(
+            onTap: () => setState(() => _replyToMessage = null),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Icon(Icons.close, size: 18, color: Color(0xFFAAAAAA)),
+            ),
           ),
         ],
       ),
@@ -653,124 +708,105 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   Widget _buildInputArea() {
     final hasText = _messageController.text.trim().isNotEmpty;
-    const iconColor = Color(0xFF606060);
-    const iconSize = 22.0;
-    const btnSize = 40.0;
+    const iconColor = Color(0xFF707070);
 
-    Widget iconBtn(IconData icon, VoidCallback onTap) => SizedBox(
-          width: btnSize,
-          height: btnSize,
+    Widget iconBtn(IconData icon, VoidCallback onTap, {double size = 22}) =>
+        Material(
+          color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(20),
-            child: Icon(icon, color: iconColor, size: iconSize),
-          ),
-        );
-
-    Widget sendBtn() {
-      if (_isSending) {
-        return SizedBox(
-          width: btnSize,
-          height: btnSize,
-          child: const Padding(
-            padding: EdgeInsets.all(10),
-            child: CircularProgressIndicator(
-                strokeWidth: 2, color: Color(0xFF0068FF)),
-          ),
-        );
-      }
-      if (hasText) {
-        return GestureDetector(
-          onTap: _sendMessage,
-          child: Container(
-            width: btnSize,
-            height: btnSize,
-            decoration: const BoxDecoration(
-              color: Color(0xFF0068FF),
-              shape: BoxShape.circle,
+            child: SizedBox(
+              width: 38,
+              height: 38,
+              child: Icon(icon, color: iconColor, size: size),
             ),
-            child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
           ),
         );
-      }
-      return iconBtn(Icons.mic_none_rounded, _recordAudio);
-    }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE8E8E8))),
+        border: Border(top: BorderSide(color: const Color(0xFFEEEEEE), width: 0.5)),
       ),
       child: SafeArea(
         top: false,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // + button
-            iconBtn(Icons.add, _showAttachmentOptions),
-            const SizedBox(width: 4),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // + button bên trái
+              iconBtn(Icons.add_circle_outline_rounded, _showAttachmentOptions, size: 26),
 
-            // Text field (grows vertically)
-            Expanded(
-              child: Container(
-                constraints: const BoxConstraints(minHeight: 40, maxHeight: 120),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0F0F0),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _messageController,
-                        focusNode: _focusNode,
-                        onChanged: (_) {
-                          _onTyping();
-                          setState(() {});
-                        },
-                        decoration: const InputDecoration(
-                          hintText: 'Tin nhắn',
-                          hintStyle: TextStyle(
-                              color: Color(0xFFAAAAAA), fontSize: 14),
-                          border: InputBorder.none,
-                          contentPadding:
-                              EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          isDense: true,
+              // Text field giữa
+              Expanded(
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 38, maxHeight: 120),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF2F2F2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _messageController,
+                          focusNode: _focusNode,
+                          onChanged: (_) { _onTyping(); setState(() {}); },
+                          decoration: const InputDecoration(
+                            hintText: 'Aa',
+                            hintStyle: TextStyle(color: Color(0xFFBBBBBB), fontSize: 15),
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                            isDense: true,
+                          ),
+                          style: const TextStyle(fontSize: 15, height: 1.4),
+                          maxLines: null,
+                          textCapitalization: TextCapitalization.sentences,
                         ),
-                        style: const TextStyle(fontSize: 14, height: 1.4),
-                        maxLines: null,
-                        textCapitalization: TextCapitalization.sentences,
                       ),
-                    ),
-                    // Emoji icon inside field
-                    SizedBox(
-                      width: 36,
-                      height: 36,
-                      child: InkWell(
-                        onTap: _showEmojiPicker,
-                        borderRadius: BorderRadius.circular(18),
-                        child: const Icon(Icons.emoji_emotions_outlined,
-                            color: Color(0xFF888888), size: 20),
+                      // Emoji icon bên phải trong field
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4, bottom: 2),
+                        child: InkWell(
+                          onTap: _showEmojiPicker,
+                          borderRadius: BorderRadius.circular(16),
+                          child: const SizedBox(
+                            width: 34,
+                            height: 34,
+                            child: Icon(Icons.emoji_emotions_outlined, color: Color(0xFF999999), size: 21),
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 4),
 
-            // Image icon (chỉ khi không có text)
-            if (!hasText) ...[
-              iconBtn(Icons.image_outlined, _pickImageFromGallery),
-              const SizedBox(width: 2),
+              // Bên phải: khi chưa gõ → sticker + ảnh + mic; khi gõ → send
+              if (hasText) ...[
+                GestureDetector(
+                  onTap: _sendMessage,
+                  child: _isSending
+                      ? const SizedBox(
+                          width: 38, height: 38,
+                          child: Padding(padding: EdgeInsets.all(9), child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0068FF))),
+                        )
+                      : Container(
+                          width: 38, height: 38,
+                          decoration: const BoxDecoration(color: Color(0xFF0068FF), shape: BoxShape.circle),
+                          child: const Icon(Icons.send_rounded, color: Colors.white, size: 19),
+                        ),
+                ),
+              ] else ...[
+                iconBtn(Icons.image_outlined, _pickImageFromGallery, size: 23),
+                iconBtn(Icons.mic_none_rounded, _recordAudio, size: 23),
+              ],
             ],
-
-            // Send / mic
-            sendBtn(),
-          ],
+          ),
         ),
       ),
     );
@@ -787,7 +823,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       ),
     );
   }
-
 
   String _formatDate(DateTime date) {
     final now = DateTime.now();
@@ -961,7 +996,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     debugPrint('[Call] me.displayName=${me?.displayName}');
     debugPrint('[Call] cachedSenderName=${chatProvider.cachedSenderName}');
     debugPrint('[Call] firebaseEmail=${firebaseUser?.email}');
-    debugPrint('[Call] participants=${conv.participants.map((p) => "${p.userId}:${p.userName}").join(", ")}');
+    debugPrint(
+      '[Call] participants=${conv.participants.map((p) => "${p.userId}:${p.userName}").join(", ")}',
+    );
 
     final myName = [
       me?.displayName,
@@ -1013,7 +1050,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _unpinMessage() {
-    _showInfo('Đã bỏ ghim tin nhắn');
+    context.read<ChatProvider>().unpinMessage().catchError((e) {
+      if (mounted) _showError('Không thể bỏ ghim tin nhắn');
+    });
   }
 
   void _reactToMessage(String messageId, String emoji) {
@@ -1211,9 +1250,7 @@ class _SwipeToReplyWrapperState extends State<_SwipeToReplyWrapper>
     setState(() {
       _offset += dx;
       final max = _threshold * 1.3;
-      _offset = widget.isMine
-          ? _offset.clamp(-max, 0)
-          : _offset.clamp(0, max);
+      _offset = widget.isMine ? _offset.clamp(-max, 0) : _offset.clamp(0, max);
     });
 
     if (_offset.abs() >= _threshold && !_triggered) {
@@ -1224,9 +1261,10 @@ class _SwipeToReplyWrapperState extends State<_SwipeToReplyWrapper>
   }
 
   void _onEnd(DragEndDetails _) {
-    _returnAnim = Tween<double>(begin: _offset, end: 0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut),
-    );
+    _returnAnim = Tween<double>(
+      begin: _offset,
+      end: 0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut));
     _ctrl.forward(from: 0);
   }
 
@@ -1269,10 +1307,7 @@ class _SwipeToReplyWrapperState extends State<_SwipeToReplyWrapper>
             ),
           ),
           // Bubble trượt theo ngón tay
-          Transform.translate(
-            offset: Offset(_offset, 0),
-            child: widget.child,
-          ),
+          Transform.translate(offset: Offset(_offset, 0), child: widget.child),
         ],
       ),
     );
@@ -1310,9 +1345,10 @@ class _AnimatedBubbleState extends State<_AnimatedBubble>
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
 
-    _fade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
-    );
+    _fade = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
 
     _ctrl.forward();
   }
@@ -1325,7 +1361,7 @@ class _AnimatedBubbleState extends State<_AnimatedBubble>
 
   @override
   Widget build(BuildContext context) => FadeTransition(
-        opacity: _fade,
-        child: SlideTransition(position: _slide, child: widget.child),
-      );
+    opacity: _fade,
+    child: SlideTransition(position: _slide, child: widget.child),
+  );
 }

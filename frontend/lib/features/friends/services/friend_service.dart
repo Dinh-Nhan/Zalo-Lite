@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../services/dio_client.dart';
 
@@ -32,47 +33,49 @@ class FriendshipModel {
   factory FriendshipModel.fromJson(Map<String, dynamic> json) =>
       FriendshipModel(
         id: json['id'] ?? '',
-        senderId: json['senderId'] ?? '',
-        addresseeId: json['addresseeId'] ?? '',
+        senderId: json['sender_id'] ?? '',
+        addresseeId: json['addressee_id'] ?? '',
         status: json['status'] ?? 'pending',
-        sourceType: json['sourceType'] ?? 'search',
-        createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
-        updatedAt: DateTime.tryParse(json['updatedAt'] ?? '') ?? DateTime.now(),
-        senderName: json['senderName'] as String?,
-        senderAvatar: json['senderAvatar'] as String?,
-        addresseeName: json['addresseeName'] as String,
+        sourceType: json['source_type'] ?? 'search',
+        createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
+        updatedAt: DateTime.tryParse(json['updated_at'] ?? '') ?? DateTime.now(),
+        senderName: json['sender_name'] as String?,
+        senderAvatar: json['sender_avatar'] as String?,
+        addresseeName: json['addressee_name'] ?? '',
       );
-      bool isSender(String currentUid) => senderId == currentUid;
-    bool isReceiver(String currentUid) => addresseeId == currentUid;
+  bool isSender(String currentUid) => senderId == currentUid;
+  bool isReceiver(String currentUid) => addresseeId == currentUid;
 }
 
 /// Model cho danh sách bạn bè (có kèm tên + avatar)
 class FriendSummaryModel {
   final String friendshipId;
   final String friendId;
-  final String fullName;
-  final String email;
+  final String firstName;
+  final String lastName;
   final String avatar;
   final DateTime friendsSince;
 
   const FriendSummaryModel({
     required this.friendshipId,
     required this.friendId,
-    required this.fullName,
-    required this.email,
+    required this.firstName,
+    required this.lastName,
     required this.avatar,
     required this.friendsSince,
   });
 
+  String get fullName => '$firstName $lastName'.trim();
+
   factory FriendSummaryModel.fromJson(Map<String, dynamic> json) =>
       FriendSummaryModel(
-        friendshipId: json['friendshipId'] ?? '',
-        friendId: json['friendId'] ?? '',
-        fullName: json['fullName'] ?? '',
-        email: json['email'] ?? '',
+        friendshipId: json['friendship_id'] ?? '',
+        friendId: json['friend_id'] ?? '',
+        firstName: json['first_name'] ?? '',
+        lastName: json['last_name'] ?? '',
         avatar: json['avatar'] ?? '',
         friendsSince:
-            DateTime.tryParse(json['friendsSince'] ?? '') ?? DateTime.now(),
+            DateTime.tryParse(json['friends_since'] ?? '') ?? DateTime.now(),
       );
 }
 
@@ -97,7 +100,7 @@ class UserSearchModel {
   factory UserSearchModel.fromJson(Map<String, dynamic> json) =>
       UserSearchModel(
         id: json['id'] ?? '',
-        fullName: json['fullName'] ?? '',
+        fullName: json['full_name'] ?? '',
         email: json['email'] ?? '',
         avatar: json['avatar'] ?? '',
         status: json['status'] ?? false,
@@ -113,6 +116,7 @@ class FriendService {
   static Future<List<FriendSummaryModel>> getFriends() async {
     try {
       final res = await _dio.get('/api/friends');
+      debugPrint('getFriends response: ${res.data}');
       final data = res.data as Map<String, dynamic>;
       final list = (data['result'] as List? ?? []);
       return list
@@ -178,7 +182,7 @@ class FriendService {
     try {
       final res = await _dio.post(
         '/api/friends/requests',
-        data: {'addresseeId': addresseeId, 'sourceType': sourceType},
+        data: {'addressee_id': addresseeId, 'source_type': sourceType},
       );
       final data = res.data as Map<String, dynamic>;
       return FriendshipModel.fromJson(data['result'] as Map<String, dynamic>);
@@ -220,6 +224,18 @@ class FriendService {
   static Future<void> unfriend(String targetUserId) async {
     try {
       await _dio.delete('/api/friends/$targetUserId');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // ── GET /api/user/{id} ──────────────────────────────────────────
+  /// Lấy thông tin user theo ID (dùng cho QR scan)
+  static Future<UserSearchModel> getUserById(String userId) async {
+    try {
+      final res = await _dio.get('/api/user/$userId');
+      final data = res.data as Map<String, dynamic>;
+      return UserSearchModel.fromJson(data['result'] as Map<String, dynamic>);
     } on DioException catch (e) {
       throw _handleError(e);
     }

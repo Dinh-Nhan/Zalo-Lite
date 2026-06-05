@@ -362,6 +362,29 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  Future<void> pinMessage(String messageId, String content) async {
+    final conv = _activeConversation;
+    debugPrint('[pin] activeConversation=${conv?.id}');
+    if (conv == null) return;
+    debugPrint('[pin] calling API: conversationId=${conv.id}, messageId=$messageId');
+    final updated = await _chatService.pinMessage(conv.id, messageId);
+    debugPrint('[pin] success: pinnedMessageId=${updated.pinnedMessageId}');
+    _applyConversationUpdate(updated);
+  }
+
+  Future<void> unpinMessage() async {
+    final conv = _activeConversation;
+    if (conv == null) return;
+    final updated = await _chatService.unpinMessage(conv.id);
+    _applyConversationUpdate(updated);
+  }
+
+  void _applyConversationUpdate(Conversation conv) {
+    _conversations = _conversations.map((c) => c.id == conv.id ? conv : c).toList();
+    if (_activeConversation?.id == conv.id) _activeConversation = conv;
+    notifyListeners();
+  }
+
   // ── Realtime event handlers ────────────────────────────────────
 
   void _onReceiveMessage(Message message) {

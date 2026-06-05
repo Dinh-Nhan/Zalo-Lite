@@ -4,7 +4,7 @@ import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/features/friends/screens/add_friend_screen.dart';
 import 'package:frontend/features/friends/screens/friend_tab_content.dart';
 import 'package:frontend/features/friends/screens/group_tab_content.dart';
-import 'package:frontend/views/chat/chat_detail_view.dart';
+import 'package:frontend/features/friends/screens/qr_friend_screen.dart';
 import 'package:frontend/widgets/search_overlay_screen.dart';
 
 class ContactsMainScreen extends StatefulWidget {
@@ -87,12 +87,18 @@ class _ContactsMainScreenState extends State<ContactsMainScreen> with SingleTick
         ),
         centerTitle: false,
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 6, left: 6),
-            child: IconButton(
-              padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 0),
-              icon: const Icon(Icons.person_add_alt_1_outlined, color: Colors.white, size: 24),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddFriendScreen())),
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 24),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const QrFriendScreen()),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.person_add_alt_1_outlined, color: Colors.white, size: 24),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AddFriendScreen()),
             ),
           ),
         ],

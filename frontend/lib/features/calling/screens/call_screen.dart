@@ -29,7 +29,9 @@ class _CallScreenState extends State<CallScreen> {
     super.initState();
     final call = widget.call;
     _channelName = AgoraConfig.generateChannelName(call.callerId, call.calleeId);
-    _initAgora();
+    _initAgora().catchError((e) {
+      debugPrint('[Agora] _initAgora failed: $e');
+    });
   }
 
   Future<void> _initAgora() async {
@@ -40,11 +42,21 @@ class _CallScreenState extends State<CallScreen> {
 
     _engine.registerEventHandler(
       RtcEngineEventHandler(
-        onJoinChannelSuccess: (_, __) => setState(() => _localJoined = true),
-        onUserJoined: (_, uid, __) => setState(() => _remoteUid = uid),
+        onJoinChannelSuccess: (conn, elapsed) {
+          debugPrint('[Agora] joinChannel success — channel=${conn.channelId} uid=${conn.localUid}');
+          setState(() => _localJoined = true);
+        },
+        onUserJoined: (_, uid, __) {
+          debugPrint('[Agora] remote user joined: uid=$uid');
+          setState(() => _remoteUid = uid);
+        },
         onUserOffline: (_, uid, __) {
+          debugPrint('[Agora] remote user offline: uid=$uid');
           setState(() => _remoteUid = null);
           _onRemoteLeft();
+        },
+        onError: (err, msg) {
+          debugPrint('[Agora] ERROR: code=$err msg=$msg');
         },
       ),
     );
@@ -52,10 +64,19 @@ class _CallScreenState extends State<CallScreen> {
     if (widget.call.isVideo) {
       await _engine.enableVideo();
       await _engine.startPreview();
+    } else {
+      await _engine.enableAudio();
+      await _engine.adjustRecordingSignalVolume(400);  // mic volume: 0-400, default 100
+      await _engine.adjustPlaybackSignalVolume(400);   // speaker volume: 0-400, default 100
     }
 
+    final token = AgoraConfig.appCertificate.isEmpty
+        ? ''
+        : AgoraConfig.generateToken(_channelName);
+    debugPrint('[Agora] joining channel=$_channelName token=${token.isEmpty ? "(empty)" : "${token.substring(0, 20)}..."}');
+
     await _engine.joinChannel(
-      token: AgoraConfig.generateToken(_channelName),
+      token: token,
       channelId: _channelName,
       uid: 0,
       options: ChannelMediaOptions(
