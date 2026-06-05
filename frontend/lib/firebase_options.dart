@@ -81,5 +81,4 @@ class DefaultFirebaseOptions {
     authDomain: 'zalo-lite-v2.firebaseapp.com',
     storageBucket: 'zalo-lite-v2.firebasestorage.app',
   );
-
 }

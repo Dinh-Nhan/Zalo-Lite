@@ -18,6 +18,7 @@ class FeedbackService {
     required String userAvatar,
     required String subject,
     required String message,
+    required int rating,
   }) async {
     final docRef =
         await _db.collection(_collection).add({
@@ -27,6 +28,7 @@ class FeedbackService {
       'user_avatar': userAvatar,
       'subject': subject,
       'message': message,
+      'rating': rating,
       'admin_reply': null,
       'replied_by': null,
       'replied_at': null,

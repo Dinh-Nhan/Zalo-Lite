@@ -165,6 +165,28 @@ public class UserController(UserService userService, ChatService chatService) : 
     }
 
     /// <summary>
+    /// Enable user — admin only
+    /// PATCH /api/user/{id}/enable
+    /// </summary>
+    [HttpPatch("{id}/enable")]
+    public async Task<IActionResult> EnableUser(string id)
+    {
+        await userService.SetEnableAsync(id, true);
+        return Ok(new ApiResponse<object> { Code = 200, Message = "User enabled" });
+    }
+
+    /// <summary>
+    /// Disable user (soft-ban) — admin only
+    /// PATCH /api/user/{id}/disable
+    /// </summary>
+    [HttpPatch("{id}/disable")]
+    public async Task<IActionResult> DisableUser(string id)
+    {
+        await userService.SetEnableAsync(id, false);
+        return Ok(new ApiResponse<object> { Code = 200, Message = "User disabled" });
+    }
+
+    /// <summary>
     /// Tìm kiếm user theo email
     /// GET /api/user/search/{email}
     /// </summary>

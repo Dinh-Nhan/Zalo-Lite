@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -17,7 +17,7 @@ using Microsoft.Extensions.Logging;
 namespace backend.Services
 {
     [ScopedService]
-    public class FeedService(FirestoreDb db, IMapper mapper, ILogger<FeedService> logger, CloudinaryService cloudinaryService)
+    public class FeedService(FirestoreDb db, IMapper mapper, ILogger<FeedService> logger, CloudinaryService cloudinaryService, GroqModerationService groqModerationService)
     {
         // get story bar
         public async Task<List<FeedResponse>> GetStoriesAsync(string userId)
@@ -42,7 +42,7 @@ namespace backend.Services
                     .WhereEqualTo("type", "story")
                     .WhereIn("user_id", batch)
                     .WhereGreaterThan("settings.expires_at", now)
-                    .WhereEqualTo("deleted_at", null)
+                    .WhereEqualTo("is_enable", true)
                     .OrderByDescending("create_at"));
 
             var filtered = stories.Where(s => !mutedStoryIds.Contains(s.UserId)).ToList();
@@ -77,7 +77,7 @@ namespace backend.Services
                     .WhereEqualTo("type", "post")
                     .WhereIn("user_id", batch)
                     .WhereNotEqualTo("privacy", "private")
-                    .WhereEqualTo("deleted_at", null)
+                    .WhereEqualTo("is_enable", true)
                     .OrderByDescending("create_at"));
 
             var filtered = posts
@@ -137,12 +137,30 @@ namespace backend.Services
                     ["likes"] = new List<string>()
                 },
                 ["create_at"] = now,
-                ["deleted_at"] = null
+                ["is_enable"] = true,
+                ["moderation_status"] = "unchecked"
             };
 
             logger.LogInformation("[FeedService] Creating {Type} for user {UserId}", request.Type, userId);
 
             await docRef.SetAsync(data);
+
+            // Run AI moderation in the background
+            var imageUrls = mediaList
+                .Where(m => m.ContainsKey("url") && m["url"] is string)
+                .Select(m => (string)m["url"])
+                .ToList();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await groqModerationService.ModerateFeedAsync(feedId, request.Content.Caption, imageUrls);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "[FeedService] Background AI moderation failed for feed {FeedId}", feedId);
+                }
+            });
             var snap = await docRef.GetSnapshotAsync();
 
             if (!snap.Exists)
@@ -163,7 +181,7 @@ namespace backend.Services
         {
             var snap = await db.Collection("feeds").Document(feedId).GetSnapshotAsync();
 
-            if (!snap.Exists || snap.GetValue<object>("deleted_at") != null)
+            if (!snap.Exists || snap.GetValue<bool?>("is_enable") == false)
                 throw new AppException(ErrorCode.FEED_NOT_FOUND);
 
             var feed = snap.ConvertTo<Feeds>();
@@ -187,7 +205,7 @@ namespace backend.Services
             var snap = await docRef.GetSnapshotAsync();
 
             // Kiểm tra tồn tại
-            if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
+            if (!snap.Exists || snap.GetValue<bool?>("is_enable") == false)
                 throw new AppException(ErrorCode.FEED_NOT_FOUND);
 
             var feed = snap.ConvertTo<Feeds>();
@@ -254,34 +272,26 @@ namespace backend.Services
             return ToResponse(updated.ConvertTo<Feeds>(), userId, author);
         }
 
-        // soft delete (set deletedAt = now)
+        // soft delete: set is_enable = false (không xóa khỏi Firestore)
         public async Task DeleteFeedAsync(string feedId, string userId)
         {
             var docRef = db.Collection("feeds").Document(feedId);
             var snap = await docRef.GetSnapshotAsync();
 
-            if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
+            if (!snap.Exists || snap.GetValue<bool?>("is_enable") == false)
                 throw new AppException(ErrorCode.FEED_NOT_FOUND);
 
             var feed = snap.ConvertTo<Feeds>();
 
             if (feed.UserId != userId) throw new AppException(ErrorCode.FORBIDDEN);
 
-            // ── Xóa từng file theo publicId đã lưu — không cần query Cloudinary ──
-            await cloudinaryService.DeleteManyAsync(
-                feed.Content.Media
-                    .Where(m => !string.IsNullOrEmpty(m.PublicId))
-                    .Select(m => (m.PublicId!, m.Type == "video"))
-            );
-            // sau khi đã xóa các file thì xóa luôn folder
-            await cloudinaryService.DeleteFolderAsync(userId, feed.Id, feed.Type);
-
+            // Soft-delete: chỉ set is_enable = false, không xóa data hay cloud assets
             await docRef.UpdateAsync(new Dictionary<string, object>
             {
-                ["deleted_at"] = Timestamp.FromDateTime(DateTime.UtcNow)
+                ["is_enable"] = false
             });
 
-            logger.LogInformation("[FeedService] Deleted feed {FeedId} by {UserId}", feedId, userId);
+            logger.LogInformation("[FeedService] Soft-deleted feed {FeedId} by {UserId}", feedId, userId);
         }
 
         // ── Like / Unlike ────────────────────────────────────────────────
@@ -291,7 +301,7 @@ namespace backend.Services
             var docRef = db.Collection("feeds").Document(feedId);
             var snap = await docRef.GetSnapshotAsync();
 
-            if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
+            if (!snap.Exists || snap.GetValue<bool?>("is_enable") == false)
                 throw new AppException(ErrorCode.FEED_NOT_FOUND);
 
             var feed = snap.ConvertTo<Feeds>();
@@ -338,7 +348,7 @@ namespace backend.Services
         {
             var snap = await db.Collection("feeds").Document(feedId).GetSnapshotAsync();
 
-            if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
+            if (!snap.Exists || snap.GetValue<bool?>("is_enable") == false)
                 throw new AppException(ErrorCode.FEED_NOT_FOUND);
 
             var feed = snap.ConvertTo<Feeds>();
@@ -458,7 +468,7 @@ namespace backend.Services
             var docRef = db.Collection("feeds").Document(feedId);
             var snap = await docRef.GetSnapshotAsync();
 
-            if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
+            if (!snap.Exists || snap.GetValue<bool?>("is_enable") == false)
                 throw new AppException(ErrorCode.FEED_NOT_FOUND);
 
             var feed = snap.ConvertTo<Feeds>();
@@ -499,7 +509,7 @@ namespace backend.Services
         {
             var snap = await db.Collection("feeds").Document(feedId).GetSnapshotAsync();
 
-            if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
+            if (!snap.Exists || snap.GetValue<bool?>("is_enable") == false)
                 throw new AppException(ErrorCode.FEED_NOT_FOUND);
 
             var feed = snap.ConvertTo<Feeds>();
@@ -527,7 +537,7 @@ namespace backend.Services
         {
             var snap = await db.Collection("feeds").Document(feedId).GetSnapshotAsync();
 
-            if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
+            if (!snap.Exists || snap.GetValue<bool?>("is_enable") == false)
                 throw new AppException(ErrorCode.FEED_NOT_FOUND);
 
             var feed = snap.ConvertTo<Feeds>();
@@ -588,7 +598,7 @@ namespace backend.Services
 
             var feeds = snap.Documents
             .Select(d => d.ConvertTo<Feeds>())
-            .Where(f => f.DeletedAt == null)
+            .Where(f => f.IsEnable)
             .ToList();
 
             var authorIds = feeds.Select(f => f.UserId);
@@ -600,18 +610,18 @@ namespace backend.Services
                 .ToList();
         }
 
-        // get feeds are deleted to display story or post stored
+        // get all enabled feeds by userId and type
         public async Task<List<FeedResponse>> getAllFeedDeleted(string currentUserId, string type)
         {
             var query = db.Collection("feeds")
             .WhereEqualTo("user_id", currentUserId)
             .WhereEqualTo("type", type)
+            .WhereEqualTo("is_enable", true)
             .OrderByDescending("create_at");
 
             var snapshot = await query.GetSnapshotAsync();
             var feeds = snapshot.Documents
             .Select(d => d.ConvertTo<Feeds>())
-            .Where(f => f.DeletedAt == null)
             .ToList();
 
             var authorIds = feeds.Select(f => f.UserId);

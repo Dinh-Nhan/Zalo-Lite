@@ -44,4 +44,6 @@ public class User
 
     [FirestoreProperty("fcm_token")]
     public string? FcmToken { get; set; }
+    [FirestoreProperty("is_enable")]
+    public bool IsEnable {get; set;} = true; 
 }
