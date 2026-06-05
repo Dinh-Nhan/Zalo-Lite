@@ -203,9 +203,14 @@ GoRouter createRouter() {
           final data = state.extra as Map<String, dynamic>?;
           return CreatePostScreen(
             currentUserName: FirebaseAuth.instance.currentUser?.displayName ?? 'User',
-            currentUserAvatar: FirebaseAuth.instance.currentUser?.photoURL ?? '',
+            currentUserAvatar:
+                data?['currentUserAvatar'] as String? ??
+                FirebaseAuth.instance.currentUser?.photoURL ?? '',
             preSelectedBytes: data?['imageBytes'] as Uint8List?,
             preSelectedPath: data?['imagePath'] as String?,
+            shouldUpdateAvatarOnSubmit:
+                data?['shouldUpdateAvatarOnSubmit'] as bool? ?? false,
+            avatarImagePath: data?['avatarImagePath'] as String?,
           );
         },
       ),

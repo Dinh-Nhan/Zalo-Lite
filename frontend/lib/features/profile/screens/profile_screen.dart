@@ -166,14 +166,17 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     if (choice == null || !mounted) return;
 
-    if (choice == 'avatar_only' || choice == 'both') {
+    if (choice == 'avatar_only') {
       setState(() => _selectedAvatarBytes = bytes);
 
       try {
         final newAvatarUrl = await AuthService.updateAvatar(image);
 
+        if (!mounted) return;
+
         setState(() {
           _currentUserAvatar = newAvatarUrl;
+          _targetUserAvatar = newAvatarUrl;
           _selectedAvatarBytes = null;
         });
 
@@ -196,16 +199,17 @@ class _ProfileScreenState extends State<ProfileScreen>
             backgroundColor: Colors.red,
           ),
         );
-        return;
       }
+      return;
     }
 
-    if (choice == 'post_only' || choice == 'both') {
-      context.push('/create-post-avatar', extra: {
-        'imageBytes': bytes,
-        'imagePath': image.path,
-      });
-    }
+    context.push('/create-post-avatar', extra: {
+      'imageBytes': bytes,
+      'imagePath': image.path,
+      'currentUserAvatar': _currentUserAvatar,
+      'shouldUpdateAvatarOnSubmit': choice == 'both',
+      'avatarImagePath': choice == 'both' ? image.path : null,
+    });
   }
 
   Future<void> _sendFriendRequest() async {
@@ -343,27 +347,31 @@ class _ProfileScreenState extends State<ProfileScreen>
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: NestedScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          headerSliverBuilder: (context, innerBoxIsScrolled) {
-            return [
-              _buildProfileHeader(context),
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _TabBarDelegate(
-                  tabController: _tabController,
+        child: RefreshIndicator(
+          onRefresh: _onRefresh,
+          edgeOffset: 0,
+          child: NestedScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            headerSliverBuilder: (context, innerBoxIsScrolled) {
+              return [
+                _buildProfileHeader(context),
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _TabBarDelegate(
+                    tabController: _tabController,
+                  ),
                 ),
-              ),
-            ];
-          },
-          body: TabBarView(
-            controller: _tabController,
-            children: [
-              const _PostsTab(),
-              _InfoTab(isOwnProfile: _isOwnProfile),
-              _ImagesTab(),
-              const _SettingsTab(),
-            ],
+              ];
+            },
+            body: TabBarView(
+              controller: _tabController,
+              children: [
+                const _PostsTab(),
+                _InfoTab(isOwnProfile: _isOwnProfile),
+                _ImagesTab(),
+                const _SettingsTab(),
+              ],
+            ),
           ),
         ),
       ),
@@ -901,82 +909,92 @@ class _PostsTabState extends State<_PostsTab> {
         }
 
         if (provider.errorMessage != null && provider.posts.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error_outline, size: 48, color: Colors.grey.shade400),
-                const SizedBox(height: 12),
-                Text(
-                  'Không thể tải bài viết',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
-                ),
-                TextButton(
-                  onPressed: () => provider.loadProfile(
-                    FirebaseAuth.instance.currentUser?.uid ?? '',
+          return CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.error_outline, size: 48, color: Colors.grey.shade400),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Không thể tải bài viết',
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
+                      ),
+                      TextButton(
+                        onPressed: () => provider.loadProfile(
+                          FirebaseAuth.instance.currentUser?.uid ?? '',
+                        ),
+                        child: const Text('Thử lại'),
+                      ),
+                    ],
                   ),
-                  child: const Text('Thử lại'),
                 ),
-              ],
-            ),
+              ),
+            ],
           );
         }
 
         final allPosts = provider.posts;
         if (allPosts.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.article_outlined, size: 56, color: Colors.grey.shade300),
-                const SizedBox(height: 16),
-                Text(
-                  'Chưa có bài viết nào',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+          return CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.article_outlined, size: 56, color: Colors.grey.shade300),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Chưa có bài viết nào',
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           );
         }
 
         final displayedPosts = allPosts.take(_displayedPostCount).toList();
         final hasMore = _displayedPostCount < allPosts.length;
 
-        return RefreshIndicator(
-          onRefresh: () async {
-            await provider.loadProfile(
-              FirebaseAuth.instance.currentUser?.uid ?? '',
-            );
-          },
-          child: CustomScrollView(
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.only(top: 8),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) => _ProfilePostCard(post: allPosts[index]),
-                    childCount: displayedPosts.length,
-                  ),
+        return CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.only(top: 8),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => _ProfilePostCard(post: displayedPosts[index]),
+                  childCount: displayedPosts.length,
                 ),
               ),
-              if (hasMore)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Center(
-                      child: TextButton(
-                        onPressed: () {
-                          setState(() {
-                            _displayedPostCount += 6;
-                          });
-                        },
-                        child: const Text('Xem thêm bài viết'),
-                      ),
+            ),
+            if (hasMore)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _displayedPostCount += 6;
+                        });
+                      },
+                      child: const Text('Xem thêm bài viết'),
                     ),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         );
       },
     );
@@ -1002,6 +1020,7 @@ class _InfoTab extends StatelessWidget {
         final birthday = provider.birthday ?? '';
 
         return CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverPadding(
               padding: const EdgeInsets.all(16),
@@ -1378,23 +1397,32 @@ class _ImagesTab extends StatelessWidget {
             .toList();
 
         if (imagePosts.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.photo_library_outlined,
-                    size: 56, color: Colors.grey.shade300),
-                const SizedBox(height: 16),
-                Text(
-                  'Chưa có ảnh nào',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+          return CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.photo_library_outlined,
+                          size: 56, color: Colors.grey.shade300),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Chưa có ảnh nào',
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           );
         }
 
         return CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverPadding(
               padding: const EdgeInsets.all(4),
@@ -1500,7 +1528,9 @@ class _ImagePostSheet extends StatelessWidget {
                           post.content,
                           style: const TextStyle(fontSize: 15, height: 1.4),
                         ),
-                      ),
+                      )
+                    else
+                      const SizedBox(height: 12),
                     GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -1717,44 +1747,52 @@ class _SettingsTabState extends State<_SettingsTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 140,
-          child: Container(
-            color: Colors.grey.shade50,
-            child: Column(
-              children: [
-                const SizedBox(height: 8),
-                _buildSettingsMenuItem(
-                  index: 0,
-                  icon: Icons.settings_outlined,
-                  label: 'Cài đặt chung',
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Row(
+            children: [
+              SizedBox(
+                width: 140,
+                child: Container(
+                  color: Colors.grey.shade50,
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 8),
+                      _buildSettingsMenuItem(
+                        index: 0,
+                        icon: Icons.settings_outlined,
+                        label: 'Cài đặt chung',
+                      ),
+                      _buildSettingsMenuItem(
+                        index: 1,
+                        icon: Icons.palette_outlined,
+                        label: 'Giao diện',
+                      ),
+                      _buildSettingsMenuItem(
+                        index: 2,
+                        icon: Icons.language,
+                        label: 'Ngôn ngữ',
+                      ),
+                      const Spacer(),
+                      _buildSettingsMenuItem(
+                        index: 3,
+                        icon: Icons.logout,
+                        label: 'Đăng xuất',
+                        isLogout: true,
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
                 ),
-                _buildSettingsMenuItem(
-                  index: 1,
-                  icon: Icons.palette_outlined,
-                  label: 'Giao diện',
-                ),
-                _buildSettingsMenuItem(
-                  index: 2,
-                  icon: Icons.language,
-                  label: 'Ngôn ngữ',
-                ),
-                const Spacer(),
-                _buildSettingsMenuItem(
-                  index: 3,
-                  icon: Icons.logout,
-                  label: 'Đăng xuất',
-                  isLogout: true,
-                ),
-                const SizedBox(height: 8),
-              ],
-            ),
+              ),
+              Expanded(
+                child: _buildSettingsContent(),
+              ),
+            ],
           ),
-        ),
-        Expanded(
-          child: _buildSettingsContent(),
         ),
       ],
     );

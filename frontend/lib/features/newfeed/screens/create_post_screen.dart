@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/features/friends/providers/friend_provider.dart';
+import 'package:frontend/services/auth_service.dart';
 import '../providers/feed_provider.dart';
 
 class _PickedImage {
@@ -16,6 +17,8 @@ class _PickedImage {
 class CreatePostScreen extends StatefulWidget {
   final String currentUserName;
   final String currentUserAvatar;
+  final bool shouldUpdateAvatarOnSubmit;
+  final String? avatarImagePath;
 
   const CreatePostScreen({
     super.key,
@@ -23,6 +26,8 @@ class CreatePostScreen extends StatefulWidget {
     required this.currentUserAvatar,
     this.preSelectedBytes,
     this.preSelectedPath,
+    this.shouldUpdateAvatarOnSubmit = false,
+    this.avatarImagePath,
   });
 
   final Uint8List? preSelectedBytes;
@@ -52,7 +57,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       ));
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<FriendProvider>().loadFriends();
+      final friendProvider = context.read<FriendProvider>();
+      if (friendProvider.friends.isEmpty) {
+        friendProvider.loadFriends();
+      }
     });
   }
 
@@ -181,34 +189,58 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
     setState(() => _isLoading = true);
 
-    final provider = context.read<FeedProvider>();
-    final xfiles = _selectedImages.map((p) => p.file).toList();
-    final success = await provider.createPost(
-      content: _contentController.text.trim(),
-      images: xfiles.isNotEmpty ? xfiles : null,
-      visibility: _visibility,
-      allowedUserIds: _selectedFriendIds.isNotEmpty ? _selectedFriendIds : null,
-    );
+    try {
+      if (widget.shouldUpdateAvatarOnSubmit) {
+        final avatarPath = widget.avatarImagePath;
+        if (avatarPath == null || avatarPath.isEmpty) {
+          throw Exception('Thiếu ảnh để cập nhật avatar');
+        }
+        await AuthService.updateAvatar(XFile(avatarPath));
+      }
 
-    if (!mounted) return;
-
-    setState(() => _isLoading = false);
-
-    if (success) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đăng bài thành công!'),
-          backgroundColor: AppColors.primaryBlue,
-          duration: Duration(seconds: 2),
-        ),
+      final provider = context.read<FeedProvider>();
+      final xfiles = _selectedImages.map((p) => p.file).toList();
+      final success = await provider.createPost(
+        content: _contentController.text.trim(),
+        images: xfiles.isNotEmpty ? xfiles : null,
+        visibility: _visibility,
+        allowedUserIds: _selectedFriendIds.isNotEmpty ? _selectedFriendIds : null,
       );
-    } else {
+
+      if (!mounted) return;
+
+      setState(() => _isLoading = false);
+
+      if (success) {
+        Navigator.pop(context, true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.shouldUpdateAvatarOnSubmit
+                  ? 'Đổi avatar và đăng bài thành công!'
+                  : 'Đăng bài thành công!',
+            ),
+            backgroundColor: AppColors.primaryBlue,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Lỗi: ${provider.errorMessage ?? 'Không thể đăng bài'}',
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Lỗi: ${provider.errorMessage ?? 'Không thể đăng bài'}',
-          ),
+          content: Text('Lỗi: $e'),
           backgroundColor: Colors.red,
           duration: const Duration(seconds: 2),
         ),
@@ -237,6 +269,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildUserRow(),
+                  if (widget.shouldUpdateAvatarOnSubmit)
+                    _buildAvatarUpdateHint(),
                   _buildVisibilityRow(),
                   _buildContentArea(),
                   if (_selectedImages.isNotEmpty) _buildImagePreview(),
@@ -265,6 +299,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   Widget _buildHeader() {
+    final title = widget.shouldUpdateAvatarOnSubmit
+        ? 'Tạo bài viết & cập nhật avatar'
+        : 'Tạo bài viết';
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: Row(
@@ -277,11 +315,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               icon: const Icon(Icons.close, color: Color(0xFF65676B), size: 22),
             ),
           ),
-          const Expanded(
+          Expanded(
             child: Text(
-              'Tạo bài viết',
+              title,
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w600,
                 color: Color(0xFF1A1A1A),
@@ -307,6 +345,39 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvatarUpdateHint() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7E8),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFFD89A)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: const [
+          Icon(
+            Icons.info_outline,
+            size: 18,
+            color: Color(0xFFD48806),
+          ),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Ảnh này sẽ được đặt làm avatar khi bạn bấm Đăng. Nếu bạn đóng màn hình này, avatar sẽ không thay đổi.',
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: Color(0xFF8C5A00),
+              ),
+            ),
           ),
         ],
       ),

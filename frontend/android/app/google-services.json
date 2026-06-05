@@ -1,30 +1,21 @@
 {
   "project_info": {
-    "project_number": "1040826455699",
-    "project_id": "zalo-lite-47899",
-    "storage_bucket": "zalo-lite-47899.firebasestorage.app"
+    "project_number": "1004023558166",
+    "project_id": "zalo-lite-v2",
+    "storage_bucket": "zalo-lite-v2.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1040826455699:android:d538db1624fde8b4675f66",
+        "mobilesdk_app_id": "1:1004023558166:android:6100bcc9041b00ef094537",
         "android_client_info": {
           "package_name": "com.example.frontend"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "113373136793758862988",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.frontend",
-            "sha1_cert": "A2:B7:D8:81:4B:39:BC:27:90:95:81:9F:6B:D1:15:E7:CE:1A:90:F4"
-          }
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBLKXfjxoC-4E725H5b19Folum3OHJ4UP8"
+          "current_key": "AIzaSyB4sG4d_9JRiZjbDcfRP-7YVAbFdMkZRX0"
         }
       ],
       "services": {

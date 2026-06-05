@@ -18,7 +18,7 @@ class NewfeedScreen extends StatefulWidget {
   State<NewfeedScreen> createState() => _NewfeedScreenState();
 }
 
-class _NewfeedScreenState extends State<NewfeedScreen> {
+class _NewfeedScreenState extends State<NewfeedScreen> with WidgetsBindingObserver {
   String _currentUserId = '';
   String _currentUserName = '';
   String _currentUserAvatar = '';
@@ -26,8 +26,30 @@ class _NewfeedScreenState extends State<NewfeedScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadCurrentUser();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _reloadCurrentUser();
+    }
+  }
+
+  Future<void> _reloadCurrentUser() async {
+    final user = FirebaseAuth.instance.currentUser;
+    await user?.reload();
+    if (!mounted) return;
+    _loadCurrentUser();
+    setState(() {});
   }
 
   void _loadCurrentUser() {
@@ -119,6 +141,7 @@ class _NewfeedScreenState extends State<NewfeedScreen> {
               child: RefreshIndicator(
                 color: AppColors.primaryBlue,
                 onRefresh: () async {
+                  await _reloadCurrentUser();
                   await context.read<FeedProvider>().refreshFeed();
                   await context.read<StoryProvider>().loadStories();
                 },
