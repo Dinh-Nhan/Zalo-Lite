@@ -327,6 +327,37 @@ class FriendProvider extends ChangeNotifier {
         onRealtimeNotify?.call('❌ Lời mời kết bạn đã bị từ chối');
 
         break;
+
+      // =====================================================
+      // REQUEST CANCELLED (sender huỷ lời mời đã gửi cho mình)
+      // =====================================================
+
+      case FriendHubEvent.friendRequestCancelled:
+        _pendingReceived.removeWhere(
+          (f) =>
+              f.senderId == event.friendship.senderId &&
+              f.addresseeId == event.friendship.addresseeId,
+        );
+
+        notifyListeners();
+        break;
+
+      // =====================================================
+      // UNFRIENDED (bị bên kia unfriend)
+      // =====================================================
+
+      case FriendHubEvent.friendUnfriended:
+        _friends.removeWhere(
+          (f) =>
+              f.friendId == event.friendship.senderId ||
+              f.friendId == event.friendship.addresseeId,
+        );
+
+        notifyListeners();
+
+        onRealtimeNotify?.call('Đã bị xoá khỏi danh sách bạn bè');
+
+        break;
     }
   }
 

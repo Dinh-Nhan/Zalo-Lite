@@ -296,7 +296,7 @@ class SignalRService {
   // Event handlers
   void _handleReceiveMessage(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final messageJson = args[0] as Map<String, dynamic>;
+      final messageJson = _toMap(args[0]);
       final message = Message.fromJson(messageJson);
       onReceiveMessage?.call(message);
     }
@@ -304,7 +304,7 @@ class SignalRService {
 
   void _handleMessageSent(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final messageJson = args[0] as Map<String, dynamic>;
+      final messageJson = _toMap(args[0]);
       final message = Message.fromJson(messageJson);
       onMessageSent?.call(message);
     }
@@ -312,7 +312,7 @@ class SignalRService {
 
   void _handleUserTyping(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final data = args[0] as Map<String, dynamic>;
+      final data = _toMap(args[0]);
       onUserTyping?.call(
         data['conversation_id'] ?? data['ConversationId'],
         data['user_id'] ?? data['UserId'],
@@ -323,7 +323,7 @@ class SignalRService {
 
   void _handleMessageRead(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final data = args[0] as Map<String, dynamic>;
+      final data = _toMap(args[0]);
       onMessageRead?.call(
         data['conversation_id'] ?? data['ConversationId'],
         data['message_id'] ?? data['MessageId'],
@@ -334,7 +334,7 @@ class SignalRService {
 
   void _handleMessageDelivered(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final data = args[0] as Map<String, dynamic>;
+      final data = _toMap(args[0]);
       onMessageDelivered?.call(
         data['conversation_id'] ?? data['ConversationId'],
         data['message_id'] ?? data['MessageId'],
@@ -345,7 +345,7 @@ class SignalRService {
 
   void _handleMessageReactionUpdated(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final data = args[0] as Map<String, dynamic>;
+      final data = _toMap(args[0]);
       final reactions = data['reactions'] ?? data['Reactions'];
       onMessageReactionUpdated?.call(
         data['conversation_id'] ?? data['ConversationId'],
@@ -357,7 +357,7 @@ class SignalRService {
 
   void _handleMessageDeleted(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final data = args[0] as Map<String, dynamic>;
+      final data = _toMap(args[0]);
       onMessageDeleted?.call(
         data['conversation_id'] ?? data['ConversationId'],
         data['message_id'] ?? data['MessageId'],
@@ -367,7 +367,7 @@ class SignalRService {
 
   void _handleMessageUpdated(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final messageJson = args[0] as Map<String, dynamic>;
+      final messageJson = _toMap(args[0]);
       final message = Message.fromJson(messageJson);
       onMessageUpdated?.call(message);
     }
@@ -375,7 +375,7 @@ class SignalRService {
 
   void _handleUserStatusChanged(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final data = args[0] as Map<String, dynamic>;
+      final data = _toMap(args[0]);
       final lastSeenStr = data['last_seen'] ?? data['LastSeen'];
       onUserStatusChanged?.call(
         data['user_id'] ?? data['UserId'],
@@ -387,7 +387,7 @@ class SignalRService {
 
   void _handleConversationCreated(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final convJson = args[0] as Map<String, dynamic>;
+      final convJson = _toMap(args[0]);
       final conversation = Conversation.fromJson(convJson);
       onConversationCreated?.call(conversation);
     }
@@ -395,7 +395,7 @@ class SignalRService {
 
   void _handleGroupUpdated(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final convJson = args[0] as Map<String, dynamic>;
+      final convJson = _toMap(args[0]);
       final conversation = Conversation.fromJson(convJson);
       onGroupUpdated?.call(conversation);
     }
@@ -403,7 +403,7 @@ class SignalRService {
 
   void _handleParticipantsAdded(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final data = args[0] as Map<String, dynamic>;
+      final data = _toMap(args[0]);
       onParticipantsAdded?.call(
         data['conversation_id'] ?? data['ConversationId'],
         data['new_participants'] ?? data['NewParticipants'],
@@ -413,7 +413,7 @@ class SignalRService {
 
   void _handleParticipantRemoved(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final data = args[0] as Map<String, dynamic>;
+      final data = _toMap(args[0]);
       onParticipantRemoved?.call(
         data['conversation_id'] ?? data['ConversationId'],
         data['removed_user_id'] ?? data['RemovedUserId'],
@@ -423,7 +423,7 @@ class SignalRService {
 
   void _handleRemovedFromConversation(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final data = args[0] as Map<String, dynamic>;
+      final data = _toMap(args[0]);
       onRemovedFromConversation?.call(
         data['conversation_id'] ?? data['ConversationId'],
       );
@@ -432,7 +432,7 @@ class SignalRService {
 
   void _handleError(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final error = args[0] as Map<String, dynamic>;
+      final error = _toMap(args[0]);
       final message = error['message'] ?? error['Message'] ?? 'Unknown error';
       print('SignalR Error: $message');
       onError?.call(message);
@@ -443,7 +443,7 @@ class SignalRService {
 
   void _handleIncomingCall(List<Object?>? args) {
     if (args == null || args.isEmpty) return;
-    final d = args[0] as Map<String, dynamic>;
+    final d = _toMap(args[0]);
     onIncomingCall?.call(
       d['conversation_id'] ?? '',
       d['caller_id'] ?? '',
@@ -455,13 +455,13 @@ class SignalRService {
 
   void _handleCallAccepted(List<Object?>? args) {
     if (args == null || args.isEmpty) return;
-    final d = args[0] as Map<String, dynamic>;
+    final d = _toMap(args[0]);
     onCallAccepted?.call(d['conversation_id'] ?? '');
   }
 
   void _handleCallRejected(List<Object?>? args) {
     if (args == null || args.isEmpty) return;
-    final d = args[0] as Map<String, dynamic>;
+    final d = _toMap(args[0]);
     onCallRejected?.call(
       d['conversation_id'] ?? '',
       d['reason'] ?? 'rejected',
@@ -470,8 +470,17 @@ class SignalRService {
 
   void _handleCallEnded(List<Object?>? args) {
     if (args == null || args.isEmpty) return;
-    final d = args[0] as Map<String, dynamic>;
+    final d = _toMap(args[0]);
     onCallEnded?.call(d['conversation_id'] ?? '');
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────
+
+  // signalr_netcore có thể trả về Map<Object?, Object?> thay vì Map<String, dynamic>
+  Map<String, dynamic> _toMap(Object? raw) {
+    if (raw is Map<String, dynamic>) return raw;
+    if (raw is Map) return raw.map((k, v) => MapEntry(k.toString(), v));
+    return {};
   }
 
   // ── Call signaling methods ───────────────────────────────────────
