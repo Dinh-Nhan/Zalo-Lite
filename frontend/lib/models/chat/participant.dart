@@ -21,18 +21,18 @@ class Participant {
 
   factory Participant.fromJson(Map<String, dynamic> json) {
     return Participant(
-      userId: json['user_id'] ?? '',
-      userName: json['user_name'] ?? '',
+      userId: json['userId'] ?? json['user_id'] ?? '',
+      userName: json['userName'] ?? json['user_name'] ?? '',
       avatar: json['avatar'] ?? '',
       role: json['role'] ?? 'member',
       joinedAt: DateTime.parse(
-        json['joined_at'] ?? DateTime.now().toIso8601String(),
+        json['joinedAt'] ?? json['joined_at'] ?? DateTime.now().toIso8601String(),
       ),
-      lastSeen: json['last_seen'] != null
-          ? DateTime.parse(json['last_seen'])
+      lastSeen: (json['lastSeen'] ?? json['last_seen']) != null
+          ? DateTime.parse(json['lastSeen'] ?? json['last_seen'])
           : null,
       nickname: json['nickname'],
-      isOnline: json['is_online'] ?? false,
+      isOnline: json['isOnline'] ?? json['is_online'] ?? false,
     );
   }
 

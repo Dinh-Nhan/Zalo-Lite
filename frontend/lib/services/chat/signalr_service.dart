@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:signalr_netcore/signalr_client.dart';
 import '../../models/chat/message.dart';
 import '../../models/chat/conversation.dart';
@@ -33,14 +34,30 @@ class SignalRService {
   Function(String conversationId)? onRemovedFromConversation;
   Function(String message)? onError;
 
+  // Call callbacks
+  Function(String conversationId, String callerId, String callerName,
+      String callerAvatar, String callType)? onIncomingCall;
+  Function(String conversationId)? onCallAccepted;
+  Function(String conversationId, String reason)? onCallRejected;
+  Function(String conversationId)? onCallEnded;
+
   SignalRService({required this.baseUrl, required this.userId});
 
-  Future<void> connect() async {
-    _hubConnection = HubConnectionBuilder()
-        .withUrl('$baseUrl/hubs/chat?userId=$userId')
-        .withAutomaticReconnect()
-        .build();
+  Future<void> connect({String? accessToken}) async {
+    final url = accessToken != null
+        ? '$baseUrl/hubs/chat?userId=$userId&access_token=$accessToken'
+        : '$baseUrl/hubs/chat?userId=$userId';
 
+    _hubConnection = HubConnectionBuilder()
+        .withUrl(
+          url,
+          options: HttpConnectionOptions(
+            transport: HttpTransportType.WebSockets,
+            skipNegotiation: true,
+          ),
+        )
+        .withAutomaticReconnect(retryDelays: [2000, 5000, 10000, 30000])
+        .build();
     // Register event handlers
     _hubConnection!.on('ReceiveMessage', (args) => _handleReceiveMessage(args));
     _hubConnection!.on('MessageSent', (args) => _handleMessageSent(args));
@@ -78,19 +95,34 @@ class SignalRService {
       (args) => _handleRemovedFromConversation(args),
     );
     _hubConnection!.on('Error', (args) => _handleError(args));
+    _hubConnection!.on('IncomingCall', (args) => _handleIncomingCall(args));
+    _hubConnection!.on('CallAccepted', (args) => _handleCallAccepted(args));
+    _hubConnection!.on('CallRejected', (args) => _handleCallRejected(args));
+    _hubConnection!.on('CallEnded', (args) => _handleCallEnded(args));
 
     await _hubConnection!.start();
-    print('SignalR Connected');
+    debugPrint('SignalR Connected');
   }
 
   Future<void> disconnect() async {
     await _hubConnection?.stop();
-    print('SignalR Disconnected');
+    debugPrint('SignalR Disconnected');
+  }
+
+  Future<void> setOnline() async {
+    await _hubConnection?.invoke('SetOnline', args: [userId]);
+  }
+
+  Future<void> setOffline() async {
+    await _hubConnection?.invoke('SetOffline', args: [userId]);
+  }
+
+  Future<void> heartbeat() async {
+    await _hubConnection?.invoke('Heartbeat', args: [userId]);
   }
 
   bool get isConnected => _hubConnection?.state == HubConnectionState.Connected;
 
-  // Send message
   Future<void> sendMessage({
     required String conversationId,
     required String type,
@@ -103,7 +135,7 @@ class SignalRService {
     String? replyToMessageId,
     bool isForwarded = false,
   }) async {
-    await _hubConnection?.invoke(
+    await _hubConnection?.send(
       'SendMessage',
       args: [
         {
@@ -207,9 +239,9 @@ class SignalRService {
         {
           'type': type,
           'participant_ids': participantIds,
-          'group_name': ?groupName,
-          'group_avatar_url': ?groupAvatarUrl,
-          'group_description': ?groupDescription,
+          if (groupName != null) 'group_name': groupName,
+          if (groupAvatarUrl != null) 'group_avatar_url': groupAvatarUrl,
+          if (groupDescription != null) 'group_description': groupDescription,
         },
         userId,
       ],
@@ -406,5 +438,66 @@ class SignalRService {
       print('SignalR Error: $message');
       onError?.call(message);
     }
+  }
+
+  // ── Call event handlers ──────────────────────────────────────────
+
+  void _handleIncomingCall(List<Object?>? args) {
+    if (args == null || args.isEmpty) return;
+    final d = args[0] as Map<String, dynamic>;
+    onIncomingCall?.call(
+      d['conversation_id'] ?? '',
+      d['caller_id'] ?? '',
+      d['caller_name'] ?? '',
+      d['caller_avatar'] ?? '',
+      d['call_type'] ?? 'voice',
+    );
+  }
+
+  void _handleCallAccepted(List<Object?>? args) {
+    if (args == null || args.isEmpty) return;
+    final d = args[0] as Map<String, dynamic>;
+    onCallAccepted?.call(d['conversation_id'] ?? '');
+  }
+
+  void _handleCallRejected(List<Object?>? args) {
+    if (args == null || args.isEmpty) return;
+    final d = args[0] as Map<String, dynamic>;
+    onCallRejected?.call(
+      d['conversation_id'] ?? '',
+      d['reason'] ?? 'rejected',
+    );
+  }
+
+  void _handleCallEnded(List<Object?>? args) {
+    if (args == null || args.isEmpty) return;
+    final d = args[0] as Map<String, dynamic>;
+    onCallEnded?.call(d['conversation_id'] ?? '');
+  }
+
+  // ── Call signaling methods ───────────────────────────────────────
+
+  Future<void> initiateCall({
+    required String conversationId,
+    required String calleeId,
+    required String callType,
+    required String callerName,
+    required String callerAvatar,
+  }) async {
+    await _hubConnection?.send('InitiateCall', args: [
+      conversationId, calleeId, callType, userId, callerName, callerAvatar,
+    ]);
+  }
+
+  Future<void> acceptCall(String conversationId, String callerId) async {
+    await _hubConnection?.send('AcceptCall', args: [conversationId, callerId]);
+  }
+
+  Future<void> rejectCall(String conversationId, String callerId, {String reason = 'rejected'}) async {
+    await _hubConnection?.send('RejectCall', args: [conversationId, callerId, reason]);
+  }
+
+  Future<void> endCallSignal(String conversationId, String otherUserId) async {
+    await _hubConnection?.send('EndCall', args: [conversationId, otherUserId]);
   }
 }

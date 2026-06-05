@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/config/dark_mode_config.dart';
 import 'package:provider/provider.dart';
@@ -50,8 +49,9 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(msg),
-                  backgroundColor:
-                      isSuccess ? const Color(0xFF4CAF50) : const Color(0xFF0068FF),
+                  backgroundColor: isSuccess
+                      ? const Color(0xFF4CAF50)
+                      : const Color(0xFF0068FF),
                   behavior: SnackBarBehavior.floating,
                   duration: const Duration(seconds: 4),
                   shape: RoundedRectangleBorder(
@@ -77,7 +77,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     FriendProvider provider,
   ) {
     final headerBg = isDark ? const Color(0xFF1A1A1A) : AppColors.primaryBlue;
-    final tabBg = isDark ? AppColors.darkSurface : Colors.white;
 
     return Scaffold(
       backgroundColor: AppColors.getBackground(isDark),
@@ -218,10 +217,9 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
   ) {
     final bg = isDark ? AppColors.darkSurface : Colors.white;
     final isLoading = provider.isActionLoading(f.senderId);
-    final displayName =
-        (f.senderName?.isNotEmpty == true) ? f.senderName! : f.senderId;
-    final avatarUrl =
-        (f.senderAvatar?.isNotEmpty == true) ? f.senderAvatar : null;
+    final displayName = (f.senderName?.isNotEmpty == true)
+        ? f.senderName!
+        : f.senderId;
 
     return Container(
       color: bg,
@@ -229,7 +227,10 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          FriendAvatar(name: displayName, avatarUrl: avatarUrl, radius: 26),
+          FriendAvatar(
+            name: f.addresseeName.isNotEmpty ? f.addresseeName : f.addresseeId,
+            radius: 26,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

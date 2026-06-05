@@ -30,6 +30,13 @@ public class FriendController(FriendshipService friendshipService) : ControllerB
         Ok(ApiResponse<List<FriendSummaryResponse>>.SuccessResponse(
             await friendshipService.GetFriendsAsync(CurrentUid)));
 
+    // ── GET /api/friends/user/{userId} ─────────────────────────
+    /// <summary>Lấy danh sách bạn bè của một user cụ thể (public info)</summary>
+    [HttpGet("user/{userId}")]
+    public async Task<IActionResult> GetUserFriends(string userId) =>
+        Ok(ApiResponse<List<FriendSummaryResponse>>.SuccessResponse(
+            await friendshipService.GetFriendsAsync(userId)));
+
     // ── GET /api/friends/requests/received ───────────────────────
     /// <summary>Lấy danh sách lời mời kết bạn đã NHẬN (đang pending)</summary>
     [HttpGet("requests/received")]

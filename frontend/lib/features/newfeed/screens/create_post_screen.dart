@@ -45,6 +45,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   String _visibility = 'public';
   List<String> _selectedFriendIds = [];
   bool _isLoading = false;
+  bool _isPickingImages = false;
 
   @override
   void initState() {
@@ -95,20 +96,41 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   Future<void> _pickImages() async {
+    if (_isPickingImages) return;
+
+    _isPickingImages = true;
     try {
       final List<XFile> images = await _imagePicker.pickMultiImage(
         imageQuality: 85,
       );
-      if (images.isNotEmpty) {
-        final newImages = <_PickedImage>[];
-        for (final img in images) {
-          final bytes = await img.readAsBytes();
-          newImages.add(_PickedImage(file: img, bytes: bytes));
-        }
-        setState(() {
-          _selectedImages.addAll(newImages);
-        });
+
+      var effectiveImages = images;
+      if (effectiveImages.isEmpty) {
+        final lostData = await _imagePicker.retrieveLostData();
+        effectiveImages = lostData.files ?? const <XFile>[];
       }
+
+      if (effectiveImages.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không nhận được ảnh từ thư viện. Hãy thử chọn lại hoặc dùng ảnh đã có sẵn trong Gallery của máy ảo.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+
+      final newImages = <_PickedImage>[];
+      for (final img in effectiveImages) {
+        final bytes = await img.readAsBytes();
+        newImages.add(_PickedImage(file: img, bytes: bytes));
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _selectedImages.addAll(newImages);
+      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -117,6 +139,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           backgroundColor: Colors.red,
         ),
       );
+    } finally {
+      _isPickingImages = false;
     }
   }
 
@@ -481,7 +505,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   Widget _buildVisibilityRow() {
-    if (_visibility != 'private' || _selectedFriendIds.isEmpty) {
+    if (_visibility != 'selected_friends' || _selectedFriendIds.isEmpty) {
       return const SizedBox.shrink();
     }
     return Padding(
@@ -738,8 +762,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         return Icons.public;
       case 'friends':
         return Icons.group;
-      case 'private':
+      case 'selected_friends':
         return Icons.group_add;
+      case 'only_me':
+        return Icons.lock_outline;
       default:
         return Icons.public;
     }
@@ -751,8 +777,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         return 'Công khai';
       case 'friends':
         return 'Bạn bè';
-      case 'private':
+      case 'selected_friends':
         return 'Bạn bè từ Zalo';
+      case 'only_me':
+        return 'Chỉ mình tôi';
       default:
         return 'Công khai';
     }
@@ -830,8 +858,14 @@ class _VisibilitySheetState extends State<_VisibilitySheet> {
           _buildOption(
             icon: Icons.group_add,
             title: 'Bạn bè từ Zalo',
-            subtitle: 'Chọn danh sách bạn bè cụ thể',
-            value: 'private',
+            subtitle: 'Chỉ những bạn bè được chọn mới thấy',
+            value: 'selected_friends',
+          ),
+          _buildOption(
+            icon: Icons.lock_outline,
+            title: 'Chỉ mình tôi',
+            subtitle: 'Chỉ mình tôi thấy bài viết này',
+            value: 'only_me',
           ),
           const SizedBox(height: 16),
         ],
@@ -851,7 +885,7 @@ class _VisibilitySheetState extends State<_VisibilitySheet> {
       onTap: () {
         setState(() => _visibility = value);
         widget.onVisibilityChanged(_visibility, _selectedFriendIds);
-        if (value == 'private') {
+        if (value == 'selected_friends') {
           Navigator.pop(context);
           _showFriendSelectorSheet(context);
         } else {
@@ -1105,9 +1139,9 @@ class _FriendSelectorSheet extends StatelessWidget {
                                       color: Color(0xFF1A1A1A),
                                     ),
                                   ),
-                                  if (friend.email.isNotEmpty)
+                                  if (friend.friendId.isNotEmpty)
                                     Text(
-                                      friend.email,
+                                      friend.friendId,
                                       style: const TextStyle(
                                         fontSize: 12,
                                         color: Color(0xFF65676B),

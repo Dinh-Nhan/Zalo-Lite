@@ -41,4 +41,9 @@ public class User
     
     [FirestoreProperty("avatar_public_id")]
     public string? AvatarPublicId {get; set;}
+
+    [FirestoreProperty("fcm_token")]
+    public string? FcmToken { get; set; }
+    [FirestoreProperty("is_enable")]
+    public bool IsEnable {get; set;} = true; 
 }

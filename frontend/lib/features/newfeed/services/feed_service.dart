@@ -123,20 +123,25 @@ class FeedService {
     XFile? image,
   }) async {
     try {
-      final Map<String, dynamic> formMap = {
-        'Content': content,
-      };
+      late final Response response;
 
-      if (image != null) {
-        final bytes = await image.readAsBytes();
-        formMap['File'] = MultipartFile.fromBytes(
-          bytes,
-          filename: image.name,
+      if (image == null) {
+        response = await _dio.post(
+          '/api/feed/$feedId/comments',
+          data: {
+            'content': content,
+          },
         );
+      } else {
+        final formData = FormData.fromMap({
+          'Content': content,
+          'File': MultipartFile.fromBytes(
+            await image.readAsBytes(),
+            filename: image.name.isNotEmpty ? image.name : 'comment.jpg',
+          ),
+        });
+        response = await _dio.post('/api/feed/$feedId/comments', data: formData);
       }
-
-      final formData = FormData.fromMap(formMap);
-      final response = await _dio.post('/api/feed/$feedId/comments', data: formData);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = response.data as Map<String, dynamic>;
@@ -160,7 +165,6 @@ class FeedService {
 
   static String _handleError(DioException e) {
     final status = e.response?.statusCode;
-    final body = e.response?.data;
     if (status == 401) return 'Chưa đăng nhập hoặc token hết hạn';
     if (status == 403) return 'Không có quyền truy cập';
     if (status == 404) return 'Không tìm thấy bài viết';

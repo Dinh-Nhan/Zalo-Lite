@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 class FriendSearchScreen extends StatelessWidget {
   const FriendSearchScreen({super.key});
@@ -16,7 +15,7 @@ class FriendSearchScreen extends StatelessWidget {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            GoRouter.of(context).pop();
+            Navigator.pop(context);
           },
         ),
 

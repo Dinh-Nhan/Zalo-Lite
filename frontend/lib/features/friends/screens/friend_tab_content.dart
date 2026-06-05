@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/config/app_colors.dart';
-import 'package:frontend/features/friends/screens/friend_request_screen.dart';
-import 'package:frontend/views/chat/chat_detail_view.dart';
-import 'package:provider/provider.dart';
 import 'package:frontend/features/friends/friends.dart';
+import 'package:frontend/features/friends/screens/friend_birthday.dart';
+import 'package:frontend/features/friends/screens/friend_request_screen.dart';
+import 'package:frontend/features/profile/screens/profile_screen.dart';
+import 'package:frontend/providers/chat_provider.dart';
+import 'package:frontend/services/chat/chat_service.dart';
+import 'package:frontend/views/chat/chat_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
+
 class FriendTabView extends StatefulWidget {
   const FriendTabView({super.key});
 
@@ -12,19 +18,17 @@ class FriendTabView extends StatefulWidget {
 }
 
 class _FriendTabViewState extends State<FriendTabView> {
-  // Trạng thái để lọc danh sách: 0 là Tất cả, 1 là Mới truy cập
   int _selectedFilterIndex = 0;
+
   @override
   void initState() {
     super.initState();
-
     Future.microtask(() async {
-      final provider =
-          context.read<FriendProvider>();
-
-      await provider.loadFriends();
+      final provider = context.read<FriendProvider>();
+      await provider.loadAll();
     });
   }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<FriendProvider>();
@@ -32,41 +36,29 @@ class _FriendTabViewState extends State<FriendTabView> {
       padding: EdgeInsets.zero,
       children: [
         _buildActionTile(
-          context, 
-          Icons.people_alt, 
-          const Color.fromARGB(255, 255, 255, 255),  
-          "Lời mời kết bạn", 
-          trailing: "${provider.pendingReceived.length}",
+          context,
+          Icons.people_alt,
+          const Color.fromARGB(255, 255, 255, 255),
+          'Lời mời kết bạn',
+          trailing: '${provider.pendingReceived.length + provider.pendingSent.length}',
         ),
         _buildActionTile(
-          context, 
-          Icons.cake, 
-          const Color.fromARGB(255, 255, 255, 255), 
-          "Sinh nhật"
+          context,
+          Icons.cake,
+          const Color.fromARGB(255, 255, 255, 255),
+          'Sinh nhật',
         ),
         const Divider(thickness: 8, color: Color(0xFFF4F5F7)),
-        
-        // Khu vực Filter Chips
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
-              _buildFilterChip(
-                "Tất cả ${provider.friends.length}",
-                0,
-              ),
-
+              _buildFilterChip('Tất cả ${provider.friends.length}', 0),
               const SizedBox(width: 8),
-
-              _buildFilterChip(
-                "Mới truy cập ${provider.friends.length}",
-                1,
-              ),
             ],
           ),
         ),
         const Divider(thickness: 1, color: Color(0xFFEEEEEE), height: 1),
-        
         if (_selectedFilterIndex == 0) ...[
           if (provider.friendsState == LoadingState.loading)
             const Center(
@@ -75,71 +67,45 @@ class _FriendTabViewState extends State<FriendTabView> {
                 child: CircularProgressIndicator(),
               ),
             )
-
           else if (provider.friends.isEmpty)
             const Padding(
               padding: EdgeInsets.all(24),
-              child: Center(
-                child: Text(
-                  'Chưa có bạn bè',
-                ),
-              ),
+              child: Center(child: Text('Chưa có bạn bè')),
             )
-
           else if (_selectedFilterIndex == 0) ...[
-            ...provider.friends.map(
-              (friend) => _buildContactItem(friend),
-            ),
-          ]
-        ] else ...[
-          // Danh sách giả lập cho "Mới truy cập"
-          _buildAlphabetHeader("Mới truy cập gần đây"),
-          // _buildContactItem("Nhật Minh (Online)", "https://i.pravatar.cc/150?u=5"),
-          // _buildContactItem("Thái Anh", "https://i.pravatar.cc/150?u=6"),
+            ...provider.friends.map((friend) => _buildContactItem(friend)),
+          ],
         ],
       ],
     );
   }
 
-  // 1. Widget Filter Chip có hiệu ứng nhấn
-  Widget _buildFilterChip(String label, int index) {
-    bool isSelected = _selectedFilterIndex == index;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedFilterIndex = index),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFE3F2FD) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF0091FF) : const Color(0xFFEEEEEE),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? const Color(0xFF0091FF) : Colors.black87,
-            fontSize: 13,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // 2. Widget Action Tile (Lời mời kết bạn/Sinh nhật) với InkWell
-  Widget _buildActionTile(BuildContext context, IconData icon, Color color, String title, {String? trailing}) {
+  Widget _buildActionTile(
+    BuildContext context,
+    IconData icon,
+    Color color,
+    String title, {
+    String? trailing,
+  }) {
     return Material(
       color: Colors.white,
       child: InkWell(
         onTap: () {
-          if (title == "Lời mời kết bạn") {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const FriendRequestScreen()));
+          if (title == 'Lời mời kết bạn') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const FriendRequestScreen()),
+            );
+          }
+          if (title == 'Sinh nhật') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const FriendBirthdayScreen()),
+            );
           }
         },
-        // Hiệu ứng highlight màu xám rất nhạt khi chạm nhanh
-        highlightColor: Colors.black.withOpacity(0.05),
-        splashColor: Colors.transparent, 
+        highlightColor: Colors.black.withValues(alpha: 0.05),
+        splashColor: Colors.transparent,
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           leading: Container(
@@ -151,16 +117,46 @@ class _FriendTabViewState extends State<FriendTabView> {
             child: Icon(icon, color: color, size: 20),
           ),
           title: Text(title, style: const TextStyle(fontSize: 16)),
-          trailing: trailing != null 
-            ? Text("($trailing)", style: const TextStyle(color: Colors.grey, fontSize: 14)) 
-            : null,
+          trailing: trailing != null
+              ? Text(
+                  '($trailing)',
+                  style: const TextStyle(color: Colors.grey, fontSize: 14),
+                )
+              : const Icon(Icons.chevron_right),
         ),
       ),
     );
   }
 
-  // 3. Widget Danh sách bạn bè với hiệu ứng chạm và khoảng cách chuẩn
+  Widget _buildFilterChip(String label, int index) {
+    final isSelected = _selectedFilterIndex == index;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedFilterIndex = index),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primaryBlue : const Color(0xFFF1F2F4),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.black,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildContactItem(FriendSummaryModel friend) {
+    final displayName = friend.fullName.isNotEmpty
+        ? friend.fullName
+        : (friend.firstName.isNotEmpty || friend.lastName.isNotEmpty
+            ? '${friend.firstName} ${friend.lastName}'.trim()
+            : 'Người dùng');
+
     return Material(
       color: Colors.white,
       child: InkWell(
@@ -168,53 +164,68 @@ class _FriendTabViewState extends State<FriendTabView> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => ChatDetailView(
-                conversationId: friend.friendId,
-                contactName: friend.fullName,
-                avatarColor: Colors.blue,
-                isGroup: false,
-              ),
+              builder: (_) => ProfileScreen(targetUserId: friend.friendId),
             ),
           );
         },
-        highlightColor: Colors.black.withOpacity(0.05),
-        splashColor: Colors.transparent,
-        child: ListTile(
-          // Tăng vertical lên để có padding top/bottom bên trong vùng chọn
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), 
-          leading: CircleAvatar(
-            backgroundImage: NetworkImage(friend.avatar),
-            radius: 24,
-          ),
-          title: Text(friend.fullName, style: const TextStyle(fontSize: 16)),
-          trailing: SizedBox(
-            width: 100, // Tăng nhẹ width để icon không bị hẹp khi thêm padding
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.call_outlined, color: Colors.black54, size: 22),
-                  onPressed: () {},
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: const Color(0xFF4CAF50),
+                backgroundImage: friend.avatar.isNotEmpty ? NetworkImage(friend.avatar) : null,
+                child: friend.avatar.isEmpty
+                    ? Text(
+                        displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+                        style: const TextStyle(color: Colors.white),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.videocam_outlined, color: Colors.black54, size: 22),
-                  onPressed: () {},
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () async {
+                  final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+                  if (friend.friendId.isEmpty || currentUid.isEmpty) return;
+                  final conversation = await ChatService().createConversation(
+                    type: 'private',
+                    participantIds: [currentUid, friend.friendId],
+                  );
+                  if (!context.mounted) return;
+                  await context.read<ChatProvider>().openConversation(conversation);
+                  if (!context.mounted) return;
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => ChatScreen(conversation: conversation)),
+                  );
+                },
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryBlue,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.chat_bubble_outline,
+                    size: 18,
+                    color: Colors.white,
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
-
-  Widget _buildAlphabetHeader(String char) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.only(left: 16, top: 8, bottom: 4, right: 16),
-    color: const Color.fromARGB(255, 255, 255, 255), // Nền xám nhạt cho header chữ cái
-    child: Text(
-      char, 
-      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black54, fontSize: 13)
-    ),
-  );
 }

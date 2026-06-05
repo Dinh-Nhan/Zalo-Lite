@@ -14,7 +14,7 @@ class LoadingDialog {
             child: Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9), // Trắng mờ nhẹ
+                color: Colors.white.withValues(alpha: 0.9), // Trắng mờ nhẹ
                 borderRadius: BorderRadius.circular(15),
               ),
               child: Column(

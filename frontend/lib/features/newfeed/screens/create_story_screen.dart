@@ -240,7 +240,7 @@ class _CreateStoryScreenState extends State<CreateStoryScreen>
     }
   }
 
-  void _retake() {
+  void _resetCapture() {
     if (_isDisposed && mounted) return;
     setState(() {
       _capturedImage = null;

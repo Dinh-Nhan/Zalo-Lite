@@ -13,6 +13,11 @@ import 'package:frontend/features/newfeed/providers/feed_provider.dart';
 import 'package:frontend/features/newfeed/widgets/comment_sheet.dart';
 import 'package:frontend/features/friends/services/friend_service.dart';
 import 'package:frontend/features/friends/providers/friend_provider.dart';
+import 'package:frontend/services/dio_client.dart';
+import 'package:frontend/services/chat/chat_service.dart';
+import 'package:frontend/providers/chat_provider.dart';
+import 'package:frontend/views/chat/chat_screen.dart';
+import 'package:frontend/views/chat/chat_list_view.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? targetUserId;
@@ -108,21 +113,24 @@ class _ProfileScreenState extends State<ProfileScreen>
     try {
       final provider = context.read<ProfileProvider>();
       final results = await Future.wait([
+        ProfileService.getUserById(_targetUserId!),
         ProfileService.getUserPosts(_targetUserId!),
         FriendService.getRelationshipStatus(_targetUserId!),
+        FriendService.getFriendsByUserId(_targetUserId!),
       ]);
 
-      final posts = results[0] as List<PostModel>;
-      final relationship = results[1] as FriendshipModel?;
+      final userProfile = results[0] as UserProfileModel;
+      final posts = results[1] as List<PostModel>;
+      final relationship = results[2] as FriendshipModel?;
+      final externalFriends = results[3] as List<FriendSummaryModel>;
 
       provider.setExternalPosts(posts);
+      provider.setExternalFriends(externalFriends);
 
       if (!mounted) return;
       setState(() {
-        if (posts.isNotEmpty) {
-          _targetUserName = posts.first.userName;
-          _targetUserAvatar = posts.first.userAvatar;
-        }
+        _targetUserName = userProfile.fullName;
+        _targetUserAvatar = userProfile.avatar;
         _relationshipStatus = relationship?.status ?? '';
         _friendshipId = relationship?.id;
         _isLoadingRelationship = false;
@@ -135,10 +143,20 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _onRefresh() async {
+    final currentTabIndex = _tabController.index;
+
     if (_isOwnProfile) {
       await context.read<ProfileProvider>().loadProfile(_targetUserId!);
     } else {
       await _loadOtherUserProfile();
+    }
+
+    if (!mounted) return;
+
+    if (_tabController.index != currentTabIndex &&
+        currentTabIndex >= 0 &&
+        currentTabIndex < _tabController.length) {
+      _tabController.animateTo(currentTabIndex);
     }
   }
 
@@ -166,17 +184,14 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     if (choice == null || !mounted) return;
 
-    if (choice == 'avatar_only') {
+    if (choice == 'avatar_only' || choice == 'both') {
       setState(() => _selectedAvatarBytes = bytes);
 
       try {
         final newAvatarUrl = await AuthService.updateAvatar(image);
 
-        if (!mounted) return;
-
         setState(() {
           _currentUserAvatar = newAvatarUrl;
-          _targetUserAvatar = newAvatarUrl;
           _selectedAvatarBytes = null;
         });
 
@@ -199,17 +214,16 @@ class _ProfileScreenState extends State<ProfileScreen>
             backgroundColor: Colors.red,
           ),
         );
+        return;
       }
-      return;
     }
 
-    context.push('/create-post-avatar', extra: {
-      'imageBytes': bytes,
-      'imagePath': image.path,
-      'currentUserAvatar': _currentUserAvatar,
-      'shouldUpdateAvatarOnSubmit': choice == 'both',
-      'avatarImagePath': choice == 'both' ? image.path : null,
-    });
+    if (choice == 'post_only' || choice == 'both') {
+      context.push('/create-post-avatar', extra: {
+        'imageBytes': bytes,
+        'imagePath': image.path,
+      });
+    }
   }
 
   Future<void> _sendFriendRequest() async {
@@ -318,6 +332,27 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
   }
 
+  Future<void> _openChat() async {
+    if (_targetUserId == null || _targetUserId!.isEmpty) return;
+    try {
+      final conversation = await ChatService().createConversation(
+        type: 'private',
+        participantIds: [_targetUserId!],
+      );
+      if (!mounted) return;
+      await context.read<ChatProvider>().openConversation(conversation);
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => ChatScreen(conversation: conversation)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi: $e')),
+      );
+    }
+  }
+
   Color _avatarColor(String name) {
     final colors = [
       const Color(0xFF4CAF50),
@@ -333,6 +368,13 @@ class _ProfileScreenState extends State<ProfileScreen>
     return colors[name.codeUnitAt(0) % colors.length];
   }
 
+  String _formatDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year.toString();
+    return '$day/$month/$year';
+  }
+
   String _getInitials(String name) {
     if (name.isEmpty) return '?';
     final parts = name.trim().split(' ');
@@ -346,15 +388,26 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      appBar: !_isOwnProfile
+          ? AppBar(
+              backgroundColor: Colors.white,
+              elevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              leadingWidth: 48,
+              automaticallyImplyLeading: false,
+            )
+          : null,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _onRefresh,
-          edgeOffset: 0,
           child: NestedScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             headerSliverBuilder: (context, innerBoxIsScrolled) {
               return [
-                _buildProfileHeader(context),
+                _buildProfileHeader(),
                 SliverPersistentHeader(
                   pinned: true,
                   delegate: _TabBarDelegate(
@@ -366,7 +419,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             body: TabBarView(
               controller: _tabController,
               children: [
-                const _PostsTab(),
+                _PostsTab(targetUserId: _targetUserId ?? ''),
                 _InfoTab(isOwnProfile: _isOwnProfile),
                 _ImagesTab(),
                 const _SettingsTab(),
@@ -378,31 +431,49 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildProfileHeader(BuildContext parentContext) {
-    return Consumer<ProfileProvider>(
-      builder: (context, provider, _) {
-        final bio = provider.userProfile?.bio?.trim() ?? '';
-        return SliverToBoxAdapter(
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            color: Colors.white,
-            child: Column(
+  Widget _buildProfileHeader() {
+    return SliverToBoxAdapter(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        color: Colors.white,
+        child: Consumer<ProfileProvider>(
+          builder: (context, provider, _) {
+            final profile = provider.userProfile;
+            final displayName = _isOwnProfile
+                ? (profile?.fullName.isNotEmpty == true
+                    ? profile!.fullName
+                    : _currentUserName)
+                : _targetUserName;
+            final bio = profile?.bio.trim() ?? '';
+
+            return Column(
               children: [
                 _buildAvatar(),
                 const SizedBox(height: 12),
                 Text(
-                  _isOwnProfile ? _currentUserName : _targetUserName,
+                  displayName,
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
                   ),
+                  textAlign: TextAlign.center,
                 ),
-                if (_isOwnProfile && bio.isNotEmpty) ...[
+                if (bio.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  _OwnProfileIntro(bio: bio),
-                ],
-                if (!_isOwnProfile && _targetUserEmail != null) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Text(
+                      bio,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                        height: 1.4,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ] else if (!_isOwnProfile && _targetUserEmail != null) ...[
                   const SizedBox(height: 4),
                   Text(
                     _targetUserEmail!,
@@ -413,14 +484,18 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ),
                 ],
                 const SizedBox(height: 16),
-                if (!_isOwnProfile) _buildOtherProfileActions(),
+                if (_isOwnProfile)
+                  _buildOwnProfileActions()
+                else
+                  _buildOtherProfileActions(),
+                const SizedBox(height: 12),
                 _buildStatRow(),
                 const SizedBox(height: 8),
               ],
-            ),
-          ),
-        );
-      },
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -519,6 +594,10 @@ class _ProfileScreenState extends State<ProfileScreen>
     return avatarWidget;
   }
 
+  Widget _buildOwnProfileActions() {
+    return const SizedBox.shrink();
+  }
+
   Widget _buildOtherProfileActions() {
     if (_isLoadingRelationship) {
       return const SizedBox(
@@ -571,7 +650,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           icon: Icons.chat_bubble_outline,
           label: '',
           filled: false,
-          onTap: () {},
+          onTap: () => _openChat(),
         ),
         const SizedBox(width: 16),
       ],
@@ -675,7 +754,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     return Consumer<ProfileProvider>(
       builder: (context, provider, _) {
         final photoCount = provider.photoCount;
-        final friendCount = provider.friendCount;
+        final friendCount = _isOwnProfile
+            ? provider.friendCount
+            : provider.externalFriendCount;
 
         return Row(
           children: [
@@ -700,7 +781,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                 onTap: friendCount > 0
                     ? () {
                         if (_isOwnProfile) {
-                          _tabController.animateTo(1);
+                          ChatListViewState? chatListState =
+                              context.findAncestorStateOfType<ChatListViewState>();
+                          chatListState?.switchTab(1);
+                          if (context.mounted) context.pop();
                         } else {
                           _showFriendCountSheet(context, friendCount);
                         }
@@ -715,16 +799,17 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   void _showFriendCountSheet(BuildContext context, int count) {
-    final friends = context.read<ProfileProvider>().friends;
+    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (sheetContext) {
         return DraggableScrollableSheet(
-          initialChildSize: 0.72,
-          minChildSize: 0.45,
-          maxChildSize: 0.9,
+          initialChildSize: 0.55,
+          minChildSize: 0.3,
+          maxChildSize: 0.85,
           builder: (context, scrollController) {
             return Container(
               decoration: const BoxDecoration(
@@ -747,8 +832,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                     child: Row(
                       children: [
                         Text(
-                          'Bạn bè ($count)',
-                          style: TextStyle(
+                          _targetUserName.isNotEmpty
+                              ? 'Bạn bè của $_targetUserName ($count)'
+                              : 'Bạn bè ($count)',
+                          style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary,
@@ -764,8 +851,16 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ),
                   const SizedBox(height: 8),
                   Expanded(
-                    child: friends.isEmpty
-                        ? Center(
+                    child: Consumer<ProfileProvider>(
+                      builder: (context, prov, _) {
+                        if (prov.isLoadingExternalFriends) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        final friends = prov.externalFriends;
+                        if (friends.isEmpty) {
+                          return const Center(
                             child: Text(
                               'Chưa có bạn bè',
                               style: TextStyle(
@@ -773,54 +868,43 @@ class _ProfileScreenState extends State<ProfileScreen>
                                 fontSize: 14,
                               ),
                             ),
-                          )
-                        : ListView.separated(
-                            controller: scrollController,
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                            itemCount: friends.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 10),
-                            itemBuilder: (context, index) {
-                              final friend = friends[index];
-                              final initials = _getInitials(friend.fullName);
-                              final avatarColor = _avatarColor(friend.fullName);
-                              return ListTile(
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 4,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                tileColor: const Color(0xFFF7F8FA),
-                                leading: CircleAvatar(
-                                  radius: 24,
-                                  backgroundColor: avatarColor,
-                                  backgroundImage: friend.avatar.isNotEmpty
-                                      ? NetworkImage(friend.avatar)
-                                      : null,
-                                  child: friend.avatar.isEmpty
-                                      ? Text(
-                                          initials,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        )
-                                      : null,
-                                ),
-                                title: Text(
-                                  friend.fullName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                subtitle: Text(
-                                  friend.email,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              );
-                            },
-                          ),
+                          );
+                        }
+                        return ListView.separated(
+                          controller: scrollController,
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          itemCount: friends.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final friend = friends[index];
+                            final displayName = friend.fullName.isNotEmpty
+                                ? friend.fullName
+                                : (friend.firstName.isNotEmpty || friend.lastName.isNotEmpty
+                                    ? '${friend.firstName} ${friend.lastName}'.trim()
+                                    : 'Người dùng');
+                            final initials = _getInitials(displayName);
+                            final avatarColor = _avatarColor(displayName);
+                            return _FriendRowItem(
+                              friend: friend,
+                              initials: initials,
+                              avatarColor: avatarColor,
+                              currentUid: currentUid,
+                              onTap: () {
+                                Navigator.pop(sheetContext);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ProfileScreen(
+                                      targetUserId: friend.friendId,
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        );
+                      },
+                    ),
                   ),
                 ],
               ),
@@ -831,6 +915,183 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 }
+
+class _FriendRowItem extends StatelessWidget {
+  final FriendSummaryModel friend;
+  final String initials;
+  final Color avatarColor;
+  final String currentUid;
+  final VoidCallback onTap;
+
+  const _FriendRowItem({
+    required this.friend,
+    required this.initials,
+    required this.avatarColor,
+    required this.currentUid,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = friend.fullName.isNotEmpty
+        ? friend.fullName
+        : (friend.firstName.isNotEmpty || friend.lastName.isNotEmpty
+            ? '${friend.firstName} ${friend.lastName}'.trim()
+            : 'Người dùng');
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF7F8FA),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: avatarColor,
+                backgroundImage: friend.avatar.isNotEmpty
+                    ? NetworkImage(friend.avatar)
+                    : null,
+                child: friend.avatar.isEmpty
+                    ? Text(
+                        initials,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Consumer<FriendProvider>(
+                builder: (context, friendProvider, _) {
+                  final isFriend = friendProvider.isFriend(friend.friendId);
+                  final sentRequest = friendProvider.getSentRequest(friend.friendId);
+                  final receivedRequest = friendProvider.getReceivedRequest(friend.friendId);
+                  final isLoading = friendProvider.isActionLoading(friend.friendId);
+
+                  if (isLoading) {
+                    return const SizedBox(
+                      width: 34,
+                      height: 34,
+                      child: Center(
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    );
+                  }
+
+                  if (sentRequest != null || receivedRequest != null) {
+                    return Container(
+                      width: 80,
+                      height: 34,
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Đã gửi',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    );
+                  }
+
+                  if (isFriend) {
+                    return GestureDetector(
+                      onTap: () async {
+                        final conversation = await ChatService().createConversation(
+                          type: 'private',
+                          participantIds: [currentUid, friend.friendId],
+                        );
+                        if (!context.mounted) return;
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ChatScreen(conversation: conversation),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        width: 80,
+                        height: 34,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryBlue,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'Nhắn tin',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  return GestureDetector(
+                    onTap: () async {
+                      await friendProvider.sendFriendRequest(friend.friendId);
+                    },
+                    child: Container(
+                      width: 80,
+                      height: 34,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryBlue,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Kết bạn',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // _TabBarDelegate removed — tab bar now inline in build()
 
 class _TabBarDelegate extends SliverPersistentHeaderDelegate {
@@ -889,7 +1150,9 @@ class _TabBarDelegate extends SliverPersistentHeaderDelegate {
 // TAB 0: BÀI VIẾT
 // ============================================================
 class _PostsTab extends StatefulWidget {
-  const _PostsTab();
+  final String targetUserId;
+
+  const _PostsTab({required this.targetUserId});
 
   @override
   State<_PostsTab> createState() => _PostsTabState();
@@ -909,92 +1172,83 @@ class _PostsTabState extends State<_PostsTab> {
         }
 
         if (provider.errorMessage != null && provider.posts.isEmpty) {
-          return CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.error_outline, size: 48, color: Colors.grey.shade400),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Không thể tải bài viết',
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
-                      ),
-                      TextButton(
-                        onPressed: () => provider.loadProfile(
-                          FirebaseAuth.instance.currentUser?.uid ?? '',
-                        ),
-                        child: const Text('Thử lại'),
-                      ),
-                    ],
-                  ),
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 48, color: Colors.grey.shade400),
+                const SizedBox(height: 12),
+                Text(
+                  'Không thể tải bài viết',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
                 ),
-              ),
-            ],
+                TextButton(
+                  onPressed: () => provider.loadProfile(
+                    FirebaseAuth.instance.currentUser?.uid ?? '',
+                  ),
+                  child: const Text('Thử lại'),
+                ),
+              ],
+            ),
           );
         }
 
         final allPosts = provider.posts;
         if (allPosts.isEmpty) {
-          return CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.article_outlined, size: 56, color: Colors.grey.shade300),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Chưa có bài viết nào',
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
-                      ),
-                    ],
-                  ),
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.article_outlined, size: 56, color: Colors.grey.shade300),
+                const SizedBox(height: 16),
+                Text(
+                  'Chưa có bài viết nào',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
         }
 
         final displayedPosts = allPosts.take(_displayedPostCount).toList();
         final hasMore = _displayedPostCount < allPosts.length;
 
-        return CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.only(top: 8),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => _ProfilePostCard(post: displayedPosts[index]),
-                  childCount: displayedPosts.length,
-                ),
-              ),
-            ),
-            if (hasMore)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Center(
-                    child: TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _displayedPostCount += 6;
-                        });
-                      },
-                      child: const Text('Xem thêm bài viết'),
-                    ),
+        return RefreshIndicator(
+          onRefresh: () async {
+            final targetId = widget.targetUserId.isNotEmpty
+                ? widget.targetUserId
+                : FirebaseAuth.instance.currentUser?.uid ?? '';
+            await provider.loadProfile(targetId);
+          },
+          child: CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.only(top: 8),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) => _ProfilePostCard(post: allPosts[index]),
+                    childCount: displayedPosts.length,
                   ),
                 ),
               ),
-          ],
+              if (hasMore)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _displayedPostCount += 6;
+                          });
+                        },
+                        child: const Text('Xem thêm bài viết'),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         );
       },
     );
@@ -1014,13 +1268,14 @@ class _InfoTab extends StatelessWidget {
     return Consumer<ProfileProvider>(
       builder: (context, provider, _) {
         final profile = provider.userProfile;
-        final email = FirebaseAuth.instance.currentUser?.email ?? '';
+        final email = profile?.email ?? FirebaseAuth.instance.currentUser?.email ?? '';
         final fullName = profile?.fullName ?? provider.userName ?? '';
         final bio = profile?.bio ?? '';
-        final birthday = provider.birthday ?? '';
+        final birthday = profile?.dateOfBirth != null
+            ? '${profile!.dateOfBirth!.year}-${profile.dateOfBirth!.month.toString().padLeft(2, '0')}-${profile.dateOfBirth!.day.toString().padLeft(2, '0')}'
+            : (provider.birthday ?? '');
 
         return CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverPadding(
               padding: const EdgeInsets.all(16),
@@ -1397,32 +1652,23 @@ class _ImagesTab extends StatelessWidget {
             .toList();
 
         if (imagePosts.isEmpty) {
-          return CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.photo_library_outlined,
-                          size: 56, color: Colors.grey.shade300),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Chưa có ảnh nào',
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
-                      ),
-                    ],
-                  ),
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.photo_library_outlined,
+                    size: 56, color: Colors.grey.shade300),
+                const SizedBox(height: 16),
+                Text(
+                  'Chưa có ảnh nào',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
         }
 
         return CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverPadding(
               padding: const EdgeInsets.all(4),
@@ -1528,9 +1774,7 @@ class _ImagePostSheet extends StatelessWidget {
                           post.content,
                           style: const TextStyle(fontSize: 15, height: 1.4),
                         ),
-                      )
-                    else
-                      const SizedBox(height: 12),
+                      ),
                     GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -1648,7 +1892,7 @@ class _ImagePostSheet extends StatelessWidget {
           Expanded(
             child: TextButton.icon(
               onPressed: () {
-                context.read<FeedProvider>().toggleLike(post.id);
+                context.read<ProfileProvider>().toggleLike(post.id);
               },
               icon: Icon(
                 post.isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
@@ -1674,7 +1918,7 @@ class _ImagePostSheet extends StatelessWidget {
                   context: context,
                   isScrollControlled: true,
                   backgroundColor: Colors.transparent,
-                  builder: (ctx) => CommentSheet(post: post),
+                  builder: (ctx) => CommentSheet(post: post, useProfileProvider: true),
                 );
               },
               icon: Icon(
@@ -1747,52 +1991,44 @@ class _SettingsTabState extends State<_SettingsTab> {
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      slivers: [
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: Row(
-            children: [
-              SizedBox(
-                width: 140,
-                child: Container(
-                  color: Colors.grey.shade50,
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 8),
-                      _buildSettingsMenuItem(
-                        index: 0,
-                        icon: Icons.settings_outlined,
-                        label: 'Cài đặt chung',
-                      ),
-                      _buildSettingsMenuItem(
-                        index: 1,
-                        icon: Icons.palette_outlined,
-                        label: 'Giao diện',
-                      ),
-                      _buildSettingsMenuItem(
-                        index: 2,
-                        icon: Icons.language,
-                        label: 'Ngôn ngữ',
-                      ),
-                      const Spacer(),
-                      _buildSettingsMenuItem(
-                        index: 3,
-                        icon: Icons.logout,
-                        label: 'Đăng xuất',
-                        isLogout: true,
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                  ),
+    return Row(
+      children: [
+        SizedBox(
+          width: 140,
+          child: Container(
+            color: Colors.grey.shade50,
+            child: Column(
+              children: [
+                const SizedBox(height: 8),
+                _buildSettingsMenuItem(
+                  index: 0,
+                  icon: Icons.settings_outlined,
+                  label: 'Cài đặt chung',
                 ),
-              ),
-              Expanded(
-                child: _buildSettingsContent(),
-              ),
-            ],
+                _buildSettingsMenuItem(
+                  index: 1,
+                  icon: Icons.palette_outlined,
+                  label: 'Giao diện',
+                ),
+                _buildSettingsMenuItem(
+                  index: 2,
+                  icon: Icons.language,
+                  label: 'Ngôn ngữ',
+                ),
+                const Spacer(),
+                _buildSettingsMenuItem(
+                  index: 3,
+                  icon: Icons.logout,
+                  label: 'Đăng xuất',
+                  isLogout: true,
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
+        ),
+        Expanded(
+          child: _buildSettingsContent(),
         ),
       ],
     );
@@ -2314,7 +2550,7 @@ class _ProfilePostCardState extends State<_ProfilePostCard> {
           Expanded(
             child: TextButton.icon(
               onPressed: () {
-                context.read<FeedProvider>().toggleLike(widget.post.id);
+                context.read<ProfileProvider>().toggleLike(widget.post.id);
               },
               icon: Icon(
                 widget.post.isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
@@ -2339,7 +2575,7 @@ class _ProfilePostCardState extends State<_ProfilePostCard> {
                   context: context,
                   isScrollControlled: true,
                   backgroundColor: Colors.transparent,
-                  builder: (ctx) => CommentSheet(post: widget.post),
+                  builder: (ctx) => CommentSheet(post: widget.post, useProfileProvider: true),
                 );
               },
               icon: Icon(
@@ -2552,29 +2788,6 @@ class _AvatarChoiceSheet extends StatelessWidget {
             Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 22),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _OwnProfileIntro extends StatelessWidget {
-  final String bio;
-
-  const _OwnProfileIntro({required this.bio});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Text(
-        bio,
-        style: const TextStyle(
-          fontSize: 16,
-          color: Colors.black,
-          height: 1.4,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
       ),
     );
   }

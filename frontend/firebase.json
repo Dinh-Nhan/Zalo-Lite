@@ -1,1 +1,22 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"zalo-lite-v2","appId":"1:1004023558166:android:6100bcc9041b00ef094537","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"zalo-lite-v2","configurations":{"android":"1:1004023558166:android:6100bcc9041b00ef094537","web":"1:1004023558166:web:e44c5cbc606d7d59094537"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "zalo-lite-v2",
+          "appId": "1:1004023558166:android:6100bcc9041b00ef094537",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "zalo-lite-v2",
+          "configurations": {
+            "android": "1:1004023558166:android:6100bcc9041b00ef094537",
+            "web": "1:1004023558166:web:e44c5cbc606d7d59094537"
+          }
+        }
+      }
+    }
+  }
+}

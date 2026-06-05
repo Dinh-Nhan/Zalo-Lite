@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend/apps/app_locale.dart';
 import 'package:frontend/models/call_model.dart';
@@ -357,15 +358,17 @@ class _ChatDetailViewState extends State<ChatDetailView> {
           ),
           IconButton(
             onPressed: () {
+              final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
               final callData = CallModel(
-                id: DateTime.now().toString(),
+                conversationId: widget.conversationId,
+                callerId: currentUid,
+                calleeId: '',
                 remoteName: widget.contactName,
-                remoteAvatar: '', // Thêm avatar nếu có
+                remoteAvatar: '',
+                isIncoming: false,
                 isVideo: false,
               );
-              context.read<CallProvider>().initCall(callData);
-
-              // 2. Sau đó mới chuyển trang
+              context.read<CallProvider>().startOutgoingCall(callData);
               context.go('/call');
             },
             icon: Icon(
@@ -375,14 +378,17 @@ class _ChatDetailViewState extends State<ChatDetailView> {
           ),
           IconButton(
             onPressed: () {
+              final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
               final callData = CallModel(
-                id: DateTime.now().toString(),
+                conversationId: widget.conversationId,
+                callerId: currentUid,
+                calleeId: '',
                 remoteName: widget.contactName,
-                remoteAvatar: '', // Thêm avatar nếu có
-                isVideo: false,
+                remoteAvatar: '',
+                isIncoming: false,
+                isVideo: true,
               );
-              context.read<CallProvider>().initCall(callData);
-
+              context.read<CallProvider>().startOutgoingCall(callData);
             },
             icon: Icon(
               Icons.videocam_outlined,
@@ -487,8 +493,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
     // Show avatar only on last message of group for non-me messages
     final bool showAvatar = !isMe && isLastInGroup;
-    // Reserve avatar space for alignment
-    final double avatarSpace = !isMe ? 44.0 : 0.0; // 18*2 radius + 8 spacing
+
 
     // Adjust border radius for grouped bubbles
     late BorderRadius bubbleRadius;

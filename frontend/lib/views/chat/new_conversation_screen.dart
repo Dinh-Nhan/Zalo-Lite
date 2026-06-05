@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:frontend/features/friends/services/friend_service.dart';
+import 'package:frontend/services/chat/chat_service.dart';
+import 'package:frontend/views/chat/chat_screen.dart';
 
 class NewConversationScreen extends StatefulWidget {
-  final String type; // 'private' or 'group'
+  final String type;
 
   const NewConversationScreen({super.key, required this.type});
 
   @override
-  _NewConversationScreenState createState() => _NewConversationScreenState();
+  State<NewConversationScreen> createState() => _NewConversationScreenState();
 }
 
 class _NewConversationScreenState extends State<NewConversationScreen> {
@@ -34,16 +36,12 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
 
   Future<void> _loadUsers() async {
     setState(() => _isLoading = true);
-
     try {
-      // TODO: Load from API
-      // final users = await userService.getUsers();
-
-      // Mock data
-      await Future.delayed(Duration(seconds: 1));
-
+      final friends = await FriendService.getFriends();
       setState(() {
-        _allUsers = [];
+        _allUsers = friends
+            .map((f) => UserItem(id: f.friendId, name: f.fullName, avatar: f.avatar))
+            .toList();
         _filteredUsers = _allUsers;
         _isLoading = false;
       });
@@ -58,9 +56,7 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
         _filteredUsers = _allUsers;
       } else {
         _filteredUsers = _allUsers
-            .where(
-              (user) => user.name.toLowerCase().contains(query.toLowerCase()),
-            )
+            .where((user) => user.name.toLowerCase().contains(query.toLowerCase()))
             .toList();
       }
     });
@@ -79,9 +75,14 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
     });
   }
 
-  void _createConversation() async {
+  Future<void> _createConversation() async {
     if (_selectedUsers.isEmpty) {
       _showError('Vui lòng chọn ít nhất một người');
+      return;
+    }
+
+    if (widget.type == 'group' && _selectedUsers.length < 2) {
+      _showError('Nhóm phải có ít nhất 3 thành viên (bao gồm bạn)');
       return;
     }
 
@@ -91,17 +92,20 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
     }
 
     try {
-      // TODO: Create conversation via API
-      // final conversation = await chatService.createConversation(...);
+      final conversation = await ChatService().createConversation(
+        type: widget.type,
+        participantIds: _selectedUsers.map((u) => u.id).toList(),
+        groupName: widget.type == 'group' ? _groupNameController.text.trim() : null,
+      );
 
-      GoRouter.of(context).pop();
-      _showSuccess(
-        'Đã tạo ${widget.type == 'group' ? 'nhóm' : 'cuộc hội thoại'}',
+      if (!mounted) return;
+      Navigator.pop(context);
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => ChatScreen(conversation: conversation)),
       );
     } catch (e) {
-      _showError(
-        'Không thể tạo ${widget.type == 'group' ? 'nhóm' : 'cuộc hội thoại'}',
-      );
+      _showError('Không thể tạo ${widget.type == 'group' ? 'nhóm' : 'cuộc hội thoại'}');
     }
   }
 
@@ -113,76 +117,64 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
         backgroundColor: Colors.white,
         elevation: 1,
         leading: IconButton(
-          icon: Icon(Icons.close, color: Colors.black),
-          onPressed: () => GoRouter.of(context).pop(),
+          icon: const Icon(Icons.close, color: Colors.black),
+          onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
           widget.type == 'group' ? 'Tạo nhóm' : 'Tin nhắn mới',
-          style: TextStyle(color: Colors.black),
+          style: const TextStyle(color: Colors.black),
         ),
         actions: [
-          if (_selectedUsers.isNotEmpty)
+          if (widget.type == 'group' ? _selectedUsers.length >= 2 : _selectedUsers.isNotEmpty)
             TextButton(
-              onPressed: widget.type == 'group'
-                  ? _showGroupNameDialog
-                  : _createConversation,
+              onPressed: widget.type == 'group' ? _showGroupNameDialog : _createConversation,
               child: Text(
                 widget.type == 'group' ? 'Tiếp' : 'Tạo',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
         ],
       ),
       body: Column(
         children: [
-          // Search bar
           Container(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             child: TextField(
               controller: _searchController,
               onChanged: _filterUsers,
               decoration: InputDecoration(
                 hintText: 'Tìm kiếm...',
-                prefixIcon: Icon(Icons.search),
+                prefixIcon: const Icon(Icons.search),
                 filled: true,
                 fillColor: Colors.grey[100],
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 0,
-                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
               ),
             ),
           ),
-
-          // Selected users
           if (_selectedUsers.isNotEmpty)
             Container(
               height: 100,
-              padding: EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 itemCount: _selectedUsers.length,
                 itemBuilder: (context, index) {
                   final user = _selectedUsers[index];
                   return Padding(
-                    padding: EdgeInsets.only(right: 12),
+                    padding: const EdgeInsets.only(right: 12),
                     child: Column(
                       children: [
                         Stack(
                           children: [
                             CircleAvatar(
                               radius: 28,
-                              backgroundImage: user.avatar.isNotEmpty
-                                  ? NetworkImage(user.avatar)
-                                  : null,
+                              backgroundImage: user.avatar.isNotEmpty ? NetworkImage(user.avatar) : null,
                               backgroundColor: Colors.grey[300],
-                              child: user.avatar.isEmpty
-                                  ? Text(user.name[0].toUpperCase())
-                                  : null,
+                              child: user.avatar.isEmpty ? Text(user.name[0].toUpperCase()) : null,
                             ),
                             Positioned(
                               right: 0,
@@ -190,22 +182,15 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
                               child: GestureDetector(
                                 onTap: () => _toggleUser(user),
                                 child: Container(
-                                  padding: EdgeInsets.all(2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(
-                                    Icons.close,
-                                    size: 16,
-                                    color: Colors.white,
-                                  ),
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                                  child: const Icon(Icons.close, size: 16, color: Colors.white),
                                 ),
                               ),
                             ),
                           ],
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         SizedBox(
                           width: 60,
                           child: Text(
@@ -213,7 +198,7 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
                             textAlign: TextAlign.center,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 12),
+                            style: const TextStyle(fontSize: 12),
                           ),
                         ),
                       ],
@@ -222,88 +207,67 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
                 },
               ),
             ),
-
-          Divider(),
-
-          // User list
+          const Divider(),
           Expanded(
             child: _isLoading
-                ? Center(child: CircularProgressIndicator())
+                ? const Center(child: CircularProgressIndicator())
                 : _filteredUsers.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.people_outline,
-                          size: 64,
-                          color: Colors.grey[400],
-                        ),
-                        SizedBox(height: 16),
-                        Text(
-                          'Không tìm thấy người dùng',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: _filteredUsers.length,
-                    itemBuilder: (context, index) {
-                      final user = _filteredUsers[index];
-                      final isSelected = _selectedUsers.contains(user);
-
-                      return ListTile(
-                        leading: Stack(
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            CircleAvatar(
-                              radius: 24,
-                              backgroundImage: user.avatar.isNotEmpty
-                                  ? NetworkImage(user.avatar)
-                                  : null,
-                              backgroundColor: Colors.grey[300],
-                              child: user.avatar.isEmpty
-                                  ? Text(user.name[0].toUpperCase())
-                                  : null,
-                            ),
-                            if (user.isOnline)
-                              Positioned(
-                                right: 0,
-                                bottom: 0,
-                                child: Container(
-                                  width: 14,
-                                  height: 14,
-                                  decoration: BoxDecoration(
-                                    color: Colors.green,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 2,
-                                    ),
-                                  ),
-                                ),
-                              ),
+                            Icon(Icons.people_outline, size: 64, color: Colors.grey[400]),
+                            const SizedBox(height: 16),
+                            Text('Không tìm thấy người dùng', style: TextStyle(color: Colors.grey[600])),
                           ],
                         ),
-                        title: Text(
-                          user.name,
-                          style: TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                        subtitle: Text(
-                          user.isOnline ? 'Đang hoạt động' : 'Không hoạt động',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        trailing: widget.type == 'group'
-                            ? Checkbox(
-                                value: isSelected,
-                                onChanged: (_) => _toggleUser(user),
-                                shape: CircleBorder(),
-                              )
-                            : null,
-                        onTap: () => _toggleUser(user),
-                      );
-                    },
-                  ),
+                      )
+                    : ListView.builder(
+                        itemCount: _filteredUsers.length,
+                        itemBuilder: (context, index) {
+                          final user = _filteredUsers[index];
+                          final isSelected = _selectedUsers.contains(user);
+                          return ListTile(
+                            leading: Stack(
+                              children: [
+                                CircleAvatar(
+                                  radius: 24,
+                                  backgroundImage: user.avatar.isNotEmpty ? NetworkImage(user.avatar) : null,
+                                  backgroundColor: Colors.grey[300],
+                                  child: user.avatar.isEmpty ? Text(user.name[0].toUpperCase()) : null,
+                                ),
+                                if (user.isOnline)
+                                  Positioned(
+                                    right: 0,
+                                    bottom: 0,
+                                    child: Container(
+                                      width: 14,
+                                      height: 14,
+                                      decoration: BoxDecoration(
+                                        color: Colors.green,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: Colors.white, width: 2),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            title: Text(user.name, style: const TextStyle(fontWeight: FontWeight.w500)),
+                            subtitle: Text(
+                              user.isOnline ? 'Đang hoạt động' : 'Không hoạt động',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            trailing: widget.type == 'group'
+                                ? Checkbox(
+                                    value: isSelected,
+                                    onChanged: (_) => _toggleUser(user),
+                                    shape: const CircleBorder(),
+                                  )
+                                : null,
+                            onTap: () => _toggleUser(user),
+                          );
+                        },
+                      ),
           ),
         ],
       ),
@@ -314,10 +278,10 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Tên nhóm'),
+        title: const Text('Tên nhóm'),
         content: TextField(
           controller: _groupNameController,
-          decoration: InputDecoration(
+          decoration: const InputDecoration(
             hintText: 'Nhập tên nhóm...',
             border: OutlineInputBorder(),
           ),
@@ -326,14 +290,14 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Hủy'),
+            child: const Text('Hủy'),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               _createConversation();
             },
-            child: Text('Tạo'),
+            child: const Text('Tạo'),
           ),
         ],
       ),
@@ -343,12 +307,6 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
-  }
-
-  void _showSuccess(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.green),
     );
   }
 }
@@ -368,8 +326,7 @@ class UserItem {
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is UserItem && runtimeType == other.runtimeType && id == other.id;
+      identical(this, other) || other is UserItem && runtimeType == other.runtimeType && id == other.id;
 
   @override
   int get hashCode => id.hashCode;

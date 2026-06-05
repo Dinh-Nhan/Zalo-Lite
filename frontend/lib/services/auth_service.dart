@@ -3,8 +3,35 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:frontend/services/dio_client.dart';
 import 'package:image_picker/image_picker.dart';
+
+class UserModel {
+  final String email;
+  final String fullName;
+  final String dateOfBirth;
+  final String? avatar;
+  final String? bio;
+
+  UserModel({
+    required this.email,
+    required this.fullName,
+    required this.dateOfBirth,
+    this.avatar,
+    this.bio,
+  });
+
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    return UserModel(
+      email: json['email'] ?? '',
+      fullName: json['fullName'] ?? '',
+      dateOfBirth: json['dateOfBirth'] ?? '',
+      avatar: json['avatar'],
+      bio: json['bio'],
+    );
+  }
+}
 
 class LoginResult {
   final String? token;
@@ -16,13 +43,12 @@ class LoginResult {
   bool get isSuccess => token != null;
 }
 
-// /// Thông tin đăng ký — truyền vào AuthService.register()
 class RegisterRequest {
   final String email;
   final String password;
   final String firstName;
   final String lastName;
-  final String? dateOfBirth; // format: "yyyy-MM-dd"
+  final String? dateOfBirth;
   final String? bio;
   final File? avatar;
 
@@ -46,7 +72,6 @@ class AuthService {
       );
 
       final user = credential.user;
-
       if (user != null) {
         final idToken = await user.getIdToken();
         return LoginResult(token: idToken);
@@ -65,14 +90,10 @@ class AuthService {
     await FirebaseAuth.instance.signOut();
   }
 
-  /// Đăng ký tài khoản gồm 2 bước:
-  ///   1. Tạo account trên Firebase Auth (email + password)
-  ///   2. Lưu thông tin chi tiết vào backend (POST /api/user)
   static Future<void> register(RegisterRequest req) async {
     UserCredential? credential;
 
     try {
-      // Bước 1: Tạo account Firebase Auth
       credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: req.email,
         password: req.password,
@@ -80,8 +101,6 @@ class AuthService {
 
       final user = credential.user!;
 
-      // Bước 2: Gọi backend lưu thông tin chi tiết
-      // Token tự động được gắn bởi DioClient/AuthInterceptor
       await DioClient.instance.post(
         '/api/user',
         data: {
@@ -97,78 +116,39 @@ class AuthService {
           'avatar': req.avatar,
         },
       );
-      print("BACKEND SUCCESS");
     } on FirebaseAuthException catch (e) {
-      
       throw Exception(_mapFirebaseError(e.code));
     } catch (e) {
-      print("REGISTER ERROR: $e");
-
-      // Nếu backend thất bại sau khi Firebase đã tạo account
-      // → xoá account Firebase để tránh trạng thái không đồng bộ
       if (credential != null) {
-        print("ROLLBACK: delete Firebase user");
         await credential.user?.delete();
       }
       throw Exception('Đăng ký thất bại: $e');
     }
   }
 
-  /// Hàm xóa sạch dấu vết user (Dữ liệu Backend + Firebase Auth)
-  /// Thường dùng cho chức năng "Xóa tài khoản" hoặc "Rollback" khi đăng ký lỗi
   static Future<void> deleteAccountAndData() async {
-    // 1. Kiểm tra Authentication: Nếu không có user đang đăng nhập thì không làm gì cả
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      return;
-    }
+    if (user == null) return;
 
     final email = user.email;
-    final uid = user.uid;
 
     try {
-      // 2. Kiểm tra Dữ liệu (Firestore/Backend):
-      // Tìm document ID dựa trên email vì ID document đang bị lệch với UID
       final querySnapshot = await FirebaseFirestore.instance
           .collection('users')
           .where('email', isEqualTo: email)
           .get();
 
-      if (querySnapshot.docs.isEmpty) {
-        print("Thông báo: Không tìm thấy dữ liệu user trên Database.");
-        // Nếu không có dữ liệu DB, ta nhảy thẳng xuống bước xóa Auth
-      } else {
-        // Nếu có dữ liệu, thực hiện xóa qua Backend
+      if (querySnapshot.docs.isNotEmpty) {
         final documentId = querySnapshot.docs.first.id;
-
         try {
           await DioClient.instance.delete('/api/user/$documentId');
-          print("Thành công: Đã xóa dữ liệu Backend (ID: $documentId)");
-        } catch (e) {
-          print(
-            "Lỗi: Không thể gọi API xóa Backend nhưng vẫn sẽ tiếp tục xóa Auth: $e",
-          );
-        }
+        } catch (_) {}
       }
-    } catch (e) {
-      print("Lỗi khi truy vấn Database: $e");
-      // Dù lỗi truy vấn DB vẫn nên cố gắng xóa Auth phía dưới
-    }
+    } catch (_) {}
 
-    // 3. Xóa Authentication: Giải phóng Email để có thể đăng ký lại
     try {
       await user.delete();
-      print("Thành công: Đã xóa tài khoản khỏi Firebase Auth.");
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'requires-recent-login') {
-        print("Lỗi: User cần đăng nhập lại trước khi xóa do bảo mật.");
-        // Ở đây bạn có thể yêu cầu user login lại nếu cần thiết
-      } else {
-        print("Lỗi khi xóa Auth: ${e.message}");
-      }
-    } catch (e) {
-      print("Lỗi không xác định khi xóa Auth: $e");
-    }
+    } catch (_) {}
   }
 
   static Future<void> sendOtp(String email) async {
@@ -177,38 +157,35 @@ class AuthService {
         '/api/otp/generate',
         queryParameters: {'email': email.trim()},
       );
-
       if (response.statusCode == 200) {
-        print("Thành công: Mã OTP đã được gửi đến $email");
+        debugPrint('OTP sent to $email');
       }
     } on DioException catch (e) {
-      String errorMsg = e.response?.data?['message'] ?? "Không thể gửi OTP";
+      final errorMsg = e.response?.data?['message'] ?? 'Không thể gửi OTP';
       throw Exception(errorMsg);
     } catch (e) {
-      throw Exception("Lỗi kết nối hệ thống: $e");
+      throw Exception('Lỗi kết nối hệ thống: $e');
     }
   }
 
-  /// 2. Hàm gọi API xác thực mã OTP
-  /// Theo hình ảnh Swagger: POST /api/otp/verify?email=...&otp=...
   static Future<bool> verifyOtp(String email, String otp) async {
     try {
       final response = await DioClient.instance.post(
         '/api/otp/verify',
         queryParameters: {'email': email.trim(), 'otp': otp.trim()},
       );
-
-      if (response.statusCode == 200) {
-        print("Thành công: Xác thực OTP khớp.");
-        return true;
-      }
-      return false;
+      return response.statusCode == 200;
     } on DioException catch (e) {
-      String errorMsg = e.response?.data?['message'] ?? "Mã OTP không hợp lệ";
+      final errorMsg = e.response?.data?['message'] ?? 'Mã OTP không hợp lệ';
       throw Exception(errorMsg);
     } catch (e) {
-      throw Exception("Lỗi xác thực: $e");
+      throw Exception('Lỗi xác thực: $e');
     }
+  }
+
+  static Future<UserModel> getUserById(String userId) async {
+    final response = await DioClient.instance.get('/api/User/$userId');
+    return UserModel.fromJson(response.data['result']);
   }
 
   static Future<void> updateUserInfo({
@@ -232,7 +209,6 @@ class AuthService {
 
       if (response.statusCode == 200) {
         await FirebaseAuth.instance.currentUser?.updateDisplayName(fullName);
-        print('Cập nhật thông tin thành công');
       }
     } on DioException catch (e) {
       final dynamic data = e.response?.data;
@@ -247,26 +223,22 @@ class AuthService {
       throw Exception('Lỗi hệ thống: $e');
     }
   }
-  // frontend/services/auth_service.dart
 
   static Future<bool> checkEmailExists(String email) async {
     try {
-      // Truy vấn trực tiếp vào Firestore collection 'users'
       final querySnapshot = await FirebaseFirestore.instance
           .collection('users')
           .where('email', isEqualTo: email.trim())
           .limit(1)
           .get();
 
-      return querySnapshot.docs.isNotEmpty; // Trả về true nếu đã có email này
+      return querySnapshot.docs.isNotEmpty;
     } catch (e) {
-      print("Lỗi checkEmail: $e");
+      debugPrint('Lỗi checkEmail: $e');
       return false;
     }
   }
-  /// Cập nhật avatar của user hiện tại.
-  /// Upload ảnh lên Backend → Backend upload lên Cloudinary → cập nhật Firestore
-  /// → cập nhật Firebase Auth photoURL để đồng bộ toàn app.
+
   static Future<String> updateAvatar(XFile image) async {
     try {
       final bytes = await image.readAsBytes();
@@ -286,9 +258,7 @@ class AuthService {
         final avatarUrl = result?['avatar'] as String?;
 
         if (avatarUrl != null && avatarUrl.isNotEmpty) {
-          // Cập nhật photoURL trên Firebase Auth
           await FirebaseAuth.instance.currentUser?.updatePhotoURL(avatarUrl);
-          print('[AuthService] Cập nhật avatar thành công: $avatarUrl');
           return avatarUrl;
         }
       }
@@ -303,7 +273,6 @@ class AuthService {
 
   static String _handleDioError(DioException e) {
     final status = e.response?.statusCode;
-    final body = e.response?.data;
     if (status == 401) return 'Chưa đăng nhập hoặc token hết hạn';
     if (status == 403) return 'Không có quyền cập nhật avatar';
     if (status == 404) return 'Không tìm thấy tài khoản';
@@ -311,7 +280,6 @@ class AuthService {
     return 'Lỗi kết nối: ${e.message}';
   }
 
-  /// Chuyển Firebase error code sang tiếng Việt
   static String _mapFirebaseError(String code) {
     switch (code) {
       case 'user-not-found':

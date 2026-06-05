@@ -5,14 +5,20 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/widgets/emoji_picker_widget.dart';
+import 'package:frontend/features/profile/providers/profile_provider.dart';
 import '../models/post_model.dart';
 import '../models/comment_model.dart';
 import '../providers/feed_provider.dart';
 
 class CommentSheet extends StatefulWidget {
   final PostModel post;
+  final bool useProfileProvider;
 
-  const CommentSheet({super.key, required this.post});
+  const CommentSheet({
+    super.key,
+    required this.post,
+    this.useProfileProvider = false,
+  });
 
   @override
   State<CommentSheet> createState() => _CommentSheetState();
@@ -30,7 +36,11 @@ class _CommentSheetState extends State<CommentSheet> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      context.read<FeedProvider>().fetchComments(widget.post.id);
+      if (widget.useProfileProvider) {
+        context.read<ProfileProvider>().fetchComments(widget.post.id);
+      } else {
+        context.read<FeedProvider>().fetchComments(widget.post.id);
+      }
     });
   }
 
@@ -73,8 +83,17 @@ class _CommentSheetState extends State<CommentSheet> {
       _isSending = true;
     });
 
-    final provider = context.read<FeedProvider>();
-    final comment = await provider.addComment(widget.post.id, text, _selectedImage);
+    final comment = widget.useProfileProvider
+        ? await context.read<ProfileProvider>().addComment(
+            widget.post.id,
+            text,
+            _selectedImage,
+          )
+        : await context.read<FeedProvider>().addComment(
+            widget.post.id,
+            text,
+            _selectedImage,
+          );
 
     setState(() {
       _isSending = false;
@@ -144,65 +163,123 @@ class _CommentSheetState extends State<CommentSheet> {
           ),
           // Comments list
           Expanded(
-            child: Consumer<FeedProvider>(
-              builder: (context, provider, _) {
-                final comments = provider.getCommentsForPost(widget.post.id);
+            child: widget.useProfileProvider
+                ? Consumer<ProfileProvider>(
+                    builder: (context, provider, _) {
+                      final comments = provider.getCommentsForPost(widget.post.id);
 
-                if (provider.isLoadingComments && comments.isEmpty) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      color: AppColors.primaryBlue,
-                    ),
-                  );
-                }
-
-                if (comments.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.chat_bubble_outline,
-                          size: 48,
-                          color: Colors.grey.shade300,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Chưa có bình luận nào',
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 14,
+                      if (provider.isLoading && comments.isEmpty) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.primaryBlue,
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Hãy là người đầu tiên chia sẻ cảm nghĩ!',
-                          style: TextStyle(
-                            color: Colors.grey.shade400,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
+                        );
+                      }
 
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  itemCount: comments.length,
-                  itemBuilder: (context, index) {
-                    final comment = comments[index];
-                    return _CommentItem(
-                      comment: comment,
-                      onLikeTap: () {
-                        provider.toggleCommentLike(widget.post.id, comment.id);
-                      },
-                    );
-                  },
-                );
-              },
-            ),
+                      if (comments.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.chat_bubble_outline,
+                                size: 48,
+                                color: Colors.grey.shade300,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Chưa có bình luận nào',
+                                style: TextStyle(
+                                  color: Colors.grey.shade500,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Hãy là người đầu tiên chia sẻ cảm nghĩ!',
+                                style: TextStyle(
+                                  color: Colors.grey.shade400,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        itemCount: comments.length,
+                        itemBuilder: (context, index) {
+                          final comment = comments[index];
+                          return _CommentItem(
+                            comment: comment,
+                            onLikeTap: () {},
+                          );
+                        },
+                      );
+                    },
+                  )
+                : Consumer<FeedProvider>(
+                    builder: (context, provider, _) {
+                      final comments = provider.getCommentsForPost(widget.post.id);
+
+                      if (provider.isLoadingComments && comments.isEmpty) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.primaryBlue,
+                          ),
+                        );
+                      }
+
+                      if (comments.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.chat_bubble_outline,
+                                size: 48,
+                                color: Colors.grey.shade300,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Chưa có bình luận nào',
+                                style: TextStyle(
+                                  color: Colors.grey.shade500,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Hãy là người đầu tiên chia sẻ cảm nghĩ!',
+                                style: TextStyle(
+                                  color: Colors.grey.shade400,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        itemCount: comments.length,
+                        itemBuilder: (context, index) {
+                          final comment = comments[index];
+                          return _CommentItem(
+                            comment: comment,
+                            onLikeTap: () {
+                              provider.toggleCommentLike(widget.post.id, comment.id);
+                            },
+                          );
+                        },
+                      );
+                    },
+                  ),
           ),
           // Selected image preview if any
           if (_selectedImage != null) _buildImagePreview(),

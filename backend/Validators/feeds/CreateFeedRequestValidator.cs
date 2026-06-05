@@ -29,13 +29,13 @@ namespace backend.Validators
 
         When(x => x.Type == "post", () =>
         {
-            RuleFor(x => x.Content.Caption)
+            RuleFor(x => x.Content!.Caption)
                 .MaximumLength(2000).WithMessage("Caption must not exceed 2000 characters");
         });
 
         When(x => x.Type == "story", () =>
         {
-            RuleFor(x => x.Content.Caption)
+            RuleFor(x => x.Content!.Caption)
                 .MaximumLength(2000).WithMessage("Caption must not exceed 2000 characters");
         });
 

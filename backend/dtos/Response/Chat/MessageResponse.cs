@@ -41,7 +41,17 @@ public class MessageResponse
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public DateTime? ExpiresAt { get; set; }
 
-    // Helper for current user
     public bool IsMine { get; set; }
+
+    // Internal: dùng trong Hub để broadcast, không serialize ra client
+    [System.Text.Json.Serialization.JsonIgnore]
+    public List<string>? ParticipantIds { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? NotificationTitle { get; set; }  // tên nhóm (group) hoặc tên người gửi (private)
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsGroupConversation { get; set; }
 }

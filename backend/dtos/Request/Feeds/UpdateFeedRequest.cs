@@ -7,5 +7,6 @@ namespace backend.dtos.Request
         public string? Caption { get; set; }
         public List<CreateMediaRequest>? Media { get; set; }
         public string? Privacy { get; set; }
+        public List<string>? AllowedUserIds { get; set; }
     }
 }

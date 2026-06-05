@@ -62,10 +62,10 @@ class _ContactsViewState extends State<ContactsView>
   Widget build(BuildContext context) {
     return ValueListenableBuilder<bool>(
       valueListenable: isDarkModeNotifier,
-      builder: (context, isDark, _) {
+      builder: (context, isDark, child) {
         return ValueListenableBuilder(
           valueListenable: localeNotifier,
-          builder: (context, locale, _) {
+          builder: (context, locale, child) {
             final t = AppLocalizations(locale);
             if (widget.isWideScreen) {
               return _buildWideLayout(t, isDark);
@@ -132,7 +132,6 @@ class _ContactsViewState extends State<ContactsView>
                       ),
                     ),
                     const Spacer(),
-                    if (false) const SizedBox(width: 10),
                   ],
                 ),
               ),
@@ -187,124 +186,6 @@ class _ContactsViewState extends State<ContactsView>
         children: [
           ..._mockGroups.map((group) => _buildGroupTile(group, t, isDark)),
         ],
-      ),
-    );
-  }
-
-  Widget _buildFriendRequestBanner(AppLocalizations t, bool isDark) {
-    return Container(
-      color: isDark ? AppColors.darkSurface : Colors.white,
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: AppColors.primaryBlue.withValues(alpha: 0.1),
-          child: const Icon(
-            Icons.person_add,
-            color: AppColors.primaryBlue,
-            size: 20,
-          ),
-        ),
-        title: Text(
-          '${t.get('friendRequest')} (4)',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: AppColors.getTextPrimary(isDark),
-          ),
-        ),
-        trailing: Icon(
-          Icons.chevron_right,
-          color: AppColors.getTextSecondary(isDark),
-        ),
-        onTap: () {},
-      ),
-    );
-  }
-
-  Widget _buildFilterChips(AppLocalizations t, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      color: isDark ? AppColors.darkSurface : Colors.white,
-      child: Row(
-        children: [
-          _buildChip('${t.get('allContacts')} 0', true, isDark),
-          const SizedBox(width: 8),
-          _buildChip(t.get('recentAccess'), false, isDark),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChip(String label, bool isSelected, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: isSelected
-            ? (isDark
-                  ? AppColors.primaryBlue.withValues(alpha: 0.2)
-                  : AppColors.primaryBlue.withValues(alpha: 0.1))
-            : (isDark ? AppColors.darkCard : AppColors.backgroundGray),
-        borderRadius: BorderRadius.circular(16),
-        border: isSelected
-            ? Border.all(
-                color: AppColors.primaryBlue.withValues(alpha: 0.3),
-                width: 1,
-              )
-            : null,
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-          color: isSelected
-              ? AppColors.primaryBlue
-              : AppColors.getTextSecondary(isDark),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildContactTile(Map<String, dynamic> contact, bool isDark) {
-    return Container(
-      color: isDark ? AppColors.darkSurface : Colors.white,
-      child: ListTile(
-        leading: CircleAvatar(
-          radius: 22,
-          backgroundColor: contact['avatarColor'],
-          child: Text(
-            _getInitials(contact['name']),
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
-          ),
-        ),
-        title: Text(
-          contact['name'],
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-            color: AppColors.getTextPrimary(isDark),
-          ),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildIconBtn(
-              Icons.call_outlined,
-              AppColors.getTextSecondary(isDark),
-              () {},
-            ),
-            const SizedBox(width: 4),
-            _buildIconBtn(
-              Icons.videocam_outlined,
-              AppColors.getTextSecondary(isDark),
-              () {},
-            ),
-          ],
-        ),
-        onTap: () {},
       ),
     );
   }
@@ -570,263 +451,6 @@ class _ContactsViewState extends State<ContactsView>
     }
   }
 
-  Widget _buildWideFriendList(AppLocalizations t, bool isDark) {
-    // Group contacts alphabetically
-    final sorted = <Map<String, dynamic>>[];
-
-    String? currentLetter;
-    final List<Widget> items = [];
-
-    // Search and filter bar
-    items.add(
-      Container(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF242424) : Colors.white,
-          border: Border(
-            bottom: BorderSide(color: AppColors.getDivider(isDark), width: 1),
-          ),
-        ),
-        child: Row(
-          children: [
-            // Search field
-            Expanded(
-              flex: 3,
-              child: Container(
-                height: 34,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF2A2A2A)
-                      : const Color(0xFFF0F2F5),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: TextField(
-                  style: TextStyle(
-                    color: AppColors.getTextPrimary(isDark),
-                    fontSize: 14,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Tìm bạn',
-                    hintStyle: TextStyle(
-                      color: AppColors.getTextSecondary(isDark),
-                      fontSize: 14,
-                    ),
-                    prefixIcon: Icon(
-                      Icons.search,
-                      color: AppColors.getTextSecondary(isDark),
-                      size: 18,
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Sort dropdown
-            Expanded(
-              flex: 2,
-              child: Container(
-                height: 34,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF2A2A2A)
-                      : const Color(0xFFF0F2F5),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.sort,
-                      size: 16,
-                      color: AppColors.getTextSecondary(isDark),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Tên (A-Z)',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.getTextPrimary(isDark),
-                      ),
-                    ),
-                    const Spacer(),
-                    Icon(
-                      Icons.keyboard_arrow_down,
-                      size: 18,
-                      color: AppColors.getTextSecondary(isDark),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Filter dropdown
-            Expanded(
-              flex: 2,
-              child: Container(
-                height: 34,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF2A2A2A)
-                      : const Color(0xFFF0F2F5),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.filter_list,
-                      size: 16,
-                      color: AppColors.getTextSecondary(isDark),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Tất cả',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.getTextPrimary(isDark),
-                      ),
-                    ),
-                    const Spacer(),
-                    Icon(
-                      Icons.keyboard_arrow_down,
-                      size: 18,
-                      color: AppColors.getTextSecondary(isDark),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    // Friend count header
-    items.add(
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-        child: Text(
-          '${t.get('friends')} (0)',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: AppColors.getTextPrimary(isDark),
-          ),
-        ),
-      ),
-    );
-
-    // "Bạn mới" section
-    items.add(
-      Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-        child: Text(
-          'Bạn mới',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: AppColors.getTextPrimary(isDark),
-          ),
-        ),
-      ),
-    );
-    // Mock new friend
-    if (sorted.isNotEmpty) {
-      items.add(_buildWideContactTile(sorted.first, isDark, isNew: true));
-    }
-
-    for (final contact in sorted) {
-      final firstLetter = (contact['name'] as String)[0].toUpperCase();
-      if (firstLetter != currentLetter) {
-        currentLetter = firstLetter;
-        items.add(
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Text(
-              currentLetter,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: AppColors.getTextSecondary(isDark),
-              ),
-            ),
-          ),
-        );
-      }
-      items.add(_buildWideContactTile(contact, isDark));
-    }
-
-    return Container(
-      color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF5F5F5),
-      child: ListView(padding: EdgeInsets.zero, children: items),
-    );
-  }
-
-  Widget _buildWideContactTile(
-    Map<String, dynamic> contact,
-    bool isDark, {
-    bool isNew = false,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {},
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 22,
-                backgroundColor: contact['avatarColor'],
-                backgroundImage: contact['avatar'] != null
-                    ? NetworkImage(contact['avatar'] as String)
-                    : null,
-                child: contact['avatar'] == null
-                    ? Text(
-                        _getInitials(contact['name']),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      )
-                    : null,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  contact['name'],
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                    color: AppColors.getTextPrimary(isDark),
-                  ),
-                ),
-              ),
-              InkWell(
-                onTap: () {},
-                borderRadius: BorderRadius.circular(4),
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  child: Icon(
-                    Icons.more_horiz,
-                    color: AppColors.getTextSecondary(isDark),
-                    size: 18,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildWideGroupList(AppLocalizations t, bool isDark) {
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -880,10 +504,16 @@ class _ContactsViewState extends State<ContactsView>
               ],
             ),
           ),
-          Icon(
-            Icons.more_horiz,
-            color: AppColors.getTextSecondary(isDark),
-            size: 20,
+          _buildIconBtn(
+            Icons.call_outlined,
+            AppColors.getTextSecondary(isDark),
+            () {},
+          ),
+          const SizedBox(width: 4),
+          _buildIconBtn(
+            Icons.videocam_outlined,
+            AppColors.getTextSecondary(isDark),
+            () {},
           ),
         ],
       ),
@@ -960,26 +590,6 @@ class _ContactsViewState extends State<ContactsView>
     );
   }
 
-  Widget _buildIconBtnSidebar(IconData icon, bool isDark, VoidCallback onTap) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
-        child: Container(
-          width: 36,
-          height: 36,
-          alignment: Alignment.center,
-          child: Icon(
-            icon,
-            color: AppColors.getTextSecondary(isDark),
-            size: 20,
-          ),
-        ),
-      ),
-    );
-  }
-
   String _getInitials(String name) {
     final parts = name.trim().split(' ');
     if (parts.length >= 2) {
@@ -991,7 +601,7 @@ class _ContactsViewState extends State<ContactsView>
   void _openSearchOverlay(BuildContext context) {
     Navigator.of(context).push(
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) => SearchOverlayScreen(
+        pageBuilder: (_, __, childAnimation) => SearchOverlayScreen(
           onBack: () => Navigator.of(context).pop(),
           onSearchResultTap: ({required userId, required name, avatar}) {
             Navigator.of(context).pop();
@@ -1005,7 +615,7 @@ class _ContactsViewState extends State<ContactsView>
           },
           recentContacts: const [],
         ),
-        transitionsBuilder: (_, animation, __, child) {
+        transitionsBuilder: (_, animation, childAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },
         transitionDuration: const Duration(milliseconds: 200),

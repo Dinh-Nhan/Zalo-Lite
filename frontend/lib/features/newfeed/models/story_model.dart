@@ -25,36 +25,41 @@ class StoryModel {
 
   factory StoryModel.fromJson(Map<String, dynamic> json) {
     // Backend nested structure: Author, Content (Media list), Stats
-    final author = json['author'] as Map<String, dynamic>?;
-    final content = json['content'] as Map<String, dynamic>?;
-    final stats = json['stats'] as Map<String, dynamic>?;
-    final media = content?['media'] as List<dynamic>?;
+    final author = (json['author'] ?? json['Author']) as Map<String, dynamic>?;
+    final content = (json['content'] ?? json['Content']) as Map<String, dynamic>?;
+    final stats = (json['stats'] ?? json['Stats']) as Map<String, dynamic>?;
+    final media = (content?['media'] ?? content?['Media']) as List<dynamic>?;
 
     String imgUrl = '';
     if (media != null && media.isNotEmpty) {
       final firstMedia = media.first as Map<String, dynamic>?;
-      imgUrl = firstMedia?['url']?.toString() ?? firstMedia?['Url']?.toString() ?? '';
+      imgUrl = (firstMedia?['url'] ??
+              firstMedia?['Url'] ??
+              firstMedia?['media_url'] ??
+              firstMedia?['mediaUrl'])
+          ?.toString() ??
+          '';
     }
 
     if (imgUrl.isEmpty) {
-      imgUrl = 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=800'; // Aesthetic gradient background
+      imgUrl = 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=800';
     }
 
     return StoryModel(
-      id: json['id']?.toString() ?? '',
-      userId: author?['userId']?.toString() ?? '',
-      userName: author?['name']?.toString() ?? '',
-      userAvatar: author?['avatarUrl']?.toString() ?? '',
+      id: (json['id'] ?? json['Id'])?.toString() ?? '',
+      userId: (author?['user_id'] ?? author?['userId'] ?? author?['UserId'])?.toString() ?? '',
+      userName: (author?['name'] ?? author?['Name'])?.toString() ?? '',
+      userAvatar: (author?['avatar_url'] ?? author?['avatarUrl'] ?? author?['AvatarUrl'])?.toString() ?? '',
       imageUrl: imgUrl,
-      createdAt: json['createdAt'] != null
-          ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
+      createdAt: (json['created_at'] ?? json['createdAt'] ?? json['CreateAt']) != null
+          ? DateTime.tryParse((json['created_at'] ?? json['createdAt'] ?? json['CreateAt']).toString()) ?? DateTime.now()
           : DateTime.now(),
-      expiresAt: json['expiresAt'] != null
-          ? DateTime.tryParse(json['expiresAt'].toString())
+      expiresAt: (json['expires_at'] ?? json['expiresAt'] ?? json['ExpiresAt']) != null
+          ? DateTime.tryParse((json['expires_at'] ?? json['expiresAt'] ?? json['ExpiresAt']).toString())
           : null,
-      viewCount: stats?['viewCount'] ?? 0,
-      isOwner: json['isOwner'] ?? false,
-      isSeen: stats?['isSeen'] ?? false,
+      viewCount: (stats?['view_count'] ?? stats?['viewCount'] ?? stats?['ViewCount']) ?? 0,
+      isOwner: (json['is_owner'] ?? json['isOwner'] ?? json['IsOwner']) ?? false,
+      isSeen: (stats?['is_seen'] ?? stats?['isSeen'] ?? stats?['IsSeen']) ?? false,
     );
   }
 

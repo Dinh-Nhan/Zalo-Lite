@@ -13,7 +13,7 @@ class GroupTabView extends StatelessWidget {
           color: Colors.white,
           child: InkWell(
             onTap: () {},
-            highlightColor: Colors.black.withOpacity(0.05),
+            highlightColor: Colors.black.withValues(alpha: 0.05),
             splashColor: Colors.transparent,
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

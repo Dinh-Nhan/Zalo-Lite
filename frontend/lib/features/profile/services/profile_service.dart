@@ -64,8 +64,8 @@ class ProfileService {
             .toList();
       }
       return [];
-    } on DioException catch (e) {
-      throw Exception(_handleError(e));
+    } on DioException catch (_) {
+      return [];
     }
   }
 
@@ -108,6 +108,22 @@ class ProfileService {
   static Future<UserProfileModel> getCurrentUserProfile() async {
     try {
       final response = await _dio.get('/api/user/me');
+
+      if (response.statusCode == 200) {
+        final data = response.data as Map<String, dynamic>;
+        final result = data['result'] as Map<String, dynamic>?;
+        if (result == null) throw Exception('Không tìm thấy dữ liệu');
+        return UserProfileModel.fromJson(result);
+      }
+      throw Exception('Lỗi khi lấy thông tin');
+    } on DioException catch (e) {
+      throw Exception(_handleError(e));
+    }
+  }
+
+  static Future<UserProfileModel> getUserById(String userId) async {
+    try {
+      final response = await _dio.get('/api/user/$userId');
 
       if (response.statusCode == 200) {
         final data = response.data as Map<String, dynamic>;

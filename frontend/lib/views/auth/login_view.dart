@@ -1,10 +1,8 @@
-import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/services/auth_service.dart';
-import 'package:frontend/services/dio_client.dart';
 import 'package:frontend/utils/validator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -15,6 +13,7 @@ class LoginView extends StatefulWidget {
   @override
   State<LoginView> createState() => _LoginViewState();
 }
+
 class _LoginViewState extends State<LoginView> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
@@ -23,10 +22,7 @@ class _LoginViewState extends State<LoginView> {
   bool _isPasswordVisible = false;
   bool _isLoading = false;
   bool _isFormValid = false;
-
-  String? _apiStatus;
-  String? _apiBody;
-  bool _apiSuccess = false;
+  String? _debugError;
 
   @override
   void initState() {
@@ -56,43 +52,44 @@ class _LoginViewState extends State<LoginView> {
 
     setState(() {
       _isLoading = true;
-      _apiStatus = null;
-      _apiBody = null;
+      _debugError = null;
     });
 
-    final result = await AuthService.login(
-      _emailController.text.trim(),
-      _passwordController.text,
-    );
+    try {
+      final result = await AuthService.login(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (result.isSuccess) {
-      try {
-        final friendProvider = context.read<FriendProvider>();
-        final response = await DioClient.instance.get('/api/auth/profile');
-        final firebaseUid = FirebaseAuth.instance.currentUser!.uid;
-
-        await friendProvider.setCurrentUid(firebaseUid);
-        await friendProvider.loadAll();
-        await friendProvider.startRealtime();
-
-        if (!mounted) return;
-        context.go('/chat-list');
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi khởi tạo dữ liệu: $e')),
-        );
-        setState(() => _isLoading = false);
+      if (result.isSuccess) {
+        try {
+          final friendProvider = context.read<FriendProvider>();
+          final firebaseUid = FirebaseAuth.instance.currentUser!.uid;
+          await friendProvider.setCurrentUid(firebaseUid);
+          await friendProvider.loadAll();
+          friendProvider.startRealtime();
+          if (!mounted) return;
+          context.go('/chat-list');
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi khởi tạo dữ liệu: $e')),
+          );
+          setState(() => _isLoading = false);
+        }
+      } else {
+        setState(() {
+          _isLoading = false;
+          _debugError = result.errorMessage ?? result.errorCode ?? 'Unknown error';
+        });
       }
-    } else {
+    } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _apiSuccess = false;
-        _apiStatus = 'Login thất bại';
-        _apiBody = result.errorMessage ??
-            (result.errorCode != null ? 'Code: ${result.errorCode}' : null);
+        _debugError = 'Exception: $e';
       });
     }
   }
@@ -120,13 +117,28 @@ class _LoginViewState extends State<LoginView> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 16),
+              if (_debugError != null)
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  color: Colors.red.shade50,
+                  child: Text(
+                    _debugError!,
+                    style: const TextStyle(color: Colors.red, fontSize: 12),
+                  ),
+                ),
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
                 validator: (value) {
                   if (value == null || value.isEmpty) return 'Vui lòng nhập email';
-                  if (!value.contains('@')) return 'Email không hợp lệ';
+                  final email = value.trim();
+                  final emailRegex = RegExp(
+                    r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
+                  );
+                  if (!emailRegex.hasMatch(email)) {
+                    return 'Email không đúng định dạng';
+                  }
                   return null;
                 },
                 decoration: InputDecoration(
@@ -151,9 +163,7 @@ class _LoginViewState extends State<LoginView> {
                 obscureText: !_isPasswordVisible,
                 textInputAction: TextInputAction.done,
                 onFieldSubmitted: (_) => _handleLogin(),
-                validator: (value) {
-                  return Validator.password(value);
-                },
+                validator: (value) => Validator.password(value),
                 decoration: InputDecoration(
                   hintText: 'Mật khẩu',
                   hintStyle: const TextStyle(color: Colors.grey, fontSize: 16),
@@ -198,70 +208,28 @@ class _LoginViewState extends State<LoginView> {
                   ),
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 36),
               SizedBox(
-                height: 50,
+                height: 48,
                 child: ElevatedButton(
-                  onPressed: (_isLoading || !_isFormValid) ? null : _handleLogin,
+                  onPressed: _isLoading ? null : _handleLogin,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF0068FF),
-                    disabledBackgroundColor: const Color(0xFF0068FF).withOpacity(0.3),
-                    foregroundColor: Colors.white,
-                    disabledForegroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    elevation: 0,
                   ),
                   child: _isLoading
                       ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2.5,
-                          ),
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                         )
                       : const Text(
                           'Đăng nhập',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
                         ),
                 ),
               ),
-              if (_apiStatus != null) ...[
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: _apiSuccess ? Colors.green.shade50 : Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: _apiSuccess ? Colors.green.shade200 : Colors.red.shade200,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _apiStatus!,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: _apiSuccess ? Colors.green.shade700 : Colors.red.shade700,
-                        ),
-                      ),
-                      if (_apiBody != null) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          _apiBody!,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: _apiSuccess ? Colors.green.shade600 : Colors.red.shade600,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
             ],
           ),
         ),
