@@ -36,6 +36,10 @@ namespace backend.Models
     [FirestoreProperty("deleted_at")]
     public DateTime? DeletedAt { get; set; }
 
-    
+    [FirestoreProperty("is_enable")]
+    public bool IsEnable {get; set;} = true; 
+
+    [FirestoreProperty("moderation_status")]
+    public string ModerationStatus { get; set; } = "approved"; // unchecked | approved | flagged
     }
 }

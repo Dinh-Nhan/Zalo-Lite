@@ -38,4 +38,10 @@ public class User
 
     [FirestoreProperty("updated_at")]
     public DateTime UpdateAt { get; set; } = DateTime.UtcNow;
+    
+    [FirestoreProperty("avatar_public_id")]
+    public string? AvatarPublicId {get; set;}
+
+    [FirestoreProperty("is_enable")]
+    public bool IsEnable {get; set;} = true; 
 }

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -21,6 +23,7 @@ class RegisterRequest {
   final String lastName;
   final String? dateOfBirth; // format: "yyyy-MM-dd"
   final String? bio;
+  final File? avatar;
 
   const RegisterRequest({
     required this.email,
@@ -29,6 +32,7 @@ class RegisterRequest {
     required this.lastName,
     this.dateOfBirth,
     this.bio,
+    this.avatar,
   });
 }
 
@@ -73,39 +77,36 @@ class AuthService {
         password: req.password,
       );
 
-      final uid = credential.user!.uid;
+      final user = credential.user!;
 
       // Bước 2: Gọi backend lưu thông tin chi tiết
       // Token tự động được gắn bởi DioClient/AuthInterceptor
       await DioClient.instance.post(
         '/api/user',
         data: {
-          'email': req.email,
-          'password': req.password,
+          'id': user.uid,
           'firstName': req.firstName,
           'lastName': req.lastName,
+          'email': req.email,
+          'password': req.password,
           'dateOfBirth': req.dateOfBirth,
           'bio': req.bio ?? '',
           'role': 'client',
           'status': true,
+          'avatar': req.avatar,
         },
       );
+      print("BACKEND SUCCESS");
     } on FirebaseAuthException catch (e) {
+      
       throw Exception(_mapFirebaseError(e.code));
-    } on DioException catch (e) {
-      // Backend trả về lỗi có cấu trúc JSON: { code, message, result: { errorCode } }
-      // → xoá account Firebase để tránh trạng thái không đồng bộ
-      if (credential != null) {
-        await credential.user?.delete();
-      }
-      final errorCode = e.response?.data?['result']?['errorCode'] as String?;
-      throw Exception(
-        _mapBackendErrorCode(errorCode, e.response?.data?['message']),
-      );
     } catch (e) {
+      print("REGISTER ERROR: $e");
+
       // Nếu backend thất bại sau khi Firebase đã tạo account
       // → xoá account Firebase để tránh trạng thái không đồng bộ
       if (credential != null) {
+        print("ROLLBACK: delete Firebase user");
         await credential.user?.delete();
       }
       throw Exception('Đăng ký thất bại: $e');
@@ -115,7 +116,7 @@ class AuthService {
   /// Hàm xóa sạch dấu vết user (Dữ liệu Backend + Firebase Auth)
   /// Thường dùng cho chức năng "Xóa tài khoản" hoặc "Rollback" khi đăng ký lỗi
   static Future<void> deleteAccountAndData() async {
-      // 1. Kiểm tra Authentication: Nếu không có user đang đăng nhập thì không làm gì cả
+    // 1. Kiểm tra Authentication: Nếu không có user đang đăng nhập thì không làm gì cả
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       return;
@@ -138,12 +139,14 @@ class AuthService {
       } else {
         // Nếu có dữ liệu, thực hiện xóa qua Backend
         final documentId = querySnapshot.docs.first.id;
-        
+
         try {
           await DioClient.instance.delete('/api/user/$documentId');
           print("Thành công: Đã xóa dữ liệu Backend (ID: $documentId)");
         } catch (e) {
-          print("Lỗi: Không thể gọi API xóa Backend nhưng vẫn sẽ tiếp tục xóa Auth: $e");
+          print(
+            "Lỗi: Không thể gọi API xóa Backend nhưng vẫn sẽ tiếp tục xóa Auth: $e",
+          );
         }
       }
     } catch (e) {
@@ -178,7 +181,6 @@ class AuthService {
         print("Thành công: Mã OTP đã được gửi đến $email");
       }
     } on DioException catch (e) {
-      // Xử lý các lỗi từ Server (400, 500...)
       String errorMsg = e.response?.data?['message'] ?? "Không thể gửi OTP";
       throw Exception(errorMsg);
     } catch (e) {
@@ -192,10 +194,7 @@ class AuthService {
     try {
       final response = await DioClient.instance.post(
         '/api/otp/verify',
-        queryParameters: {
-          'email': email.trim(),
-          'otp': otp.trim(),
-        },
+        queryParameters: {'email': email.trim(), 'otp': otp.trim()},
       );
 
       if (response.statusCode == 200) {
@@ -227,27 +226,55 @@ class AuthService {
       // 2. Gọi API Backend để cập nhật Database
       final response = await DioClient.instance.put(
         '/api/users/update', // Thay đổi path đúng theo Swagger của bạn
-        data: {
+          queryParameters: {
           'email': email,
-          'last_name': password,
-          if (password != null) 'password': password,
+        },
+        data: {
+          'password': password,
+          'fullName': fullName,
         },
       );
 
       if (response.statusCode == 200) {
         print("Cập nhật thông tin user thành công trên DB");
-        
+
         // 3. Nếu cần cập nhật cả Display Name trên Firebase cho đồng bộ
         await FirebaseAuth.instance.currentUser?.updateDisplayName(fullName);
       }
     } on DioException catch (e) {
-      String errorMsg = e.response?.data?['message'] ?? "Lỗi cập nhật thông tin";
-      throw Exception(errorMsg);
+      // String errorMsg = e.response?.data?['message'] ?? "Lỗi cập nhật thông tin";
+      // throw Exception(errorMsg);\
+      final dynamic data = e.response?.data;
+    String errorMsg = "Lỗi cập nhật";
+    
+    if (data is Map) {
+      errorMsg = data['message']?.toString() ?? errorMsg;
+    } else {
+      errorMsg = data?.toString() ?? errorMsg;
+    }
+    
+    throw Exception(errorMsg);
     } catch (e) {
       throw Exception("Lỗi hệ thống: $e");
     }
   }
+  // frontend/services/auth_service.dart
 
+  static Future<bool> checkEmailExists(String email) async {
+    try {
+      // Truy vấn trực tiếp vào Firestore collection 'users'
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: email.trim())
+          .limit(1)
+          .get();
+
+      return querySnapshot.docs.isNotEmpty; // Trả về true nếu đã có email này
+    } catch (e) {
+      print("Lỗi checkEmail: $e");
+      return false;
+    }
+  }
   /// Chuyển Firebase error code sang tiếng Việt
   static String _mapFirebaseError(String code) {
     switch (code) {
@@ -271,29 +298,6 @@ class AuthService {
         return 'Email hoặc mật khẩu không đúng';
       default:
         return 'Lỗi: $code';
-    }
-  }
-
-  /// Chuyển backend errorCode sang tiếng Việt
-  static String _mapBackendErrorCode(
-    String? errorCode,
-    dynamic fallbackMessage,
-  ) {
-    switch (errorCode) {
-      case 'EMAIL_ALREADY_EXISTS':
-        return 'Email này đã được đăng ký. Vui lòng dùng email khác.';
-      case 'INVALID_EMAIL':
-        return 'Địa chỉ email không hợp lệ.';
-      case 'PASSWORD_TOO_SHORT':
-      case 'WEAK_PASSWORD':
-        return 'Mật khẩu phải có ít nhất 8 ký tự, gồm chữ thường và chữ hoa.';
-      case 'PASSWORD_NO_UPPERCASE':
-        return 'Mật khẩu phải có ít nhất 1 chữ hoa (A-Z).';
-      case 'PASSWORD_NO_LOWERCASE':
-        return 'Mật khẩu phải có ít nhất 1 chữ thường (a-z).';
-      default:
-        return fallbackMessage?.toString() ??
-            'Đăng ký thất bại. Vui lòng thử lại.';
     }
   }
 }
