@@ -9,9 +9,11 @@ import 'friend_service.dart';
 
 /// Các sự kiện realtime từ FriendHub
 enum FriendHubEvent {
-  friendRequestReceived, // có người gửi lời mời cho mình
-  friendRequestAccepted, // lời mời của mình được chấp nhận
-  friendRequestDeclined, // lời mời của mình bị từ chối
+  friendRequestReceived,  // có người gửi lời mời cho mình
+  friendRequestAccepted,  // lời mời của mình được chấp nhận
+  friendRequestDeclined,  // lời mời của mình bị từ chối
+  friendRequestCancelled, // lời mời gửi cho mình bị sender huỷ
+  friendUnfriended,       // bị unfriend bởi bên kia
 }
 
 /// Payload nhận từ server khi có sự kiện realtime
@@ -104,6 +106,18 @@ class FriendHubService {
       final data = _parseArgs(args);
       if (data == null) return;
       _emit(FriendHubEvent.friendRequestDeclined, data);
+    });
+
+    _connection!.on('FriendRequestCancelled', (args) {
+      final data = _parseArgs(args);
+      if (data == null) return;
+      _emit(FriendHubEvent.friendRequestCancelled, data);
+    });
+
+    _connection!.on('FriendUnfriended', (args) {
+      final data = _parseArgs(args);
+      if (data == null) return;
+      _emit(FriendHubEvent.friendUnfriended, data);
     });
 
     _connection!.onclose(({error}) {
