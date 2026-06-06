@@ -314,7 +314,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
+<<<<<<< HEAD
+            color: Colors.black.withValues(alpha: 0.05),
+=======
             color: Colors.black.withOpacity(0.05),
+>>>>>>> origin/dev
             blurRadius: 10,
           ),
         ],
@@ -388,12 +392,20 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             height: 48,
             decoration: BoxDecoration(
               color: isHovered
+<<<<<<< HEAD
+                  ? primaryColor.withValues(alpha: 0.15)
+=======
                   ? Colors.blue.withOpacity(0.15)
+>>>>>>> origin/dev
                   : backgroundColor,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: isHovered
+<<<<<<< HEAD
+                    ? primaryColor.withValues(alpha: 0.4)
+=======
                     ? primaryColor.withOpacity(0.4)
+>>>>>>> origin/dev
                     : Colors.transparent,
               ),
             ),

@@ -77,7 +77,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     FriendProvider provider,
   ) {
     final headerBg = isDark ? const Color(0xFF1A1A1A) : AppColors.primaryBlue;
-    final tabBg = isDark ? AppColors.darkSurface : Colors.white;
 
     return Scaffold(
       backgroundColor: AppColors.getBackground(isDark),
@@ -221,9 +220,6 @@ class _FriendRequestsScreenState extends State<FriendRequestsScreen>
     final displayName = (f.senderName?.isNotEmpty == true)
         ? f.senderName!
         : f.senderId;
-    final avatarUrl = (f.senderAvatar?.isNotEmpty == true)
-        ? f.senderAvatar
-        : null;
 
     return Container(
       color: bg,

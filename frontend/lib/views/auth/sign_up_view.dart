@@ -151,7 +151,7 @@ class _SignUpViewState extends State<SignUpView> with SingleTickerProviderStateM
           // Chuyển sang trang OTP và truyền email đi
           // Lưu ý: Không gọi AuthService.register ở đây
           // context.go('/otp', extra: _emailController.text.trim());
-          context.push('/otp', extra: _emailController.text.trim());
+          context.push('/reset-password', extra: _emailController.text.trim());
 
         },
         onCancel: () {
@@ -162,8 +162,6 @@ class _SignUpViewState extends State<SignUpView> with SingleTickerProviderStateM
   }
 
   void _onBackPressed() {
-    final t = AppLocalizations(localeNotifier.value);
-    
     showDialog(
   context: context,
   barrierDismissible: false, // Bắt buộc người dùng phải chọn

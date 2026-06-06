@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:signalr_netcore/signalr_client.dart';
 import '../../models/chat/message.dart';
 import '../../models/chat/conversation.dart';
@@ -100,12 +101,24 @@ class SignalRService {
     _hubConnection!.on('CallEnded', (args) => _handleCallEnded(args));
 
     await _hubConnection!.start();
-    print('SignalR Connected');
+    debugPrint('SignalR Connected');
   }
 
   Future<void> disconnect() async {
     await _hubConnection?.stop();
-    print('SignalR Disconnected');
+    debugPrint('SignalR Disconnected');
+  }
+
+  Future<void> setOnline() async {
+    await _hubConnection?.invoke('SetOnline', args: [userId]);
+  }
+
+  Future<void> setOffline() async {
+    await _hubConnection?.invoke('SetOffline', args: [userId]);
+  }
+
+  Future<void> heartbeat() async {
+    await _hubConnection?.invoke('Heartbeat', args: [userId]);
   }
 
   Future<void> setOnline() async {
@@ -238,9 +251,9 @@ class SignalRService {
         {
           'type': type,
           'participant_ids': participantIds,
-          'group_name': ?groupName,
-          'group_avatar_url': ?groupAvatarUrl,
-          'group_description': ?groupDescription,
+          if (groupName != null) 'group_name': groupName,
+          if (groupAvatarUrl != null) 'group_avatar_url': groupAvatarUrl,
+          if (groupDescription != null) 'group_description': groupDescription,
         },
         userId,
       ],

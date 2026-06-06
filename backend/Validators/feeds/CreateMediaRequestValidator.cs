@@ -26,11 +26,11 @@ namespace backend.Validators
 
             When(x => x.File != null, () =>
             {
-                RuleFor(x => x.File.ContentType)
+                RuleFor(x => x.File!.ContentType)
                     .Must(ct => AllowedMimeTypes.Contains(ct))
                     .WithMessage("File must be image (jpg/png/gif/webp) or video (mp4/mov/avi/webm/mkv)");
 
-                RuleFor(x => x.File)
+                RuleFor(x => x.File!)
                     .Must(f =>
                     {
                         var isVideo = f.ContentType.StartsWith("video/");

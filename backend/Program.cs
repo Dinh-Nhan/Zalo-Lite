@@ -3,102 +3,79 @@ using backend.Attributes;
 using backend.Hubs;
 using backend.Middleware;
 using backend.Services;
-using FirebaseAdmin;
-using Google.Apis.Auth.OAuth2;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Mapster;
 using MapsterMapper;
+using Microsoft.OpenApi.Models;
 using Serilog;
 using StackExchange.Redis;
-using Microsoft.OpenApi.Models;
 using backend.swagger;
 using backend.settings;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// var firebaseConfig = builder.Configuration.GetSection("Firebase");
-// var projectId = firebaseConfig["ProjectId"];
-// var credentialPath = firebaseConfig["CredentialsFilePath"];
-
-// var credential = CredentialFactory
-//     .FromFile<ServiceAccountCredential>(credentialPath)
-//     .ToGoogleCredential();
-
-// FirebaseApp.Create(new AppOptions()
-// {
-//     Credential = credential,
-//     ProjectId = projectId
-// });
-
-// background services
 builder.Services.AddHostedService<StoryExpirationService>();
 builder.Services.AddHostedService<DisappearingMessageService>();
 
-
-//var builder = WebApplication.CreateBuilder(args);
-
-// ── Serilog ────────────────────────────────────────────────
 builder.Host.UseSerilog((ctx, config) => config
     .ReadFrom.Configuration(ctx.Configuration)
     .Enrich.FromLogContext()
     .WriteTo.Console(outputTemplate:
         "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext} | {Message}{NewLine}{Exception}"));
 
-// ── Redis ──────────────────────────────────────────────────
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
     var connStr = builder.Configuration["Redis:ConnectString"]!;
     var options = ConfigurationOptions.Parse(connStr);
-    options.AbortOnConnectFail = false; // không crash khi Redis offline
+    options.AbortOnConnectFail = false;
     options.ConnectRetry = 2;
     return ConnectionMultiplexer.Connect(options);
 });
-// ── Cloudinary ────────────────────────────────────────────────
+
+builder.Services.AddScoped<IDatabase>(sp =>
+{
+    var redis = sp.GetRequiredService<IConnectionMultiplexer>();
+    return redis.GetDatabase();
+});
+
 builder.Services.Configure<CloudinarySettings>(
     builder.Configuration.GetSection("Cloudinary"));
-// ── Mapster ────────────────────────────────────────────────
+
 var mapsterConfig = TypeAdapterConfig.GlobalSettings;
 mapsterConfig.Scan(Assembly.GetExecutingAssembly());
 builder.Services.AddSingleton(mapsterConfig);
 builder.Services.AddScoped<IMapper, ServiceMapper>();
 
-// ── FluentValidation ───────────────────────────────────────
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
-// ── Auto scan Services ─────────────────────────────────────
 builder.Services.Scan(scan => scan
     .FromAssemblyOf<Program>()
     .AddClasses(c => c.WithAttribute<ScopedServiceAttribute>())
     .AsSelf()
     .WithScopedLifetime());
 
-// ── Middleware ─────────────────────────────────────────────
 builder.Services.AddTransient<GlobalExceptionHandler>();
 
-// ── Firebase & Firestore ───────────────────────────────────
 builder.Services.AddSingleton<FirebaseService>();
 builder.Services.AddSingleton(sp =>
     sp.GetRequiredService<FirebaseService>().FirestoreDb);
 
 builder.Services.AddScoped<UserService>();
 builder.Services.AddControllers()
-    .AddJsonOptions(opts =>
-        opts.JsonSerializerOptions.PropertyNamingPolicy =
-            System.Text.Json.JsonNamingPolicy.SnakeCaseLower);
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    });
+
 builder.Services.AddEndpointsApiExplorer();
-// add options using bearer token to verify access token when request api
-builder.Services.AddSwaggerGen(
-    options =>
+builder.Services.AddSwaggerGen(options =>
 {
-    // config xml for comment in controller to explain api 
     var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     options.IncludeXmlComments(xmlPath);
 
-
-    //require bearer token for per request in backend
     options.OperationFilter<AuthorizeCheckOperationFilter>();
 
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -110,66 +87,46 @@ builder.Services.AddSwaggerGen(
         In = ParameterLocation.Header,
         Description = "Nhập token theo định dạng: Bearer {token}"
     });
-}
-);
+});
 
-// ── SignalR ────────────────────────────────────────────────
 builder.Services.AddSignalR()
     .AddJsonProtocol(opts =>
         opts.PayloadSerializerOptions.PropertyNamingPolicy =
             System.Text.Json.JsonNamingPolicy.SnakeCaseLower);
 
-// ── CORS ───────────────────────────────────────────────────
 builder.Services.AddCors(opt =>
 {
     opt.AddDefaultPolicy(policy =>
         policy
             .AllowAnyHeader()
             .AllowAnyMethod()
-            .SetIsOriginAllowed(_ => true) // dev only — thu hẹp lại khi lên production
+            .SetIsOriginAllowed(_ => true)
             .AllowCredentials());
 });
 
-// ══════════════════════════════════════════════════════════
-//  PIPELINE — đúng thứ tự ASP.NET Core
-// ══════════════════════════════════════════════════════════
 var app = builder.Build();
 
-// ── Warm-up Firebase ───────────────────────────────────────
-// Initialize FirebaseService immediately to ensure FirebaseApp.DefaultInstance is ready
 app.Services.GetRequiredService<FirebaseService>();
 
-// 1. Bắt exception toàn cục — phải đứng đầu tiên
 app.UseMiddleware<GlobalExceptionHandler>();
 
-// 2. HTTPS redirect — bỏ qua khi dev vì thiết bị thật không tin certificate tự ký
 if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
 
-// 3. Swagger (chỉ dev)
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// 4. Routing — phải trước CORS & Auth
 app.UseRouting();
-
-// 5. CORS — sau Routing, trước Auth
 app.UseCors();
-
-// 6. Firebase Auth Middleware — parse & validate token,
-//    gắn claims vào HttpContext trước khi UseAuthorization chạy
 app.UseMiddleware<FirebaseAuthMiddleware>();
-
-// 7. Authorization
 app.UseAuthentication();
 app.UseAuthorization();
 
-// 8. Endpoints
 app.MapControllers();
 app.MapHub<ChatHub>("/hubs/chat");
 app.MapHub<FriendHub>("/hubs/friend");

@@ -76,16 +76,20 @@ public class ChatController : ControllerBase
     [HttpDelete("conversations/{conversationId}/participants/{userIdToRemove}")]
     public async Task<IActionResult> RemoveParticipant(string conversationId, string userIdToRemove)
     {
-        await _chatService.RemoveParticipantAsync(conversationId, userIdToRemove, User.GetUid());
-        return Ok(ApiResponse<object>.SuccessResponse(null, "Participant removed successfully"));
+        var userId = User.GetUid();
+        await _chatService.RemoveParticipantAsync(conversationId, userIdToRemove, userId);
+
+        return Ok(ApiResponse<object>.SuccessResponse(default(object), "Participant removed successfully"));
     }
 
     /// <summary>Leave / delete conversation</summary>
     [HttpDelete("conversations/{conversationId}")]
     public async Task<IActionResult> DeleteConversation(string conversationId)
     {
-        await _chatService.DeleteConversationAsync(conversationId, User.GetUid());
-        return Ok(ApiResponse<object>.SuccessResponse(null, "Conversation deleted successfully"));
+        var userId = User.GetUid();
+        await _chatService.DeleteConversationAsync(conversationId, userId);
+
+        return Ok(ApiResponse<object>.SuccessResponse(default(object), "Conversation deleted successfully"));
     }
 
     #endregion
@@ -261,8 +265,10 @@ public class ChatController : ControllerBase
     [HttpDelete("conversations/{conversationId}/messages/{messageId}")]
     public async Task<IActionResult> DeleteMessage(string conversationId, string messageId)
     {
-        await _chatService.DeleteMessageAsync(conversationId, messageId, User.GetUid());
-        return Ok(ApiResponse<object>.SuccessResponse(null, "Message deleted successfully"));
+        var userId = User.GetUid();
+        await _chatService.DeleteMessageAsync(conversationId, messageId, userId);
+
+        return Ok(ApiResponse<object>.SuccessResponse(default(object), "Message deleted successfully"));
     }
 
     /// <summary>Ẩn tin nhắn chỉ ở phía mình — người kia vẫn thấy bình thường</summary>
@@ -285,16 +291,20 @@ public class ChatController : ControllerBase
     [HttpPost("conversations/{conversationId}/messages/{messageId}/read")]
     public async Task<IActionResult> MarkAsRead(string conversationId, string messageId)
     {
-        await _chatService.MarkAsReadAsync(conversationId, messageId, User.GetUid());
-        return Ok(ApiResponse<object>.SuccessResponse(null, "Message marked as read"));
+        var userId = User.GetUid();
+        await _chatService.MarkAsReadAsync(conversationId, messageId, userId);
+
+        return Ok(ApiResponse<object>.SuccessResponse(default(object), "Message marked as read"));
     }
 
     /// <summary>Mark message as delivered</summary>
     [HttpPost("conversations/{conversationId}/messages/{messageId}/delivered")]
     public async Task<IActionResult> MarkAsDelivered(string conversationId, string messageId)
     {
-        await _chatService.MarkAsDeliveredAsync(conversationId, messageId, User.GetUid());
-        return Ok(ApiResponse<object>.SuccessResponse(null, "Message marked as delivered"));
+        var userId = User.GetUid();
+        await _chatService.MarkAsDeliveredAsync(conversationId, messageId, userId);
+
+        return Ok(ApiResponse<object>.SuccessResponse(default(object), "Message marked as delivered"));
     }
 
     #endregion

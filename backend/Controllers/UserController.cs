@@ -29,6 +29,8 @@ public class UserController(UserService userService, ChatService chatService) : 
         return firebaseToken.Uid;
     }
 
+    private string CurrentUserId => GetUserIdFromToken();
+
 
     /// <summary>
     /// Lấy thông tin user hiện tại (từ token)
@@ -204,7 +206,7 @@ public class UserController(UserService userService, ChatService chatService) : 
     {
         return Ok(new ApiResponse<UserResponse>()
         {
-            Result = await userService.UpdateAvatarAsync(GetUserIdFromToken(), request),
+            Result = await userService.UpdateAvatarAsync(CurrentUserId, request),
             Message = "Cập nhật avatar thành công"
         });
     }

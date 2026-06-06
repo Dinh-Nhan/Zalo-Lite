@@ -13,12 +13,12 @@ class GroupTabView extends StatelessWidget {
         Material(
           color: Colors.white,
           child: InkWell(
+            highlightColor: Colors.black.withValues(alpha: 0.05),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => const NewConversationScreen(type: 'group'),
               ),
             ),
-            highlightColor: Colors.black.withOpacity(0.05),
             splashColor: Colors.transparent,
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

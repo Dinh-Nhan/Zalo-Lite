@@ -5,8 +5,13 @@ class MyProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+<<<<<<< HEAD
+    return const Center(
+      child: Text('My Profile'),
+=======
     return Container(
       child: Text("My Profile"),
+>>>>>>> origin/dev
     );
   }
 }

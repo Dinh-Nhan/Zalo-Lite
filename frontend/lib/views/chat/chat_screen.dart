@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../features/calling/screens/call_screen.dart';
@@ -13,6 +12,7 @@ import '../../models/chat/message.dart';
 import '../../providers/chat_provider.dart';
 import '../../widgets/chat/message_bubble.dart';
 import '../../widgets/chat/typing_indicator.dart';
+import '../../widgets/emoji_picker_widget.dart';
 import 'group_info_screen.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -21,7 +21,7 @@ class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.conversation});
 
   @override
-  _ChatScreenState createState() => _ChatScreenState();
+  State<ChatScreen> createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
@@ -32,7 +32,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   List<Message> _messages = [];
   bool _isLoading = true;
-  bool _isSending = false;
+  final bool _isSending = false;
+  final bool _showEmojiKeyboard = false;
 
   // Typing indicator
   bool _isTyping = false;
@@ -144,27 +145,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _scrollToBottom();
   }
 
-  void _handleReceiveMessage(Message message) {
-    if (message.conversationId == widget.conversation.id) {
-      setState(() {
-        _messages.add(message);
-      });
-      _scrollToBottom();
-
-      // Mark as read
-      // chatService.signalRService.markAsRead(widget.conversation.id, message.id);
-    }
-  }
-
-  void _handleUserTyping(String conversationId, String userId, bool isTyping) {
-    if (conversationId == widget.conversation.id) {
-      setState(() {
-        _isTyping = isTyping;
-        _typingUserId = userId;
-      });
-    }
-  }
-
   void _sendMessage() async {
     final content = _messageController.text.trim();
     if (content.isEmpty || _isSending) return;
@@ -220,6 +200,24 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         curve: Curves.easeOutCubic,
       );
     }
+  }
+
+  void _insertEmoji(String emoji) {
+    final text = _messageController.text;
+    final selection = _messageController.selection;
+    
+    if (selection.start >= 0) {
+      final newText = text.replaceRange(selection.start, selection.end, emoji);
+      final newPosition = selection.start + emoji.length;
+      
+      _messageController.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newPosition),
+      );
+    } else {
+      _messageController.text += emoji;
+    }
+    setState(() {});
   }
 
   @override
@@ -332,10 +330,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             if (_replyToMessage != null) _buildReplyPreview(),
 
             _buildInputArea(),
+
+            if (_showEmojiKeyboard)
+              EmojiPickerWidget(
+                onEmojiSelected: _insertEmoji,
+              ),
           ],
         ),
-      ), // end Scaffold
-    ); // end PopScope
+      ),
+    );
   }
 
   PreferredSizeWidget _buildAppBar() {
@@ -522,8 +525,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
         // Tính index thực trong _messages (0 = cũ nhất, length-1 = mới nhất)
         final msgIndex = _messages.length - 1 - (_isTyping ? index - 1 : index);
-        if (msgIndex < 0 || msgIndex >= _messages.length)
+        if (msgIndex < 0 || msgIndex >= _messages.length) {
           return const SizedBox.shrink();
+        }
 
         final message = _messages[msgIndex];
         final prev = msgIndex > 0 ? _messages[msgIndex - 1] : null; // cũ hơn
@@ -809,17 +813,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _inputIconBtn(IconData icon, {required VoidCallback onPressed}) {
-    return SizedBox(
-      width: 40,
-      height: 40,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(20),
-        child: Icon(icon, color: const Color(0xFF606060), size: 22),
-      ),
-    );
-  }
+  // Widget _inputIconBtn(IconData icon, {required VoidCallback onPressed}) {
+  //   return SizedBox(
+  //     width: 40,
+  //     height: 40,
+  //     child: InkWell(
+  //       onTap: onPressed,
+  //       borderRadius: BorderRadius.circular(20),
+  //       child: Icon(icon, color: const Color(0xFF606060), size: 22),
+  //     ),
+  //   );
+  // }
 
   String _formatDate(DateTime date) {
     final now = DateTime.now();
@@ -836,13 +840,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
-  String _getTypingUserName() {
-    final participant = widget.conversation.participants.firstWhere(
-      (p) => p.userId == _typingUserId,
-      orElse: () => widget.conversation.participants.first,
-    );
-    return participant.displayName;
-  }
+  // String _getTypingUserName() {
+  //   final participant = widget.conversation.participants.firstWhere(
+  //     (p) => p.userId == _typingUserId,
+  //     orElse: () => widget.conversation.participants.first,
+  //   );
+  //   return participant.displayName;
+  // }
 
   void _showAttachmentOptions() {
     showModalBottomSheet(
@@ -936,8 +940,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           Container(
             width: 56,
             height: 56,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: color, size: 28),
@@ -989,13 +993,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
     final me = conv.participants.where((p) => p.userId == myUid).firstOrNull;
     final firebaseUser = FirebaseAuth.instance.currentUser;
-    debugPrint('[Call] myUid=$myUid');
-    debugPrint('[Call] me.displayName=${me?.displayName}');
-    debugPrint('[Call] cachedSenderName=${chatProvider.cachedSenderName}');
-    debugPrint('[Call] firebaseEmail=${firebaseUser?.email}');
-    debugPrint(
-      '[Call] participants=${conv.participants.map((p) => "${p.userId}:${p.userName}").join(", ")}',
-    );
 
     final myName = [
       me?.displayName,
@@ -1004,10 +1001,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       firebaseUser?.email?.split('@').first,
       myUid,
     ].firstWhere((s) => s != null && s.isNotEmpty, orElse: () => myUid)!;
-    debugPrint('[Call] myName=$myName');
     final myAvatar = me?.avatar ?? chatProvider.cachedSenderAvatar ?? '';
 
-    // Báo cho đối phương qua SignalR
     await chatProvider.initiateCall(
       conversationId: conv.id,
       calleeId: otherUserId,
@@ -1027,27 +1022,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     );
   }
 
-  void _handleMenuAction(String action) {
-    switch (action) {
-      case 'search':
-        _showInfo('Tính năng tìm kiếm đang được phát triển');
-        break;
-      case 'mute':
-        _showInfo(
-          'Đã ${widget.conversation.isMuted ? "bật" : "tắt"} thông báo',
-        );
-        break;
-      case 'media':
-        _showInfo('Tính năng xem ảnh/video đang được phát triển');
-        break;
-      case 'clear':
-        _confirmClearHistory();
-        break;
-    }
-  }
-
   void _unpinMessage() {
-    context.read<ChatProvider>().unpinMessage().catchError((e) {
+    context.read<ChatProvider>().unpinMessage().catchError((error) {
       if (mounted) _showError('Không thể bỏ ghim tin nhắn');
     });
   }
@@ -1061,7 +1037,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _copyMessage(Message message) {
-    // TODO: Copy to clipboard
+    Clipboard.setData(ClipboardData(text: message.content));
     _showInfo('Đã sao chép');
   }
 
@@ -1075,16 +1051,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _showMessageInfo(Message message) {
-    _showInfo('Tính năng thông tin tin nhắn đang được phát triển');
+    _showInfo('Tính năng đánh dấu tin nhắn đang được phát triển');
   }
 
   void _showEmojiPicker() {
     _showInfo('Tính năng emoji picker đang được phát triển');
-  }
-
-  void _sendLike() {
-    // TODO: Send like emoji
-    _showInfo('Đã gửi like');
   }
 
   void _pickImageFromGallery() async {
