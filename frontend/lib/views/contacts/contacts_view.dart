@@ -7,6 +7,7 @@ import 'package:frontend/features/friends/screens/friend_list_screen.dart';
 import 'package:frontend/features/friends/screens/friend_requests_screen.dart';
 import 'package:frontend/utils/app_localizations.dart';
 import 'package:frontend/widgets/search_overlay_screen.dart';
+import 'package:frontend/component/friend_search_page.dart';
 
 /// Màn hình Danh bạ - Contacts View
 /// Giao diện nhỏ (mobile): hiển thị tabs Bạn bè / Nhóm
@@ -599,26 +600,9 @@ class _ContactsViewState extends State<ContactsView>
   }
 
   void _openSearchOverlay(BuildContext context) {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (_, __, childAnimation) => SearchOverlayScreen(
-          onBack: () => Navigator.of(context).pop(),
-          onSearchResultTap: ({required userId, required name, avatar}) {
-            Navigator.of(context).pop();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Đã chọn: $name'),
-                behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          },
-          recentContacts: const [],
-        ),
-        transitionsBuilder: (_, animation, childAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        transitionDuration: const Duration(milliseconds: 200),
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(
+        builder: (_) => const FriendSearchPage(),
       ),
     );
   }

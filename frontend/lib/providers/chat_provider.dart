@@ -1,10 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'package:firebase_auth/firebase_auth.dart';
-<<<<<<< HEAD
-=======
 import 'package:flutter/foundation.dart';
->>>>>>> origin/dev
 import 'package:flutter/widgets.dart';
 import 'package:frontend/config/api_config.dart';
 import 'package:frontend/models/call_model.dart';
@@ -31,30 +28,23 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   bool _isSending = false;
   bool _isOtherTyping = false;
-  bool _chatVisible = false; // true chỉ khi ChatScreen đang hiển thị trực tiếp
+  bool _chatVisible = false;
   String? _typingUserId;
   String? _errorMessage;
   String? _currentUid;
   String? _cachedSenderName;
   String? _cachedSenderAvatar;
 
-  // Online statuses realtime: userId → isOnline
   final Map<String, bool> _onlineStatuses = {};
-
-  // FIFO queue — track thứ tự pending messages để match đúng khi server confirm
   final Queue<String> _pendingQueue = Queue<String>();
-
-  // Số tin chưa đọc lúc mở conversation (để scroll + divider)
   int _openedWithUnreadCount = 0;
-
-  // Heartbeat timer — refresh Redis TTL mỗi 3 phút
   Timer? _heartbeatTimer;
 
   // ── Services ───────────────────────────────────────────────────
 
   final ChatService _chatService = ChatService();
   SignalRService? _signalR;
-  BuildContext? _context; // dùng để access CallProvider
+  BuildContext? _context;
 
   void setContext(BuildContext ctx) => _context = ctx;
 
@@ -82,12 +72,10 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     _currentUid = uid;
     _signalR = SignalRService(baseUrl: ApiConfig.baseUrl, userId: uid);
     WidgetsBinding.instance.addObserver(this);
-    // Connect SignalR ngay, load sender info async (chỉ cần cho cuộc gọi)
     _loadSenderInfo(uid);
     await _connectSignalR();
     await loadConversations();
     _startHeartbeat();
-    // Lưu FCM token để nhận cuộc gọi khi app tắt
     CallNotificationService.saveTokenToServer();
   }
 
@@ -102,8 +90,6 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _signalR?.setOnline();
-      // Refresh conversations để lấy lại unread count từ server —
-      // tin nhắn đến khi background không được SignalR deliver nên local state bị stale
       loadConversations();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
@@ -150,7 +136,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       debugPrint(token ?? 'null');
       debugPrint('=============================================');
       await signalR.connect(accessToken: token);
-      await signalR.setOnline(); // mark online ngay sau khi connect lần đầu
+      await signalR.setOnline();
       debugPrint('[ChatProvider] SignalR connected + online');
     } catch (e) {
       debugPrint('[ChatProvider] SignalR connection failed: $e');
@@ -184,7 +170,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> openConversation(Conversation conv) async {
-    _chatVisible = false; // reset — ChatScreen sẽ set true sau khi render
+    _chatVisible = false;
     _openedWithUnreadCount = conv.unreadCount;
     _activeConversation = conv;
     MessageNotificationService.activeConversationId = conv.id;
@@ -203,13 +189,10 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     _conversations = list;
   }
 
-  /// Gọi từ ChatScreen khi màn hình thực sự hiển thị / ẩn
   void setConversationVisible(bool visible) {
     _chatVisible = visible;
     if (visible && _activeConversation != null) {
-      // Reset badge chỉ khi user thực sự thấy màn hình chat
       _resetUnreadCount(_activeConversation!.id);
-      // Mark read nếu messages đã load xong
       if (_messagesState == ChatLoadingState.success) {
         _autoMarkRead(_activeConversation!.id);
       }
@@ -262,7 +245,6 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     final conv = _activeConversation;
     if (conv == null) return;
 
-    // ── Optimistic UI: hiện tin nhắn ngay lập tức ──────────────
     final tempId = '_pending_${DateTime.now().millisecondsSinceEpoch}';
     final optimistic = Message(
       id: tempId,
@@ -283,10 +265,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       totalReactions: 0,
     );
     _messages = [..._messages, optimistic];
-    _pendingQueue.add(tempId); // FIFO: đăng ký thứ tự gửi
+    _pendingQueue.add(tempId);
     notifyListeners();
 
-    // ── Gửi qua SignalR ─────────────────────────────────────────
     try {
       await _signalR?.sendMessage(
         conversationId: conv.id,
@@ -295,8 +276,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
         replyToMessageId: replyToMessageId,
       );
     } catch (e) {
-      // Xóa tin nhắn optimistic nếu lỗi
-      _pendingQueue.remove(tempId); // rollback khỏi queue
+      _pendingQueue.remove(tempId);
       _messages = _messages.where((m) => m.id != tempId).toList();
       _errorMessage = e.toString();
       debugPrint('[ChatProvider] sendMessage error: $e');
@@ -314,13 +294,11 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     final conv = _activeConversation;
     if (conv == null) return;
 
-    // Optimistic: đánh dấu thu hồi ngay
     _messages = _messages
         .map((m) => m.id == messageId
             ? m.copyWith(isDeleted: true, content: 'Tin nhắn đã bị thu hồi')
             : m)
         .toList();
-    // Nếu là tin cuối → update lastMessage trong conversation list
     final deleted = _messages.firstWhere((m) => m.id == messageId,
         orElse: () => _messages.last);
     if (_messages.isNotEmpty && _messages.last.id == messageId) {
@@ -339,11 +317,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     final conv = _activeConversation;
     if (conv == null) return;
 
-    // Ẩn ngay khỏi UI — không chờ API
     _messages = _messages.where((m) => m.id != messageId).toList();
     notifyListeners();
 
-    // Gọi API background để persist
     try {
       await _chatService.hideMessageForMe(conv.id, messageId);
     } catch (e) {
@@ -406,7 +382,6 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     final m = message.withCurrentUser(_currentUid ?? '');
     if (m.conversationId == _activeConversation?.id) {
       if (_pendingQueue.isNotEmpty) {
-        // Lấy đúng pending ID theo thứ tự gửi (FIFO)
         final pendingId = _pendingQueue.removeFirst();
         final idx = _messages.indexWhere((msg) => msg.id == pendingId);
         if (idx != -1) {
@@ -439,7 +414,6 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
               ? m.copyWith(isDeleted: true, content: 'Tin nhắn đã bị thu hồi')
               : m)
           .toList();
-      // Nếu là tin cuối → update lastMessage
       if (_messages.isNotEmpty && _messages.last.id == messageId) {
         _updateConversationLastMessage(_messages.last);
       }
@@ -497,10 +471,8 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   void _onMessageRead(String conversationId, String messageId, String readBy) {
     if (conversationId != _activeConversation?.id) return;
-    // Tìm index của tin nhắn được đọc
     final readIdx = _messages.indexWhere((m) => m.id == messageId);
     final cutoff = readIdx >= 0 ? _messages[readIdx].createdAt : DateTime.now();
-    // Đánh dấu tất cả tin của mình từ đầu đến tin được đọc là "read"
     _messages = _messages.map((m) {
       if (m.isMine && m.status != 'read' && !m.createdAt.isAfter(cutoff)) {
         return m.copyWith(status: 'read');
@@ -533,7 +505,6 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
         : null;
     if (callProvider == null) return;
 
-    // Lấy tên caller từ conv.otherUserName — backend đã tính sẵn cho current user
     final conv = _conversations.where((c) => c.id == conversationId).firstOrNull;
     final resolvedName = (conv?.otherUserName?.isNotEmpty == true)
         ? conv!.otherUserName!
@@ -567,7 +538,6 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
         : null;
     if (callProvider == null) return;
 
-    // Chỉ caller (không phải incoming) mới lưu tin nhắn lịch sử
     final call = callProvider.currentCall;
     if (call != null && !call.isIncoming) {
       saveCallMessage(
@@ -593,7 +563,6 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     String? callerName,
     String? callerAvatar,
   }) async {
-    // Khi caller timeout 30s (không ai bắt), lưu tin nhắn nhỡ phía caller
     if (_context != null) {
       final callProvider = Provider.of<CallProvider>(_context!, listen: false);
       callProvider.onCallMissed = (convId, type) {
@@ -626,11 +595,10 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     await _signalR?.endCallSignal(conversationId, otherUserId);
   }
 
-  /// Lưu lịch sử cuộc gọi vào conversation
   Future<void> saveCallMessage({
     required String conversationId,
     required String callType,
-    required String status, // answered | missed | rejected
+    required String status,
     required int durationSeconds,
   }) async {
     String content;
@@ -652,7 +620,6 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
         type: 'call',
         content: content,
       );
-      // Caller tự cập nhật UI — REST API không gửi MessageSent về sender
       final m = saved.withCurrentUser(_currentUid ?? '');
       if (_activeConversation?.id == conversationId) {
         _messages = [..._messages, m];
@@ -680,9 +647,6 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (idx == -1) return;
     final conv = _conversations[idx];
 
-    // Tăng unread nếu tin không phải của mình VÀ (conv này không phải active HOẶC chat không đang hiển thị)
-    // Dùng _chatVisible thay vì chỉ isActive: khi user thoát chat nhưng _activeConversation chưa kịp null,
-    // hoặc khi nhận tin trong lúc navigate về, badge vẫn phải được đếm đúng.
     final isActive = _activeConversation?.id == message.conversationId;
     final newUnread = (!message.isMine && !(isActive && _chatVisible))
         ? conv.unreadCount + 1

@@ -184,44 +184,11 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     if (choice == null || !mounted) return;
 
-    if (choice == 'avatar_only' || choice == 'both') {
-      setState(() => _selectedAvatarBytes = bytes);
-
-      try {
-        final newAvatarUrl = await AuthService.updateAvatar(image);
-
-        setState(() {
-          _currentUserAvatar = newAvatarUrl;
-          _selectedAvatarBytes = null;
-        });
-
-        await FirebaseAuth.instance.currentUser?.reload();
-
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đổi ảnh đại diện thành công!'),
-            backgroundColor: AppColors.primaryBlue,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      } catch (e) {
-        if (!mounted) return;
-        setState(() => _selectedAvatarBytes = null);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi đổi avatar: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-    }
-
     if (choice == 'post_only' || choice == 'both') {
       context.push('/create-post-avatar', extra: {
         'imageBytes': bytes,
         'imagePath': image.path,
+        'shouldUpdateAvatarOnSubmit': choice == 'both',
       });
     }
   }

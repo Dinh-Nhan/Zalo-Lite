@@ -30,15 +30,15 @@ class FriendshipModel {
 
   factory FriendshipModel.fromJson(Map<String, dynamic> json) => FriendshipModel(
         id: json['id'] ?? '',
-        senderId: json['senderId'] ?? '',
-        addresseeId: json['addresseeId'] ?? '',
+        senderId: json['senderId'] ?? json['sender_id'] ?? '',
+        addresseeId: json['addresseeId'] ?? json['addressee_id'] ?? '',
         status: json['status'] ?? 'pending',
-        sourceType: json['sourceType'] ?? 'search',
-        createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
-        updatedAt: DateTime.tryParse(json['updatedAt'] ?? '') ?? DateTime.now(),
+        sourceType: json['sourceType'] ?? json['source_type'] ?? 'search',
+        createdAt: DateTime.tryParse(json['createdAt'] ?? json['created_at'] ?? '') ?? DateTime.now(),
+        updatedAt: DateTime.tryParse(json['updatedAt'] ?? json['updated_at'] ?? '') ?? DateTime.now(),
         senderName: json['senderName'] as String?,
         senderAvatar: json['senderAvatar'] as String?,
-        addresseeName: json['addresseeName'] ?? '',
+        addresseeName: json['addresseeName'] ?? json['addressee_name'] ?? '',
       );
 
   bool isSender(String currentUid) => senderId == currentUid;
@@ -175,7 +175,7 @@ class FriendService {
     try {
       final res = await _dio.post(
         '/api/friends/requests',
-        data: {'addressee_id': addresseeId, 'source_type': sourceType},
+        data: {'addresseeId': addresseeId, 'sourceType': sourceType},
       );
       final data = res.data as Map<String, dynamic>;
       return FriendshipModel.fromJson(data['result'] as Map<String, dynamic>);
@@ -191,7 +191,7 @@ class FriendService {
     try {
       final res = await _dio.patch(
         '/api/friends/requests/$friendshipId',
-        data: {'accept': accept},
+        data: {'Accept': accept},
       );
       final data = res.data as Map<String, dynamic>;
       return FriendshipModel.fromJson(data['result'] as Map<String, dynamic>);
@@ -218,7 +218,7 @@ class FriendService {
 
   static Future<List<UserSearchModel>> searchUsers(String keyword) async {
     try {
-      final res = await _dio.get('/api/user/search', queryParameters: {'keyword': keyword});
+      final res = await _dio.get('/api/user/search/$keyword');
       final data = res.data as Map<String, dynamic>;
       final list = (data['result'] as List? ?? []);
       return list.map((e) => UserSearchModel.fromJson(e as Map<String, dynamic>)).toList();

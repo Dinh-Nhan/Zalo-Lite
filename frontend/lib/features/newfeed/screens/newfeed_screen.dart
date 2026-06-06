@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/widgets/search_overlay_screen.dart';
+import 'package:frontend/component/friend_search_page.dart';
 import '../models/post_model.dart';
 import '../providers/feed_provider.dart';
 import '../providers/story_provider.dart';
@@ -69,26 +70,9 @@ class _NewfeedScreenState extends State<NewfeedScreen> with WidgetsBindingObserv
   }
 
   void _openSearch() {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => SearchOverlayScreen(
-          onBack: () => Navigator.of(context).pop(),
-          onSearchResultTap: ({required userId, required name, avatar}) {
-            Navigator.of(context).pop();
-          },
-        ),
-        transitionsBuilder: (_, animation, __, child) {
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, -1),
-              end: Offset.zero,
-            ).animate(CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOut,
-            )),
-            child: child,
-          );
-        },
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(
+        builder: (_) => const FriendSearchPage(),
       ),
     );
   }

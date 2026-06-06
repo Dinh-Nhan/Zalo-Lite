@@ -5,12 +5,12 @@ import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:frontend/config/app_colors.dart';
-import '../providers/friend_provider.dart'; 
+import '../providers/friend_provider.dart';
 
 class BirthdayModel {
   final String id;
   final String name;
-  final DateTime date; 
+  final DateTime date;
   final String avatarUrl;
 
   BirthdayModel({
@@ -34,27 +34,27 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
   DateTime? _selectedDay;
 
   List<BirthdayModel> allBirthdays = [];
-  
+
   final ItemScrollController _itemScrollController = ItemScrollController();
   final ItemPositionsListener _itemPositionsListener = ItemPositionsListener.create();
-  
+
   List<Widget> _flatListItems = [];
   final Map<String, int> _monthToIdxMap = {};
 
-  bool _hasScrolledToCurrent = false; 
-  bool _isProgrammaticScroll = false; 
+  bool _hasScrolledToCurrent = false;
+  bool _isProgrammaticScroll = false;
 
   @override
   void initState() {
     super.initState();
     initializeDateFormatting('vi_VN', null);
-    
+
     final now = DateTime.now();
     _focusedDay = now;
     _selectedDay = now;
 
     _itemPositionsListener.itemPositions.addListener(_scrollListener);
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final provider = context.read<FriendProvider>();
       if (provider.friends.isEmpty) {
@@ -77,7 +77,7 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
     if (positions.isEmpty) return;
 
     final topItem = positions.reduce((min, item) => item.index < min.index ? item : min);
-    
+
     String? targetMonthKey;
     _monthToIdxMap.forEach((key, idx) {
       if (idx <= topItem.index) {
@@ -101,7 +101,7 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
   void _scrollToMonth(DateTime date) {
     final monthKeyStr = '${date.year}-${date.month}';
     final targetIdx = _monthToIdxMap[monthKeyStr];
-    
+
     if (targetIdx != null && _itemScrollController.isAttached) {
       setState(() {
         _isProgrammaticScroll = true;
@@ -138,38 +138,29 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
         id: '${friend.friendId}_$currentYear',
         name: friend.fullName,
         date: DateTime(currentYear, dob.month, dob.day),
-<<<<<<< HEAD
         avatarUrl: friend.avatar,
-=======
-        avatarUrl: friend.avatar ?? '',
->>>>>>> origin/dev
       ));
 
       tempAll.add(BirthdayModel(
         id: '${friend.friendId}_${currentYear + 1}',
         name: friend.fullName,
         date: DateTime(currentYear + 1, dob.month, dob.day),
-<<<<<<< HEAD
         avatarUrl: friend.avatar,
-=======
-        avatarUrl: friend.avatar ?? '',
->>>>>>> origin/dev
       ));
     }
-    
+
     tempAll.sort((a, b) => a.date.compareTo(b.date));
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && allBirthdays.length != tempAll.length) {
         setState(() {
           allBirthdays = tempAll;
-          _buildFlatListStructure(); 
+          _buildFlatListStructure();
         });
       }
     });
   }
 
-  // TẠO CẤU TRÚC PHẲNG: BANNER THÁNG -> THANH NGÀY XÁM -> CÁC BẠN BÈ SINH NHẬT
   void _buildFlatListStructure() {
     List<Widget> items = [];
     _monthToIdxMap.clear();
@@ -179,11 +170,9 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
     for (int year = currentYear; year <= currentYear + 1; year++) {
       for (int month = 1; month <= 12; month++) {
         final String monthKeyStr = '$year-$month';
-        
-        // Lưu Index đầu tháng để nhảy vị trí chuẩn xác
+
         _monthToIdxMap[monthKeyStr] = items.length;
-        
-        // 1. Thêm Banner Tháng hình nền Unsplash cực đẹp
+
         items.add(_buildMonthBanner(month, year));
 
         final monthsBirthdays = allBirthdays.where((b) => b.date.month == month && b.date.year == year).toList();
@@ -201,7 +190,6 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
             ),
           );
         } else {
-          // Gom nhóm theo các ngày thực tế có sinh nhật trong tháng
           final List<int> sortedDays = monthsBirthdays.map((b) => b.date.day).toSet().toList()..sort();
 
           for (int day in sortedDays) {
@@ -209,7 +197,6 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
             final bool isToday = isSameDay(currentLoopDate, today);
             final dayBirthdays = monthsBirthdays.where((b) => b.date.day == day).toList();
 
-            // 2. Thêm thanh tiêu đề ngày màu xám (Highlight xanh dương nếu là Hôm nay)
             items.add(
               Container(
                 width: double.infinity,
@@ -217,19 +204,18 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 margin: const EdgeInsets.only(top: 4),
                 child: Text(
-                  isToday 
+                  isToday
                       ? 'Hôm nay • ${DateFormat('EEEE, d MMMM', 'vi_VN').format(currentLoopDate)}'
                       : DateFormat('EEEE, d MMMM', 'vi_VN').format(currentLoopDate),
                   style: TextStyle(
-                    fontSize: 13, 
-                    fontWeight: FontWeight.w600, 
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                     color: isToday ? const Color(0xFF005bb5) : Colors.grey.shade700,
                   ),
                 ),
               ),
             );
 
-            // 3. Render danh sách bạn bè có sinh nhật vào ngày này (Ẩn subtitle đi vì đã có thanh xám)
             items.addAll(dayBirthdays.map((b) => _buildBirthdayItem(b, showPrefixName: true)));
           }
         }
@@ -245,7 +231,7 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
   @override
   Widget build(BuildContext context) {
     _processBirthdayData(context);
-    
+
     if (_flatListItems.isNotEmpty && !_hasScrolledToCurrent && isCalendarView) {
       _hasScrolledToCurrent = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -259,10 +245,10 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: _buildAppBar(),
-      body: isLoading 
+      body: isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primaryBlue))
           : (isCalendarView ? _buildCalendarView() : _buildListView()),
-      
+
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: isCalendarView && !isLoading
           ? Container(
@@ -281,7 +267,7 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
                     _focusedDay = now;
                     _selectedDay = now;
                   });
-                  _scrollToMonth(now); 
+                  _scrollToMonth(now);
                 },
                 label: const Text(
                   'Hôm nay',
@@ -303,7 +289,7 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => setState(() {
             isCalendarView = false;
-            _hasScrolledToCurrent = false; 
+            _hasScrolledToCurrent = false;
           }),
         ),
         title: Text(monthYear, style: const TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w500)),
@@ -411,7 +397,7 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
               _selectedDay = selectedDay;
               _focusedDay = focusedDay;
             });
-            _scrollToMonth(selectedDay); 
+            _scrollToMonth(selectedDay);
           },
           onPageChanged: (focusedDay) {
             if (!_isProgrammaticScroll) {
@@ -422,7 +408,7 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
               _scrollToMonth(focusedDay);
             }
           },
-          headerVisible: false, 
+          headerVisible: false,
           daysOfWeekHeight: 30,
           startingDayOfWeek: StartingDayOfWeek.monday,
           daysOfWeekStyle: const DaysOfWeekStyle(
@@ -461,7 +447,7 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
         ),
         const Divider(height: 1, thickness: 1, color: Color(0xFFF0F0F0)),
         Expanded(
-          child: _flatListItems.isEmpty 
+          child: _flatListItems.isEmpty
               ? const SizedBox()
               : ScrollablePositionedList.builder(
                   itemCount: _flatListItems.length,
@@ -502,11 +488,7 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
         image: DecorationImage(
           image: NetworkImage(imageUrl),
           fit: BoxFit.cover,
-<<<<<<< HEAD
           colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.35), BlendMode.darken),
-=======
-          colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.35), BlendMode.darken),
->>>>>>> origin/dev
         ),
       ),
       alignment: Alignment.bottomLeft,
@@ -523,7 +505,7 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
 
   Widget _buildBirthdayItem(BirthdayModel user, {bool showPrefixName = false}) {
     String dateStr = DateFormat('EEEE, d MMMM', 'vi_VN').format(user.date);
-    
+
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       leading: Stack(
@@ -554,7 +536,6 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black87),
         maxLines: 1, overflow: TextOverflow.ellipsis,
       ),
-      // Ẩn dòng subtitle ngày tháng bên dưới tên nếu đang có thanh tiêu đề xám che ở trên rồi
       subtitle: !showPrefixName ? Text(dateStr, style: const TextStyle(color: Colors.grey, fontSize: 13)) : null,
       trailing: Container(
         padding: const EdgeInsets.all(8),

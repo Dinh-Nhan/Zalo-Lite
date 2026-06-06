@@ -10,7 +10,6 @@ import 'package:frontend/features/newfeed/screens/newfeed_screen.dart';
 import 'package:frontend/features/newfeed/screens/story_viewer_screen.dart';
 import 'package:frontend/features/profile/screens/profile_screen.dart';
 import 'package:frontend/views/auth/set_password_view.dart';
-import 'package:frontend/views/chat/chat_detail_view.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:frontend/views/home/load_view.dart';
@@ -124,16 +123,7 @@ GoRouter createRouter() {
       ),
       GoRoute(
         path: '/chat-detail',
-        builder: (context, state) {
-          final data = state.extra as Map;
-          return ChatDetailView(
-            conversationId: data['conversationId'],
-            contactName: data['contactName'],
-            avatarColor: data['avatarColor'],
-            isGroup: data['isGroup'] ?? false,
-            memberCount: data['memberCount'],
-          );
-        },
+        builder: (context, state) => const ChatListView(),
       ),
       GoRoute(
         path: '/demo-profile',

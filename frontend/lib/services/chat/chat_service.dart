@@ -49,15 +49,15 @@ class ChatService {
     final response = await _dio.post(
       '/api/chat/messages',
       data: {
-        'conversation_id': conversationId,
+        'conversationId': conversationId,
         'type': type,
         'content': content,
-        'is_forwarded': isForwarded,
-        if (mediaUrl != null) 'media_url': mediaUrl,
-        if (thumbnailUrl != null) 'thumbnail_url': thumbnailUrl,
-        if (fileName != null) 'file_name': fileName,
-        if (fileSize != null) 'file_size': fileSize,
-        if (replyToMessageId != null) 'reply_to_message_id': replyToMessageId,
+        'isForwarded': isForwarded,
+        if (mediaUrl != null) 'mediaUrl': mediaUrl,
+        if (thumbnailUrl != null) 'thumbnailUrl': thumbnailUrl,
+        if (fileName != null) 'fileName': fileName,
+        if (fileSize != null) 'fileSize': fileSize,
+        if (replyToMessageId != null) 'replyToMessageId': replyToMessageId,
       },
     );
     return Message.fromJson(response.data['result']);
@@ -74,10 +74,10 @@ class ChatService {
       '/api/chat/conversations',
       data: {
         'type': type,
-        'participant_ids': participantIds,
-        if (groupName != null) 'group_name': groupName,
-        if (groupAvatarUrl != null) 'group_avatar_url': groupAvatarUrl,
-        if (groupDescription != null) 'group_description': groupDescription,
+        'participantIds': participantIds,
+        if (groupName != null) 'groupName': groupName,
+        if (groupAvatarUrl != null) 'groupAvatarUrl': groupAvatarUrl,
+        if (groupDescription != null) 'groupDescription': groupDescription,
       },
     );
     return Conversation.fromJson(response.data['result']);
@@ -91,9 +91,9 @@ class ChatService {
     final response = await _dio.put(
       '/api/chat/messages',
       data: {
-        'conversation_id': conversationId,
-        'message_id': messageId,
-        'new_content': newContent,
+        'conversationId': conversationId,
+        'messageId': messageId,
+        'newContent': newContent,
       },
     );
     return Message.fromJson(response.data['result']);
@@ -113,8 +113,8 @@ class ChatService {
     await _dio.post(
       '/api/chat/messages/react',
       data: {
-        'conversation_id': conversationId,
-        'message_id': messageId,
+        'conversationId': conversationId,
+        'messageId': messageId,
         'emoji': emoji,
       },
     );
@@ -141,10 +141,10 @@ class ChatService {
     final response = await _dio.put(
       '/api/chat/conversations/group',
       data: {
-        'conversation_id': conversationId,
-        if (groupName != null) 'group_name': groupName,
-        if (groupAvatarUrl != null) 'group_avatar_url': groupAvatarUrl,
-        if (groupDescription != null) 'group_description': groupDescription,
+        'conversationId': conversationId,
+        if (groupName != null) 'groupName': groupName,
+        if (groupAvatarUrl != null) 'groupAvatarUrl': groupAvatarUrl,
+        if (groupDescription != null) 'groupDescription': groupDescription,
       },
     );
     return Conversation.fromJson(response.data['result']);
@@ -156,7 +156,7 @@ class ChatService {
   }) async {
     final response = await _dio.post(
       '/api/chat/conversations/participants',
-      data: {'conversation_id': conversationId, 'user_ids': userIds},
+      data: {'conversationId': conversationId, 'userIds': userIds},
     );
     return Conversation.fromJson(response.data['result']);
   }
@@ -225,11 +225,11 @@ class ChatService {
     final response = await _dio.put(
       '/api/chat/conversations/$conversationId/settings',
       data: {
-        if (isNotificationEnabled != null) 'is_notification_enabled': isNotificationEnabled,
+        if (isNotificationEnabled != null) 'isNotificationEnabled': isNotificationEnabled,
         if (theme != null) 'theme': theme,
-        if (backgroundUrl != null) 'background_url': backgroundUrl,
-        if (emojiSet != null) 'emoji_set': emojiSet,
-        if (autoDownloadMedia != null) 'auto_download_media': autoDownloadMedia,
+        if (backgroundUrl != null) 'backgroundUrl': backgroundUrl,
+        if (emojiSet != null) 'emojiSet': emojiSet,
+        if (autoDownloadMedia != null) 'autoDownloadMedia': autoDownloadMedia,
       },
     );
     return response.data['result'] as Map<String, dynamic>;
@@ -241,7 +241,7 @@ class ChatService {
   }) async {
     final response = await _dio.put(
       '/api/chat/conversations/$conversationId/settings/disappearing',
-      data: {'duration_seconds': durationSeconds},
+      data: {'durationSeconds': durationSeconds},
     );
     return response.data['result'] as Map<String, dynamic>;
   }
@@ -271,9 +271,9 @@ class ChatService {
     final response = await _dio.put(
       '/api/chat/conversations/$conversationId/group-settings',
       data: {
-        if (onlyAdminCanSend != null) 'only_admin_can_send': onlyAdminCanSend,
-        if (onlyAdminCanEditInfo != null) 'only_admin_can_edit_info': onlyAdminCanEditInfo,
-        if (approvalRequiredToJoin != null) 'approval_required_to_join': approvalRequiredToJoin,
+        if (onlyAdminCanSend != null) 'onlyAdminCanSend': onlyAdminCanSend,
+        if (onlyAdminCanEditInfo != null) 'onlyAdminCanEditInfo': onlyAdminCanEditInfo,
+        if (approvalRequiredToJoin != null) 'approvalRequiredToJoin': approvalRequiredToJoin,
       },
     );
     return Conversation.fromJson(response.data['result']);

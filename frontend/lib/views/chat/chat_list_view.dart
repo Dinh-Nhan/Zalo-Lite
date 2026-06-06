@@ -24,6 +24,7 @@ import 'package:frontend/views/chat/chat_screen.dart';
 import 'package:frontend/views/chat/new_conversation_screen.dart';
 import 'package:frontend/views/contacts/contacts_view.dart';
 import 'package:frontend/widgets/search_overlay_screen.dart';
+import 'package:frontend/component/friend_search_page.dart';
 import 'package:provider/provider.dart';
 
 class ChatListView extends StatefulWidget {
@@ -491,11 +492,9 @@ class ChatListViewState extends State<ChatListView> {
   }
 
   void _openSearchOverlay(BuildContext context) {
-    Navigator.of(context).push(
+    Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute(
-        builder: (_) => SearchOverlayScreen(
-          onBack: () => Navigator.of(context).pop(),
-        ),
+        builder: (_) => const FriendSearchPage(),
       ),
     );
   }

@@ -23,7 +23,7 @@ class FriendProvider extends ChangeNotifier {
 
   final Map<String, bool> _actionLoading = {};
   String? _errorMessage;
-  final String _searchQuery = '';
+  String _searchQuery = '';
   String? _currentUid;
 
   void Function(String message, {bool isSuccess})? onRealtimeNotify;
@@ -116,9 +116,6 @@ class FriendProvider extends ChangeNotifier {
   Future<void> loadAll() async {
     await Future.wait([loadFriends(), loadRequests()]);
   }
-  // =========================================================
-  // REALTIME START
-  // =========================================================
 
   Future<void> startRealtime() async {
     if (_hubSub != null) return;
@@ -127,34 +124,18 @@ class FriendProvider extends ChangeNotifier {
 
     _hubSub = _hub.events.listen((event) {
       debugPrint('PROVIDER RECEIVED EVENT');
-
       debugPrint(event.type.toString());
-
       debugPrint(event.friendship.senderId);
-
       debugPrint(event.friendship.addresseeId);
 
       _handleHubEvent(event);
     });
   }
 
-  // =========================================================
-  // HANDLE REALTIME EVENT
-  // =========================================================
-
   Future<void> _handleHubEvent(FriendRealtimeEvent event) async {
     switch (event.type) {
-      // =====================================================
-      // REQUEST RECEIVED
-      // =====================================================
-
       case FriendHubEvent.friendRequestReceived:
-
-        // mình là người nhận
         if (event.friendship.addresseeId == _currentUid) {
-          // final exists = _pendingReceived.any(
-          //   (f) => f.id == event.friendship.id,
-          // );
           final exists = _pendingReceived.any(
             (f) =>
                 f.senderId == event.friendship.senderId &&
@@ -164,12 +145,7 @@ class FriendProvider extends ChangeNotifier {
             _pendingReceived = [event.friendship, ..._pendingReceived];
           }
         }
-
-        // mình là người gửi
         if (event.friendship.senderId == _currentUid) {
-          // final exists = _pendingSent.any(
-          //   (f) => f.id == event.friendship.id,
-          // );
           final exists = _pendingSent.any(
             (f) =>
                 f.senderId == event.friendship.senderId &&
@@ -179,14 +155,8 @@ class FriendProvider extends ChangeNotifier {
             _pendingSent = [event.friendship, ..._pendingSent];
           }
         }
-
         notifyListeners();
-
         break;
-
-      // =====================================================
-      // REQUEST ACCEPTED
-      // =====================================================
 
       case FriendHubEvent.friendRequestAccepted:
         _pendingSent.removeWhere(
@@ -194,23 +164,14 @@ class FriendProvider extends ChangeNotifier {
               f.senderId == event.friendship.senderId &&
               f.addresseeId == event.friendship.addresseeId,
         );
-
         _pendingReceived.removeWhere((f) => f.id == event.friendship.id);
-
         await loadFriends();
-
         notifyListeners();
-
         onRealtimeNotify?.call(
-          '✅ Lời mời kết bạn đã được chấp nhận!',
+          'Lời mời kết bạn đã được chấp nhận!',
           isSuccess: true,
         );
-
         break;
-
-      // =====================================================
-      // REQUEST DECLINED
-      // =====================================================
 
       case FriendHubEvent.friendRequestDeclined:
         _pendingSent.removeWhere(
@@ -218,18 +179,10 @@ class FriendProvider extends ChangeNotifier {
               f.senderId == event.friendship.senderId &&
               f.addresseeId == event.friendship.addresseeId,
         );
-
         _pendingReceived.removeWhere((f) => f.id == event.friendship.id);
-
         notifyListeners();
-
-        onRealtimeNotify?.call('❌ Lời mời kết bạn đã bị từ chối');
-
+        onRealtimeNotify?.call('Lời mời kết bạn đã bị từ chối');
         break;
-
-      // =====================================================
-      // REQUEST CANCELLED (sender huỷ lời mời đã gửi cho mình)
-      // =====================================================
 
       case FriendHubEvent.friendRequestCancelled:
         _pendingReceived.removeWhere(
@@ -237,13 +190,8 @@ class FriendProvider extends ChangeNotifier {
               f.senderId == event.friendship.senderId &&
               f.addresseeId == event.friendship.addresseeId,
         );
-
         notifyListeners();
         break;
-
-      // =====================================================
-      // UNFRIENDED (bị bên kia unfriend)
-      // =====================================================
 
       case FriendHubEvent.friendUnfriended:
         _friends.removeWhere(
@@ -251,45 +199,31 @@ class FriendProvider extends ChangeNotifier {
               f.friendId == event.friendship.senderId ||
               f.friendId == event.friendship.addresseeId,
         );
-
         notifyListeners();
-
         onRealtimeNotify?.call('Đã bị xoá khỏi danh sách bạn bè');
-
         break;
     }
   }
-
-  // =========================================================
-  // SEARCH USERS
-  // =========================================================
 
   Future<void> searchUsers(String query) async {
     _searchQuery = query;
 
     if (query.trim().isEmpty) {
       _searchResults = [];
-
       _searchState = LoadingState.idle;
-
       notifyListeners();
-
       return;
     }
 
     _searchState = LoadingState.loading;
-
     notifyListeners();
 
     try {
       _searchResults = await FriendService.searchUsers(query.trim());
-
       _searchState = LoadingState.success;
     } catch (e) {
       _searchState = LoadingState.error;
-
       _errorMessage = e.toString();
-
       _searchResults = [];
     }
 
@@ -298,17 +232,11 @@ class FriendProvider extends ChangeNotifier {
 
   void clearSearch() {
     _searchQuery = '';
-
     _searchResults = [];
-
     _searchState = LoadingState.idle;
-
     notifyListeners();
   }
 
-  // =========================================================
-  // FIND USER BY EMAIL
-  // =========================================================
   Future<UserSearchModel?> findUserByEmail(String email) async {
     try {
       final results = await FriendService.searchUsers(email);
@@ -393,29 +321,6 @@ class FriendProvider extends ChangeNotifier {
     await _hubSub?.cancel();
     _hubSub = null;
     _hub.dispose();
-  }
-
-  void startRealtime() {
-    _hubSub?.cancel();
-    _hubSub = _hub.events.listen(_handleHubEvent);
-    _hub.connect();
-  }
-
-  void _handleHubEvent(FriendRealtimeEvent event) {
-    switch (event.type) {
-      case FriendHubEvent.friendRequestReceived:
-        _pendingReceived.insert(0, event.friendship);
-        notifyListeners();
-        break;
-      case FriendHubEvent.friendRequestAccepted:
-        _pendingSent.removeWhere((f) => f.addresseeId == event.friendship.addresseeId);
-        loadFriends();
-        break;
-      case FriendHubEvent.friendRequestDeclined:
-        _pendingSent.removeWhere((f) => f.addresseeId == event.friendship.addresseeId);
-        notifyListeners();
-        break;
-    }
   }
 
   void clear() {
