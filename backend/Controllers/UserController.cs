@@ -87,11 +87,9 @@ public class UserController(UserService userService, ChatService chatService) : 
         // var firebaseToken = HttpContext.Items["User"] as FirebaseToken;
         // var uid = firebaseToken?.Uid ?? request.Id;
 
-        var uid = GetUserIdFromToken(); // Cố gắng lấy UID từ token trước
-        if(uid == null)
-        {
-            uid = request.Id; // Cho phép lấy UID từ body nếu token không có (trường hợp register)
-        }
+        // Lấy UID an toàn: ưu tiên token (user đã login), fallback về request.Id (register flow)
+        var firebaseToken = HttpContext.Items["User"] as FirebaseToken;
+        var uid = firebaseToken?.Uid ?? request.Id;
 
         if (string.IsNullOrEmpty(uid))
             return BadRequest(new ApiResponse<object>

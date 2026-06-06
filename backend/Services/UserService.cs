@@ -52,7 +52,7 @@ public class UserService(FirestoreDb db, RedisService _redis, ILogger<UserServic
             Email = req.Email,
             FirstName = req.FirstName,
             LastName = req.LastName,
-            DateOfBirth = req.DateOfBirth,
+            DateOfBirth = DateOnly.TryParse(req.DateOfBirth, out var dob) ? dob : DateOnly.MinValue,
             Bio = req.Bio
         };
 

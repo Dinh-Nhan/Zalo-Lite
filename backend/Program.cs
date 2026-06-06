@@ -85,8 +85,13 @@ builder.Services.AddSingleton(sp =>
 builder.Services.AddScoped<UserService>();
 builder.Services.AddControllers()
     .AddJsonOptions(opts =>
+    {
+        // Output: snake_case (cho response trả về client)
         opts.JsonSerializerOptions.PropertyNamingPolicy =
-            System.Text.Json.JsonNamingPolicy.SnakeCaseLower);
+            System.Text.Json.JsonNamingPolicy.SnakeCaseLower;
+        // Input: case-insensitive (nhận được cả camelCase từ Flutter lẫn snake_case)
+        opts.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    });
 builder.Services.AddEndpointsApiExplorer();
 // add options using bearer token to verify access token when request api
 builder.Services.AddSwaggerGen(
