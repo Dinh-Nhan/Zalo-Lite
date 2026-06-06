@@ -61,12 +61,16 @@ class ChatListViewState extends State<ChatListView> {
       ),
     );
     Future.microtask(() {
+      final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
       final provider = context.read<FriendProvider>();
-      provider.loadFriends();
-      provider.loadRequests();
+      if (uid.isNotEmpty) {
+        provider.setCurrentUid(uid); // set uid + loadAll()
+      } else {
+        provider.loadAll();
+      }
       provider.startRealtime();
 
-      final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
       if (uid.isNotEmpty) {
         final chatProvider = context.read<ChatProvider>();
         chatProvider.setContext(context);

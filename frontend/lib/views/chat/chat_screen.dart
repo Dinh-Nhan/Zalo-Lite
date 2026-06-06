@@ -342,13 +342,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   PreferredSizeWidget _buildAppBar() {
-    final isOnline =
-        widget.conversation.type == 'private' &&
-        widget.conversation.otherUserId != null &&
-        context.read<ChatProvider>().isUserOnline(
-          widget.conversation.otherUserId!,
-        );
-
     return AppBar(
       backgroundColor: const Color(0xFF0068FF),
       elevation: 0,
@@ -359,76 +352,80 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       titleSpacing: 0,
       title: InkWell(
         onTap: _openConversationInfo,
-        child: Row(
-          children: [
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 19,
-                  backgroundImage: widget.conversation.displayAvatar.isNotEmpty
-                      ? NetworkImage(widget.conversation.displayAvatar)
-                      : null,
-                  backgroundColor: Colors.white.withValues(alpha: 0.3),
-                  child: widget.conversation.displayAvatar.isEmpty
-                      ? Text(
-                          widget.conversation.displayName.isNotEmpty
-                              ? widget.conversation.displayName[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
+        child: Selector<ChatProvider, bool>(
+          selector: (_, p) =>
+              widget.conversation.type == 'private' &&
+              widget.conversation.otherUserId != null &&
+              p.isUserOnline(widget.conversation.otherUserId!),
+          builder: (_, isOnline, __) => Row(
+            children: [
+              Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 19,
+                    backgroundImage: widget.conversation.displayAvatar.isNotEmpty
+                        ? NetworkImage(widget.conversation.displayAvatar)
+                        : null,
+                    backgroundColor: Colors.white.withValues(alpha: 0.3),
+                    child: widget.conversation.displayAvatar.isEmpty
+                        ? Text(
+                            widget.conversation.displayName.isNotEmpty
+                                ? widget.conversation.displayName[0].toUpperCase()
+                                : '?',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          )
+                        : null,
+                  ),
+                  if (isOnline)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 11,
+                        height: 11,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00CC44),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFF0068FF),
+                            width: 2,
                           ),
-                        )
-                      : null,
-                ),
-                if (isOnline)
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      width: 11,
-                      height: 11,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF00CC44),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: const Color(0xFF0068FF),
-                          width: 2,
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.conversation.displayName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    isOnline
-                        ? 'Đang hoạt động'
-                        : widget.conversation.displayStatus,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.85),
-                      fontSize: 11,
-                    ),
-                  ),
                 ],
               ),
-            ),
-          ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.conversation.displayName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      isOnline ? 'Đang hoạt động' : widget.conversation.displayStatus,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       actions: [

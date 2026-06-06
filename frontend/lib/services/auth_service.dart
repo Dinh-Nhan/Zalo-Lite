@@ -105,15 +105,12 @@ class AuthService {
         '/api/user',
         data: {
           'id': user.uid,
-          'firstName': req.firstName,
-          'lastName': req.lastName,
+          'first_name': req.firstName,
+          'last_name': req.lastName,
           'email': req.email,
           'password': req.password,
-          'dateOfBirth': req.dateOfBirth,
+          'date_of_birth': req.dateOfBirth,
           'bio': req.bio ?? '',
-          'role': 'client',
-          'status': true,
-          'avatar': req.avatar,
         },
       );
     } on FirebaseAuthException catch (e) {

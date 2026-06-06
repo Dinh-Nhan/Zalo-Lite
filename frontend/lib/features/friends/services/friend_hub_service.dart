@@ -8,9 +8,11 @@ import 'package:signalr_netcore/signalr_client.dart';
 import 'friend_service.dart';
 
 enum FriendHubEvent {
-  friendRequestReceived,
-  friendRequestAccepted,
-  friendRequestDeclined,
+  friendRequestReceived,  // có người gửi lời mời cho mình
+  friendRequestAccepted,  // lời mời của mình được chấp nhận
+  friendRequestDeclined,  // lời mời của mình bị từ chối
+  friendRequestCancelled, // lời mời gửi cho mình bị sender huỷ
+  friendUnfriended,  
 }
 
 class FriendRealtimeEvent {
@@ -84,6 +86,18 @@ class FriendHubService {
       final data = _parseArgs(args);
       if (data == null) return;
       _emit(FriendHubEvent.friendRequestDeclined, data);
+    });
+
+    _connection!.on('FriendRequestCancelled', (args) {
+      final data = _parseArgs(args);
+      if (data == null) return;
+      _emit(FriendHubEvent.friendRequestCancelled, data);
+    });
+
+    _connection!.on('FriendUnfriended', (args) {
+      final data = _parseArgs(args);
+      if (data == null) return;
+      _emit(FriendHubEvent.friendUnfriended, data);
     });
 
     _connection!.onclose(({error}) {
