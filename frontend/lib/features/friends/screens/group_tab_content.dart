@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/features/friends/widgets/group_item.dart';
+import 'package:frontend/views/chat/new_conversation_screen.dart';
 
 class GroupTabView extends StatelessWidget {
   const GroupTabView({super.key});
@@ -12,8 +13,12 @@ class GroupTabView extends StatelessWidget {
         Material(
           color: Colors.white,
           child: InkWell(
-            onTap: () {},
-            highlightColor: Colors.black.withOpacity(0.05),
+            highlightColor: Colors.black.withValues(alpha: 0.05),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const NewConversationScreen(type: 'group'),
+              ),
+            ),
             splashColor: Colors.transparent,
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

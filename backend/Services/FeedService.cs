@@ -17,7 +17,7 @@ using Microsoft.Extensions.Logging;
 namespace backend.Services
 {
     [ScopedService]
-    public class FeedService(FirestoreDb db, IMapper mapper, ILogger<FeedService> logger, CloudinaryService cloudinaryService, GroqModerationService groqModerationService)
+    public class FeedService(FirestoreDb db, IMapper mapper, ILogger<FeedService> logger, CloudinaryService cloudinaryService)
     {
         // get story bar
         public async Task<List<FeedResponse>> GetStoriesAsync(string userId)
@@ -29,25 +29,28 @@ namespace backend.Services
             var friendIds = friendIdsTask.Result;
             var mutedStoryIds = mutedStoryIdsTask.Result;
 
-            if (friendIds.Count == 0)
-            {
-                logger.LogInformation("[FeedService] User {UserId} has no friends, returning empty stories", userId);
-                return [];
-            }
-
             var now = Timestamp.FromDateTime(DateTime.UtcNow);
 
-            var stories = await QueryFeedsByBatchAsync(db, friendIds, "story",
+            // Always include the current user so their own stories appear in the story bar,
+            // even if they have no friends yet.
+            var allStoryAuthors = friendIds.Count > 0
+                ? friendIds.Append(userId).ToList()
+                : new List<string> { userId };
+
+            var stories = await QueryFeedsByBatchAsync(db, allStoryAuthors, "story",
                 (col, batch) => col
                     .WhereEqualTo("type", "story")
                     .WhereIn("user_id", batch)
-                    .WhereGreaterThan("settings.expires_at", now)
-                    .WhereEqualTo("is_enable", true)
-                    .OrderByDescending("create_at"));
+                    .WhereEqualTo("deleted_at", null));
 
-            var filtered = stories.Where(s => !mutedStoryIds.Contains(s.UserId)).ToList();
+            var utcNow = DateTime.UtcNow;
+            var activeStories = stories
+                .Where(s => s.Settings == null || (!s.Settings.IsExpired && (!s.Settings.ExpiresAt.HasValue || s.Settings.ExpiresAt.Value > utcNow)))
+                .OrderByDescending(s => s.CreatedAt)
+                .ToList();
 
-            // Query tất cả author 1 lần
+            var filtered = activeStories.Where(s => !mutedStoryIds.Contains(s.UserId)).ToList();
+
             var authorIds = filtered.Select(s => s.UserId);
             var authors = await GetUsersByIdsAsync(authorIds);
 
@@ -70,20 +73,21 @@ namespace backend.Services
             var mutedUserIds = mutedUserIdsTask.Result;
             var hiddenPostIds = hiddenPostIdsTask.Result;
 
+            // Get all posts from own feed and friends' feeds
             var targetIds = friendIds.Append(userId).Distinct().ToList();
 
             var posts = await QueryFeedsByBatchAsync(db, targetIds, "post",
                 (col, batch) => col
                     .WhereEqualTo("type", "post")
                     .WhereIn("user_id", batch)
-                    .WhereNotEqualTo("privacy", "private")
-                    .WhereEqualTo("is_enable", true)
+                    .WhereNotEqualTo("privacy", "only_me")
                     .OrderByDescending("create_at"));
 
             var filtered = posts
-            .Where(p => !mutedUserIds.Contains(p.UserId))
-            .Where(p => !hiddenPostIds.Contains(p.Id))
-            .ToList();
+                .Where(p => !mutedUserIds.Contains(p.UserId))
+                .Where(p => !hiddenPostIds.Contains(p.Id))
+                .Where(p => CanViewPost(p, userId, friendIds))
+                .ToList();
 
             var authorIds = filtered.Select(p => p.UserId);
             var authors = await GetUsersByIdsAsync(authorIds);
@@ -94,36 +98,84 @@ namespace backend.Services
                 .ToList();
         }
 
+        // Check if current user can view a post based on privacy settings
+        private bool CanViewPost(Feeds post, string currentUserId, List<string> friendIds)
+        {
+            // Owner can always see their own posts
+            if (post.UserId == currentUserId) return true;
+
+            return post.Privacy switch
+            {
+                "public" => true,
+                "friends" => friendIds.Contains(post.UserId),
+                "selected_friends" => post.AllowedUserIds.Contains(currentUserId),
+                "only_me" => false, // only owner sees this
+                _ => false
+            };
+        }
+
+        // Get posts by a specific user (for profile page) with visibility checks
+        public async Task<List<FeedResponse>> GetUserPostsAsync(string targetUserId, string currentUserId)
+        {
+            var friendIdsTask = GetFriendIdsAsync(currentUserId);
+            await friendIdsTask;
+
+            var friendIds = friendIdsTask.Result;
+
+            var posts = await QueryFeedsByBatchAsync(db, new List<string> { targetUserId }, "post",
+                (col, _) => col
+                    .WhereEqualTo("type", "post")
+                    .WhereEqualTo("user_id", targetUserId)
+                    .OrderByDescending("create_at"));
+
+            var filtered = posts
+                .Where(p => CanViewPost(p, currentUserId, friendIds))
+                .ToList();
+
+            var authors = await GetUsersByIdsAsync(new List<string> { targetUserId });
+
+            return filtered
+                .Where(p => authors.ContainsKey(p.UserId))
+                .Select(p => ToResponse(p, currentUserId, authors[p.UserId]))
+                .ToList();
+        }
+
         // create feed (story or post)
         public async Task<FeedResponse> CreateFeedAsync(string userId, CreateFeedRequest request)
         {
+            logger.LogInformation("[FeedService] CreateFeedAsync | Type={Type} MediaCount={Count}",
+                request.Type, request.Content?.Media?.Count ?? -1);
             var now = Timestamp.FromDateTime(DateTime.UtcNow);
             var docRef = db.Collection("feeds").Document();
             var feedId = docRef.Id;
 
             var mediaList = new List<Dictionary<String, Object>>();
 
-            foreach (var media in request.Content.Media)
+            if (request.Content?.Media?.Any() == true)
             {
-                var (url, publicId, MediaType) = await cloudinaryService.UploadAsync(media.File, userId, feedId, request.Type);
+                foreach (var media in request.Content.Media.Where(m => m.File != null))
+                {
+                var (url, publicId, MediaType) = await cloudinaryService.UploadAsync(media.File!, userId, feedId, request.Type);
                 mediaList.Add(new Dictionary<string, object>
                 {
                     ["url"] = url,
                     ["type"] = MediaType,
                     ["public_id"] = publicId
                 });
+                }
             }
 
             var data = new Dictionary<string, object?>
             {
                 ["user_id"] = userId,
                 ["type"] = request.Type,
-                ["content"] = new Dictionary<string, object>
+                ["content"] = new Dictionary<string, object?>
                 {
-                    ["caption"] = request.Content.Caption,
+                    ["caption"] = request.Content?.Caption,
                     ["media"] = mediaList
                 },
                 ["privacy"] = request.Privacy,
+                ["allowed_user_ids"] = request.AllowedUserIds ?? new List<string>(),
                 ["settings"] = new Dictionary<string, object?>
                 {
                     ["is_expired"] = false,
@@ -137,30 +189,14 @@ namespace backend.Services
                     ["likes"] = new List<string>()
                 },
                 ["create_at"] = now,
+                ["deleted_at"] = null,
                 ["is_enable"] = true,
-                ["moderation_status"] = "unchecked"
+                ["moderation_status"] = "approved"
             };
 
             logger.LogInformation("[FeedService] Creating {Type} for user {UserId}", request.Type, userId);
 
             await docRef.SetAsync(data);
-
-            // Run AI moderation in the background
-            var imageUrls = mediaList
-                .Where(m => m.ContainsKey("url") && m["url"] is string)
-                .Select(m => (string)m["url"])
-                .ToList();
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await groqModerationService.ModerateFeedAsync(feedId, request.Content.Caption, imageUrls);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "[FeedService] Background AI moderation failed for feed {FeedId}", feedId);
-                }
-            });
             var snap = await docRef.GetSnapshotAsync();
 
             if (!snap.Exists)
@@ -191,6 +227,11 @@ namespace backend.Services
                 feed.Settings.ExpiresAt.Value < DateTime.UtcNow)
                 throw new AppException(ErrorCode.FEED_EXPIRED);
 
+            // Check view permission
+            var friendIds = await GetFriendIdsAsync(userId);
+            if (!CanViewPost(feed, userId, friendIds))
+                throw new AppException(ErrorCode.FORBIDDEN);
+
             var authorSnap = await db.Collection("users").Document(feed.UserId).GetSnapshotAsync();
             if (!authorSnap.Exists) throw new AppException(ErrorCode.USER_NOT_FOUND);
             var author = authorSnap.ConvertTo<User>();
@@ -204,21 +245,17 @@ namespace backend.Services
             var docRef = db.Collection("feeds").Document(feedId);
             var snap = await docRef.GetSnapshotAsync();
 
-            // Kiểm tra tồn tại
-            if (!snap.Exists || snap.GetValue<bool?>("is_enable") == false)
+            if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
                 throw new AppException(ErrorCode.FEED_NOT_FOUND);
 
             var feed = snap.ConvertTo<Feeds>();
 
-            // Chỉ chủ bài mới được sửa
             if (feed.UserId != userId)
                 throw new AppException(ErrorCode.FORBIDDEN);
 
-            // Chỉ post mới được sửa, story không cho sửa
             if (feed.Type != "post")
                 throw new AppException(ErrorCode.FEED_STORY_NOT_EDITABLE);
 
-            // Chỉ update các field được gửi lên (partial update)
             var updates = new Dictionary<string, object>();
 
             if (request.Caption != null)
@@ -226,6 +263,9 @@ namespace backend.Services
 
             if (request.Privacy != null)
                 updates["privacy"] = request.Privacy;
+
+            if (request.AllowedUserIds != null)
+                updates["allowed_user_ids"] = request.AllowedUserIds;
 
             // nếu có cập nhật media thì xóa các image/video cũ trên cloud và thêm mới
             if (request.Media != null)
@@ -240,7 +280,7 @@ namespace backend.Services
                 var mediaList = new List<Dictionary<string, Object>>();
                 foreach (var media in request.Media)
                 {
-                    var (url, publicId, mediaType) = await cloudinaryService.UploadAsync(media.File, userId, feed.Id, feed.Type);
+                    var (url, publicId, mediaType) = await cloudinaryService.UploadAsync(media.File!, userId, feed.Id, feed.Type);
 
                     mediaList.Add(new Dictionary<string, object>
                     {
@@ -278,12 +318,19 @@ namespace backend.Services
             var docRef = db.Collection("feeds").Document(feedId);
             var snap = await docRef.GetSnapshotAsync();
 
-            if (!snap.Exists || snap.GetValue<bool?>("is_enable") == false)
+            if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
                 throw new AppException(ErrorCode.FEED_NOT_FOUND);
 
             var feed = snap.ConvertTo<Feeds>();
 
             if (feed.UserId != userId) throw new AppException(ErrorCode.FORBIDDEN);
+
+            await cloudinaryService.DeleteManyAsync(
+                feed.Content.Media
+                    .Where(m => !string.IsNullOrEmpty(m.PublicId))
+                    .Select(m => (m.PublicId!, m.Type == "video"))
+            );
+            await cloudinaryService.DeleteFolderAsync(userId, feed.Id, feed.Type);
 
             // Soft-delete: chỉ set is_enable = false, không xóa data hay cloud assets
             await docRef.UpdateAsync(new Dictionary<string, object>
@@ -291,7 +338,7 @@ namespace backend.Services
                 ["is_enable"] = false
             });
 
-            logger.LogInformation("[FeedService] Soft-deleted feed {FeedId} by {UserId}", feedId, userId);
+            logger.LogInformation("[FeedService] Deleted feed {FeedId} by {UserId}", feedId, userId);
         }
 
         // ── Like / Unlike ────────────────────────────────────────────────
@@ -306,7 +353,6 @@ namespace backend.Services
 
             var feed = snap.ConvertTo<Feeds>();
 
-            // Story đã hết hạn không thể like
             if (feed.Type == "story" &&
                 feed.Settings.ExpiresAt.HasValue &&
                 feed.Settings.ExpiresAt.Value < DateTime.UtcNow)
@@ -316,7 +362,6 @@ namespace backend.Services
 
             if (isLiked)
             {
-                // Unlike → xóa userId khỏi mảng
                 await docRef.UpdateAsync(new Dictionary<string, object>
                 {
                     ["stats.likes"] = FieldValue.ArrayRemove(userId)
@@ -325,7 +370,6 @@ namespace backend.Services
             }
             else
             {
-                // Like → thêm userId vào mảng
                 await docRef.UpdateAsync(new Dictionary<string, object>
                 {
                     ["stats.likes"] = FieldValue.ArrayUnion(userId)
@@ -333,7 +377,6 @@ namespace backend.Services
                 logger.LogInformation("[FeedService] User {UserId} liked feed {FeedId}", userId, feedId);
             }
 
-            // Lấy lại số like sau khi update
             var updated = await docRef.GetSnapshotAsync();
             var updatedFeed = updated.ConvertTo<Feeds>();
 
@@ -367,7 +410,6 @@ namespace backend.Services
         {
             logger.LogInformation("[FeedService] Fetching friends for user {UserId}", userId);
 
-            // Query cả 2 chiều: user là sender hoặc là addressee
             var asSenderTask = db.Collection("friendships")
                 .WhereEqualTo("sender_id", userId)
                 .WhereEqualTo("status", "accepted")
@@ -382,11 +424,9 @@ namespace backend.Services
 
             var friendIds = new List<string>();
 
-            // Khi user là sender → lấy addressee_id
             friendIds.AddRange(asSenderTask.Result.Documents
                 .Select(d => d.GetValue<string>("addressee_id")));
 
-            // Khi user là addressee → lấy sender_id
             friendIds.AddRange(asAddresseeTask.Result.Documents
                 .Select(d => d.GetValue<string>("sender_id")));
 
@@ -477,14 +517,12 @@ namespace backend.Services
             if (feed.Type != "story")
                 throw new AppException(ErrorCode.FEED_VIEW_NOT_ALLOWED);
 
-            // Story đã hết hạn
             if (feed.Settings.ExpiresAt.HasValue &&
                 feed.Settings.ExpiresAt.Value < DateTime.UtcNow)
                 throw new AppException(ErrorCode.FEED_EXPIRED);
 
             var hasViewed = feed.Stats.Views.Contains(userId);
 
-            // Chỉ thêm nếu chưa xem, tránh duplicate
             if (!hasViewed)
             {
                 await docRef.UpdateAsync(new Dictionary<string, object>
@@ -514,11 +552,9 @@ namespace backend.Services
 
             var feed = snap.ConvertTo<Feeds>();
 
-            // Chỉ story mới có viewers
             if (feed.Type != "story")
                 throw new AppException(ErrorCode.FEED_VIEW_NOT_ALLOWED);
 
-            // Chỉ chủ story mới xem được danh sách viewers
             if (feed.UserId != userId)
                 throw new AppException(ErrorCode.FORBIDDEN);
 
@@ -527,7 +563,7 @@ namespace backend.Services
                 FeedId = feedId,
                 ViewCount = feed.Stats.Views.Count,
                 HasViewed = feed.Stats.Views.Contains(userId),
-                UserIds = feed.Stats.Views
+                ViewerIds = feed.Stats.Views
             };
         }
 
@@ -542,11 +578,9 @@ namespace backend.Services
 
             var feed = snap.ConvertTo<Feeds>();
 
-            // Chỉ ẩn post, không ẩn story
             if (feed.Type != "post")
                 throw new AppException(ErrorCode.FEED_HIDE_NOT_ALLOWED);
 
-            // Không thể ẩn bài của chính mình
             if (feed.UserId == userId)
                 throw new AppException(ErrorCode.FEED_CANNOT_HIDE_OWN);
 
@@ -559,7 +593,6 @@ namespace backend.Services
 
             if (isHidden)
             {
-                // Bỏ ẩn → xóa document
                 await existingSnap.Documents[0].Reference.DeleteAsync();
                 logger.LogInformation("[FeedService] User {UserId} unhid post {FeedId}", userId, feedId);
 
@@ -567,7 +600,6 @@ namespace backend.Services
             }
             else
             {
-                // Ẩn → tạo document mới
                 await db.Collection("hidden_posts").AddAsync(new Dictionary<string, object>
                 {
                     ["viewer_id"] = userId,
@@ -589,8 +621,6 @@ namespace backend.Services
                 .WhereEqualTo("type", "post")
                 .OrderByDescending("create_at");
 
-            // Nếu xem profile người khác → chỉ thấy public và friends
-            // Nếu xem profile của chính mình → thấy tất cả trừ đã xóa
             if (targetUserId != currentUserId)
                 query = query.WhereNotEqualTo("privacy", "private");
 
@@ -598,7 +628,7 @@ namespace backend.Services
 
             var feeds = snap.Documents
             .Select(d => d.ConvertTo<Feeds>())
-            .Where(f => f.IsEnable)
+            .Where(f => f.DeletedAt == null)
             .ToList();
 
             var authorIds = feeds.Select(f => f.UserId);
@@ -622,6 +652,7 @@ namespace backend.Services
             var snapshot = await query.GetSnapshotAsync();
             var feeds = snapshot.Documents
             .Select(d => d.ConvertTo<Feeds>())
+            .Where(f => f.DeletedAt == null)
             .ToList();
 
             var authorIds = feeds.Select(f => f.UserId);
@@ -631,6 +662,129 @@ namespace backend.Services
                 .Where(f => authors.ContainsKey(f.UserId))
                 .Select(f => ToResponse(f, currentUserId, authors[f.UserId]))
                 .ToList();
+        }
+
+        // ── Comments ───────────────────────────────────────────────────
+
+        public async Task<CommentResponse> CreateCommentAsync(string feedId, string userId, CreateCommentRequest request)
+        {
+            var feedSnap = await db.Collection("feeds").Document(feedId).GetSnapshotAsync();
+            if (!feedSnap.Exists || feedSnap.GetValue<object?>("deleted_at") != null)
+                throw new AppException(ErrorCode.FEED_NOT_FOUND);
+
+            var docRef = db.Collection("comments").Document();
+            var commentId = docRef.Id;
+            var imageUrl = "";
+
+            if (request.File != null)
+            {
+                var (url, _, _) = await cloudinaryService.UploadAsync(request.File, userId, commentId, "comment");
+                imageUrl = url;
+            }
+
+            var comment = new Comment
+            {
+                Id = commentId,
+                FeedId = feedId,
+                UserId = userId,
+                Content = request.Content,
+                ImageUrl = imageUrl,
+                Likes = new List<string>(),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await docRef.SetAsync(comment);
+
+            var authorSnap = await db.Collection("users").Document(userId).GetSnapshotAsync();
+            var author = authorSnap.ConvertTo<User>();
+
+            return new CommentResponse
+            {
+                Id = comment.Id,
+                FeedId = comment.FeedId,
+                UserId = comment.UserId,
+                UserName = $"{author.FirstName} {author.LastName}",
+                UserAvatar = author.Avatar,
+                Content = comment.Content,
+                ImageUrl = comment.ImageUrl,
+                LikeCount = 0,
+                IsLiked = false,
+                CreatedAt = comment.CreatedAt
+            };
+        }
+
+        public async Task<List<CommentResponse>> GetCommentsAsync(string feedId, string currentUserId)
+        {
+            var query = db.Collection("comments")
+                .WhereEqualTo("feed_id", feedId);
+
+            var snapshot = await query.GetSnapshotAsync();
+            var comments = snapshot.Documents
+                .Select(d => d.ConvertTo<Comment>())
+                .OrderBy(c => c.CreatedAt)
+                .ToList();
+
+            if (comments.Count == 0) return new List<CommentResponse>();
+
+            var authorIds = comments.Select(c => c.UserId).Distinct().ToList();
+            var authors = await GetUsersByIdsAsync(authorIds);
+
+            return comments
+                .Where(c => authors.ContainsKey(c.UserId))
+                .Select(c => {
+                    var author = authors[c.UserId];
+                    return new CommentResponse
+                    {
+                        Id = c.Id,
+                        FeedId = c.FeedId,
+                        UserId = c.UserId,
+                        UserName = $"{author.FirstName} {author.LastName}",
+                        UserAvatar = author.Avatar,
+                        Content = c.Content,
+                        ImageUrl = c.ImageUrl,
+                        LikeCount = c.Likes?.Count ?? 0,
+                        IsLiked = c.Likes?.Contains(currentUserId) ?? false,
+                        CreatedAt = c.CreatedAt
+                    };
+                })
+                .ToList();
+        }
+
+        public async Task<LikeResponse> ToggleLikeCommentAsync(string commentId, string userId)
+        {
+            var docRef = db.Collection("comments").Document(commentId);
+            var snap = await docRef.GetSnapshotAsync();
+
+            if (!snap.Exists)
+                throw new AppException(ErrorCode.INTERNAL_ERROR);
+
+            var comment = snap.ConvertTo<Comment>();
+            var likesList = comment.Likes ?? new List<string>();
+            var isLiked = likesList.Contains(userId);
+
+            if (isLiked)
+            {
+                await docRef.UpdateAsync(new Dictionary<string, object>
+                {
+                    ["likes"] = FieldValue.ArrayRemove(userId)
+                });
+            }
+            else
+            {
+                await docRef.UpdateAsync(new Dictionary<string, object>
+                {
+                    ["likes"] = FieldValue.ArrayUnion(userId)
+                });
+            }
+
+            var updatedSnap = await docRef.GetSnapshotAsync();
+            var updatedComment = updatedSnap.ConvertTo<Comment>();
+
+            return new LikeResponse
+            {
+                IsLiked = !isLiked,
+                LikeCount = updatedComment.Likes?.Count ?? 0
+            };
         }
 
         private async Task<Dictionary<string, User>> GetUsersByIdsAsync(IEnumerable<string> userIds)
@@ -646,6 +800,6 @@ namespace backend.Services
                 .Select(s => s.ConvertTo<User>())
                 .ToDictionary(u => u.Id);
         }
-    }
 
+    }
 }

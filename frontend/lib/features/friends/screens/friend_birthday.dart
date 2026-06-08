@@ -138,14 +138,14 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
         id: '${friend.friendId}_$currentYear',
         name: friend.fullName,
         date: DateTime(currentYear, dob.month, dob.day),
-        avatarUrl: friend.avatar ?? '',
+        avatarUrl: friend.avatar,
       ));
 
       tempAll.add(BirthdayModel(
         id: '${friend.friendId}_${currentYear + 1}',
         name: friend.fullName,
         date: DateTime(currentYear + 1, dob.month, dob.day),
-        avatarUrl: friend.avatar ?? '',
+        avatarUrl: friend.avatar,
       ));
     }
     
@@ -161,7 +161,6 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
     });
   }
 
-  // TẠO CẤU TRÚC PHẲNG: BANNER THÁNG -> THANH NGÀY XÁM -> CÁC BẠN BÈ SINH NHẬT
   void _buildFlatListStructure() {
     List<Widget> items = [];
     _monthToIdxMap.clear();
@@ -172,13 +171,13 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
       for (int month = 1; month <= 12; month++) {
         final String monthKeyStr = '$year-$month';
         
-        // Lưu Index đầu tháng để nhảy vị trí chuẩn xác
         _monthToIdxMap[monthKeyStr] = items.length;
         
-        // 1. Thêm Banner Tháng hình nền Unsplash cực đẹp
         items.add(_buildMonthBanner(month, year));
 
-        final monthsBirthdays = allBirthdays.where((b) => b.date.month == month && b.date.year == year).toList();
+        final monthsBirthdays = allBirthdays
+            .where((b) => b.date.month == month && b.date.year == year)
+            .toList();
 
         if (monthsBirthdays.isEmpty) {
           items.add(
@@ -187,42 +186,58 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
               child: Center(
                 child: Text(
                   'Không có sinh nhật nào trong tháng này',
-                  style: TextStyle(color: Colors.grey, fontSize: 14, fontStyle: FontStyle.italic),
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 14,
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
               ),
             ),
           );
         } else {
-          // Gom nhóm theo các ngày thực tế có sinh nhật trong tháng
-          final List<int> sortedDays = monthsBirthdays.map((b) => b.date.day).toSet().toList()..sort();
+          final List<int> sortedDays = monthsBirthdays
+              .map((b) => b.date.day)
+              .toSet()
+              .toList()
+            ..sort();
 
           for (int day in sortedDays) {
             final DateTime currentLoopDate = DateTime(year, month, day);
             final bool isToday = isSameDay(currentLoopDate, today);
-            final dayBirthdays = monthsBirthdays.where((b) => b.date.day == day).toList();
+            final dayBirthdays = monthsBirthdays
+                .where((b) => b.date.day == day)
+                .toList();
 
-            // 2. Thêm thanh tiêu đề ngày màu xám (Highlight xanh dương nếu là Hôm nay)
             items.add(
               Container(
                 width: double.infinity,
-                color: isToday ? const Color(0xFFE5F0FF) : const Color(0xFFF5F5F5),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                color: isToday
+                    ? const Color(0xFFE5F0FF)
+                    : const Color(0xFFF5F5F5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 margin: const EdgeInsets.only(top: 4),
                 child: Text(
-                  isToday 
+                  isToday
                       ? 'Hôm nay • ${DateFormat('EEEE, d MMMM', 'vi_VN').format(currentLoopDate)}'
-                      : DateFormat('EEEE, d MMMM', 'vi_VN').format(currentLoopDate),
+                      : DateFormat('EEEE, d MMMM', 'vi_VN')
+                          .format(currentLoopDate),
                   style: TextStyle(
-                    fontSize: 13, 
-                    fontWeight: FontWeight.w600, 
-                    color: isToday ? const Color(0xFF005bb5) : Colors.grey.shade700,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isToday
+                        ? const Color(0xFF005bb5)
+                        : Colors.grey.shade700,
                   ),
                 ),
               ),
             );
 
-            // 3. Render danh sách bạn bè có sinh nhật vào ngày này (Ẩn subtitle đi vì đã có thanh xám)
-            items.addAll(dayBirthdays.map((b) => _buildBirthdayItem(b, showPrefixName: true)));
+            items.addAll(dayBirthdays
+                .map((b) => _buildBirthdayItem(b, showPrefixName: true)));
           }
         }
       }
@@ -231,14 +246,17 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
   }
 
   bool _hasBirthday(DateTime date) {
-    return allBirthdays.any((b) => b.date.month == date.month && b.date.day == date.day);
+    return allBirthdays
+        .any((b) => b.date.month == date.month && b.date.day == date.day);
   }
 
   @override
   Widget build(BuildContext context) {
     _processBirthdayData(context);
     
-    if (_flatListItems.isNotEmpty && !_hasScrolledToCurrent && isCalendarView) {
+    if (_flatListItems.isNotEmpty &&
+        !_hasScrolledToCurrent &&
+        isCalendarView) {
       _hasScrolledToCurrent = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToMonth(DateTime.now());
@@ -251,10 +269,11 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: _buildAppBar(),
-      body: isLoading 
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primaryBlue))
+      body: isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primaryBlue),
+            )
           : (isCalendarView ? _buildCalendarView() : _buildListView()),
-      
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: isCalendarView && !isLoading
           ? Container(
@@ -273,11 +292,14 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
                     _focusedDay = now;
                     _selectedDay = now;
                   });
-                  _scrollToMonth(now); 
+                  _scrollToMonth(now);
                 },
                 label: const Text(
                   'Hôm nay',
-                  style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             )
@@ -287,7 +309,8 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
 
   PreferredSizeWidget _buildAppBar() {
     if (isCalendarView) {
-      String monthYear = 'Tháng ${_focusedDay.month}, ${_focusedDay.year}';
+      String monthYear =
+          'Tháng ${_focusedDay.month}, ${_focusedDay.year}';
       return AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -295,16 +318,27 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => setState(() {
             isCalendarView = false;
-            _hasScrolledToCurrent = false; 
+            _hasScrolledToCurrent = false;
           }),
         ),
-        title: Text(monthYear, style: const TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w500)),
+        title: Text(
+          monthYear,
+          style: const TextStyle(
+            color: Colors.black,
+            fontSize: 18,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
         titleSpacing: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.chevron_left, color: Colors.black, size: 28),
             onPressed: () {
-              final prevMonth = DateTime(_focusedDay.year, _focusedDay.month - 1, 1);
+              final prevMonth = DateTime(
+                _focusedDay.year,
+                _focusedDay.month - 1,
+                1,
+              );
               if (prevMonth.year >= DateTime.now().year) {
                 setState(() {
                   _focusedDay = prevMonth;
@@ -315,9 +349,17 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.chevron_right, color: Colors.black, size: 28),
+            icon: const Icon(
+              Icons.chevron_right,
+              color: Colors.black,
+              size: 28,
+            ),
             onPressed: () {
-              final nextMonth = DateTime(_focusedDay.year, _focusedDay.month + 1, 1);
+              final nextMonth = DateTime(
+                _focusedDay.year,
+                _focusedDay.month + 1,
+                1,
+              );
               if (nextMonth.year <= DateTime.now().year + 1) {
                 setState(() {
                   _focusedDay = nextMonth;
@@ -327,7 +369,10 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
               }
             },
           ),
-          IconButton(icon: const Icon(Icons.settings_outlined, color: Colors.black), onPressed: () {}),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, color: Colors.black),
+            onPressed: () {},
+          ),
         ],
       );
     }
@@ -340,14 +385,27 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
         onPressed: () => Navigator.pop(context),
       ),
       centerTitle: false,
-      title: const Text('Sinh nhật', style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w500)),
+      title: const Text(
+        'Sinh nhật',
+        style: TextStyle(
+          color: Colors.black,
+          fontSize: 18,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
       actions: [
         IconButton(
           icon: const Icon(Icons.calendar_today_outlined, color: Colors.black),
           onPressed: () => setState(() => isCalendarView = true),
         ),
-        IconButton(icon: const Icon(Icons.history, color: Colors.black), onPressed: () {}),
-        IconButton(icon: const Icon(Icons.settings_outlined, color: Colors.black), onPressed: () {}),
+        IconButton(
+          icon: const Icon(Icons.history, color: Colors.black),
+          onPressed: () {},
+        ),
+        IconButton(
+          icon: const Icon(Icons.settings_outlined, color: Colors.black),
+          onPressed: () {},
+        ),
       ],
     );
   }
@@ -357,11 +415,24 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
     final today = DateTime(now.year, now.month, now.day);
     final int currentYear = now.year;
 
-    final pastBirthdays = allBirthdays.where((b) => b.date.year == currentYear && b.date.isBefore(today)).toList();
-    final upcomingBirthdays = allBirthdays.where((b) => b.date.year == currentYear && !b.date.isBefore(today)).toList();
+    final pastBirthdays = allBirthdays
+        .where(
+          (b) => b.date.year == currentYear && b.date.isBefore(today),
+        )
+        .toList();
+    final upcomingBirthdays = allBirthdays
+        .where(
+          (b) => b.date.year == currentYear && !b.date.isBefore(today),
+        )
+        .toList();
 
     if (allBirthdays.isEmpty) {
-      return const Center(child: Text('Chưa có dữ liệu sinh nhật bạn bè', style: TextStyle(color: Colors.grey)));
+      return const Center(
+        child: Text(
+          'Chưa có dữ liệu sinh nhật bạn bè',
+          style: TextStyle(color: Colors.grey),
+        ),
+      );
     }
 
     return ListView(
@@ -369,12 +440,14 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
       children: [
         if (pastBirthdays.isNotEmpty) ...[
           _buildSectionTitle('Sinh nhật đã qua'),
-          ...pastBirthdays.map((b) => _buildBirthdayItem(b, showPrefixName: false)),
+          ...pastBirthdays
+              .map((b) => _buildBirthdayItem(b, showPrefixName: false)),
           const Divider(height: 1, thickness: 1, color: Color(0xFFF0F0F0)),
         ],
         if (upcomingBirthdays.isNotEmpty) ...[
           _buildSectionTitle('Sinh nhật sắp tới'),
-          ...upcomingBirthdays.map((b) => _buildBirthdayItem(b, showPrefixName: false)),
+          ...upcomingBirthdays
+              .map((b) => _buildBirthdayItem(b, showPrefixName: false)),
         ],
       ],
     );
@@ -383,7 +456,14 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
-      child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: Colors.black87,
+        ),
+      ),
     );
   }
 
@@ -403,7 +483,7 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
               _selectedDay = selectedDay;
               _focusedDay = focusedDay;
             });
-            _scrollToMonth(selectedDay); 
+            _scrollToMonth(selectedDay);
           },
           onPageChanged: (focusedDay) {
             if (!_isProgrammaticScroll) {
@@ -414,12 +494,18 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
               _scrollToMonth(focusedDay);
             }
           },
-          headerVisible: false, 
+          headerVisible: false,
           daysOfWeekHeight: 30,
           startingDayOfWeek: StartingDayOfWeek.monday,
           daysOfWeekStyle: const DaysOfWeekStyle(
-            weekdayStyle: TextStyle(color: Colors.black54, fontWeight: FontWeight.w500),
-            weekendStyle: TextStyle(color: Colors.black54, fontWeight: FontWeight.w500),
+            weekdayStyle: TextStyle(
+              color: Colors.black54,
+              fontWeight: FontWeight.w500,
+            ),
+            weekendStyle: TextStyle(
+              color: Colors.black54,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           calendarStyle: CalendarStyle(
             outsideDaysVisible: false,
@@ -428,9 +514,15 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
             selectedDecoration: BoxDecoration(
               color: const Color(0xFFE5F0FF),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF0091FF), width: 1.5),
+              border: Border.all(
+                color: const Color(0xFF0091FF),
+                width: 1.5,
+              ),
             ),
-            selectedTextStyle: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+            selectedTextStyle: const TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           calendarBuilders: CalendarBuilders(
             markerBuilder: (context, date, events) {
@@ -443,7 +535,11 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
                       color: const Color(0xFFFF7A93),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: const Icon(Icons.cake, size: 10, color: Colors.white),
+                    child: const Icon(
+                      Icons.cake,
+                      size: 10,
+                      color: Colors.white,
+                    ),
                   ),
                 );
               }
@@ -453,7 +549,7 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
         ),
         const Divider(height: 1, thickness: 1, color: Color(0xFFF0F0F0)),
         Expanded(
-          child: _flatListItems.isEmpty 
+          child: _flatListItems.isEmpty
               ? const SizedBox()
               : ScrollablePositionedList.builder(
                   itemCount: _flatListItems.length,
@@ -471,19 +567,55 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
   Widget _buildMonthBanner(int month, int year) {
     String imageUrl;
     switch (month) {
-      case 1: imageUrl = 'https://images.unsplash.com/photo-1483921020237-2ff51e8e4b22?q=80&w=600&auto=format&fit=crop'; break;
-      case 2: imageUrl = 'https://images.unsplash.com/photo-1518199266791-5375a83190b7?q=80&w=600&auto=format&fit=crop'; break;
-      case 3: imageUrl = 'https://images.unsplash.com/photo-1522748906645-95d8adfd52c7?q=80&w=600&auto=format&fit=crop'; break;
-      case 4: imageUrl = 'https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?q=80&w=600&auto=format&fit=crop'; break;
-      case 5: imageUrl = 'https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?q=80&w=600&auto=format&fit=crop'; break;
-      case 6: imageUrl = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop'; break;
-      case 7: imageUrl = 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=80&w=600&auto=format&fit=crop'; break;
-      case 8: imageUrl = 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=600&auto=format&fit=crop'; break;
-      case 9: imageUrl = 'https://images.unsplash.com/photo-1477414348463-c0eb7f1359b6?q=80&w=600&auto=format&fit=crop'; break;
-      case 10: imageUrl = 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=600&auto=format&fit=crop'; break;
-      case 11: imageUrl = 'https://images.unsplash.com/photo-1475924156734-496f6cac6ec1?q=80&w=600&auto=format&fit=crop'; break;
+      case 1:
+        imageUrl =
+            'https://images.unsplash.com/photo-1483921020237-2ff51e8e4b22?q=80&w=600&auto=format&fit=crop';
+        break;
+      case 2:
+        imageUrl =
+            'https://images.unsplash.com/photo-1518199266791-5375a83190b7?q=80&w=600&auto=format&fit=crop';
+        break;
+      case 3:
+        imageUrl =
+            'https://images.unsplash.com/photo-1522748906645-95d8adfd52c7?q=80&w=600&auto=format&fit=crop';
+        break;
+      case 4:
+        imageUrl =
+            'https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?q=80&w=600&auto=format&fit=crop';
+        break;
+      case 5:
+        imageUrl =
+            'https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?q=80&w=600&auto=format&fit=crop';
+        break;
+      case 6:
+        imageUrl =
+            'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=600&auto=format&fit=crop';
+        break;
+      case 7:
+        imageUrl =
+            'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?q=80&w=600&auto=format&fit=crop';
+        break;
+      case 8:
+        imageUrl =
+            'https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=600&auto=format&fit=crop';
+        break;
+      case 9:
+        imageUrl =
+            'https://images.unsplash.com/photo-1477414348463-c0eb7f1359b6?q=80&w=600&auto=format&fit=crop';
+        break;
+      case 10:
+        imageUrl =
+            'https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=600&auto=format&fit=crop';
+        break;
+      case 11:
+        imageUrl =
+            'https://images.unsplash.com/photo-1475924156734-496f6cac6ec1?q=80&w=600&auto=format&fit=crop';
+        break;
       case 12:
-      default: imageUrl = 'https://images.unsplash.com/photo-1491002052546-bf38f186af56?q=80&w=600&auto=format&fit=crop'; break;
+      default:
+        imageUrl =
+            'https://images.unsplash.com/photo-1491002052546-bf38f186af56?q=80&w=600&auto=format&fit=crop';
+        break;
     }
 
     return Container(
@@ -494,7 +626,10 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
         image: DecorationImage(
           image: NetworkImage(imageUrl),
           fit: BoxFit.cover,
-          colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.35), BlendMode.darken),
+          colorFilter: ColorFilter.mode(
+            Colors.black.withValues(alpha: 0.35),
+            BlendMode.darken,
+          ),
         ),
       ),
       alignment: Alignment.bottomLeft,
@@ -502,16 +637,27 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
       child: Text(
         'Tháng $month, $year',
         style: const TextStyle(
-          color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 1.2,
-          shadows: [Shadow(color: Colors.black54, offset: Offset(1, 1), blurRadius: 4)],
+          color: Colors.white,
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.2,
+          shadows: [
+            Shadow(
+              color: Colors.black54,
+              offset: Offset(1, 1),
+              blurRadius: 4,
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildBirthdayItem(BirthdayModel user, {bool showPrefixName = false}) {
-    String dateStr = DateFormat('EEEE, d MMMM', 'vi_VN').format(user.date);
-    
+  Widget _buildBirthdayItem(BirthdayModel user,
+      {bool showPrefixName = false}) {
+    String dateStr =
+        DateFormat('EEEE, d MMMM', 'vi_VN').format(user.date);
+
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       leading: Stack(
@@ -520,11 +666,16 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
           CircleAvatar(
             radius: 24,
             backgroundColor: Colors.grey.shade300,
-            backgroundImage: user.avatarUrl.isNotEmpty ? NetworkImage(user.avatarUrl) : null,
-            child: user.avatarUrl.isEmpty ? const Icon(Icons.person, color: Colors.white) : null,
+            backgroundImage: user.avatarUrl.isNotEmpty
+                ? NetworkImage(user.avatarUrl)
+                : null,
+            child: user.avatarUrl.isEmpty
+                ? const Icon(Icons.person, color: Colors.white)
+                : null,
           ),
           Positioned(
-            bottom: -2, right: -2,
+            bottom: -2,
+            right: -2,
             child: Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
@@ -539,15 +690,31 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
       ),
       title: Text(
         showPrefixName ? 'Sinh nhật ${user.name}' : user.name,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black87),
-        maxLines: 1, overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: Colors.black87,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
-      // Ẩn dòng subtitle ngày tháng bên dưới tên nếu đang có thanh tiêu đề xám che ở trên rồi
-      subtitle: !showPrefixName ? Text(dateStr, style: const TextStyle(color: Colors.grey, fontSize: 13)) : null,
+      subtitle: !showPrefixName
+          ? Text(
+              dateStr,
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
+            )
+          : null,
       trailing: Container(
         padding: const EdgeInsets.all(8),
-        decoration: const BoxDecoration(color: Color(0xFFE5F0FF), shape: BoxShape.circle),
-        child: const Icon(Icons.chat_bubble_outline, color: Color(0xFF0091FF), size: 20),
+        decoration: const BoxDecoration(
+          color: Color(0xFFE5F0FF),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(
+          Icons.chat_bubble_outline,
+          color: Color(0xFF0091FF),
+          size: 20,
+        ),
       ),
     );
   }

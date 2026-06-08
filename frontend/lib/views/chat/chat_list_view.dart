@@ -1,59 +1,59 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:frontend/features/calling/screens/incoming_call_screen.dart';
-import 'package:frontend/models/call_model.dart';
-import 'package:frontend/providers/call_provider.dart';
-import 'package:flutter_callkeep/flutter_callkeep.dart';
-import 'package:frontend/features/calling/screens/call_screen.dart';
-import 'package:frontend/services/call_notification_service.dart';
-import 'package:frontend/services/message_notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_callkeep/flutter_callkeep.dart';
 import 'package:frontend/apps/app_locale.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/config/dark_mode_config.dart';
+import 'package:frontend/features/calling/screens/call_screen.dart';
+import 'package:frontend/features/calling/screens/incoming_call_screen.dart';
 import 'package:frontend/features/feedback/screens/feedback_screen.dart';
 import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/features/friends/screens/contact_main_screen.dart';
+import 'package:frontend/features/newfeed/screens/newfeed_screen.dart';
+import 'package:frontend/features/profile/screens/profile_screen.dart';
+import 'package:frontend/models/call_model.dart';
 import 'package:frontend/models/chat/conversation.dart';
+import 'package:frontend/providers/call_provider.dart';
 import 'package:frontend/providers/chat_provider.dart';
-import 'package:frontend/services/auth_service.dart';
+import 'package:frontend/services/call_notification_service.dart';
+import 'package:frontend/services/message_notification_service.dart';
 import 'package:frontend/utils/app_localizations.dart';
-import 'package:frontend/services/chat/chat_service.dart';
 import 'package:frontend/views/chat/chat_screen.dart';
-import 'package:frontend/views/contacts/contacts_view.dart';
-import 'package:frontend/views/settings/settings_dialog.dart';
-import 'package:frontend/widgets/search_overlay_screen.dart';
-import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 import 'package:frontend/views/chat/new_conversation_screen.dart';
+import 'package:frontend/views/contacts/contacts_view.dart';
+import 'package:frontend/widgets/search_overlay_screen.dart';
+import 'package:provider/provider.dart';
 
-/// Man hinh danh sach tin nhan - Thiet ke giong Zalo Web
 class ChatListView extends StatefulWidget {
   const ChatListView({super.key});
 
   @override
-  State<ChatListView> createState() => _ChatListViewState();
+  State<ChatListView> createState() => ChatListViewState();
 }
 
-class _ChatListViewState extends State<ChatListView> {
+class ChatListViewState extends State<ChatListView> {
   String _filterMode = 'all';
   int _selectedNavIndex = 0;
   Conversation? _selectedConversation;
   bool? _wasWideScreen;
+  bool _coldStartCallHandled = false;
+  bool _callScreenOpened = false;
+
+  void switchTab(int index) {
+    setState(() => _selectedNavIndex = index);
+  }
 
   @override
   void initState() {
     super.initState();
-    // Đợi giao diện dựng xong hoàn toàn rồi mới hiển thị Modal
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    // Giả sử bạn có một biến hoặc hàm check xem có feedback nào cần đánh giá không
-    bool hasPendingFeedbackEvaluation = true; // Logic check từ DB/API của bạn
-    
-    if (hasPendingFeedbackEvaluation) {
-      _showFeedbackFlow(context);
-    }
-  });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      const hasPendingFeedbackEvaluation = true;
+      if (hasPendingFeedbackEvaluation) {
+        _showFeedbackFlow(context);
+      }
+    });
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -61,12 +61,16 @@ class _ChatListViewState extends State<ChatListView> {
       ),
     );
     Future.microtask(() {
+      final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
       final provider = context.read<FriendProvider>();
-      provider.loadFriends();
-      provider.loadRequests();
+      if (uid.isNotEmpty) {
+        provider.setCurrentUid(uid); // set uid + loadAll()
+      } else {
+        provider.loadAll();
+      }
       provider.startRealtime();
 
-      final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
       if (uid.isNotEmpty) {
         final chatProvider = context.read<ChatProvider>();
         chatProvider.setContext(context);
@@ -75,8 +79,6 @@ class _ChatListViewState extends State<ChatListView> {
 
       if (mounted) CallNotificationService.checkPendingCall(_handleFcmCall);
       _pollActiveCalls();
-
-      // Điều hướng khi tap notification tin nhắn
       MessageNotificationService.onNotificationTap = _openConversationById;
       MessageNotificationService.checkInitialMessage();
     });
@@ -84,7 +86,6 @@ class _ChatListViewState extends State<ChatListView> {
     context.read<CallProvider>().addListener(_onCallStateChanged);
     CallNotificationService.acceptedCall.addListener(_onCallAcceptedNotifier);
     CallNotificationService.declinedCall.addListener(_onCallDeclinedNotifier);
-    // Check ngay nếu có event đang chờ
     if (CallNotificationService.acceptedCall.value != null) {
       Future.microtask(_onCallAcceptedNotifier);
     }
@@ -94,33 +95,20 @@ class _ChatListViewState extends State<ChatListView> {
   void dispose() {
     MessageNotificationService.onNotificationTap = null;
     context.read<CallProvider>().removeListener(_onCallStateChanged);
-    CallNotificationService.acceptedCall.removeListener(
-      _onCallAcceptedNotifier,
-    );
-    CallNotificationService.declinedCall.removeListener(
-      _onCallDeclinedNotifier,
-    );
+    CallNotificationService.acceptedCall.removeListener(_onCallAcceptedNotifier);
+    CallNotificationService.declinedCall.removeListener(_onCallDeclinedNotifier);
     super.dispose();
   }
 
-  /// Mở conversation từ notification tap — tìm trong danh sách hoặc fetch từ API
   Future<void> _openConversationById(String conversationId) async {
     if (!mounted) return;
     final chatProvider = context.read<ChatProvider>();
-
-    // Tìm trong danh sách đã load
-    Conversation? conv = chatProvider.conversations
-        .where((c) => c.id == conversationId)
-        .firstOrNull;
-
-    // Nếu chưa có, fetch từ API
+    Conversation? conv = chatProvider.conversations.where((c) => c.id == conversationId).firstOrNull;
     conv ??= await chatProvider.fetchConversation(conversationId);
     if (conv == null || !mounted) return;
-
-    chatProvider.openConversation(conv);
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => ChatScreen(conversation: conv!)));
+    await chatProvider.openConversation(conv);
+    if (!mounted) return;
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(conversation: conv!)));
   }
 
   void _onCallStateChanged() {
@@ -135,47 +123,27 @@ class _ChatListViewState extends State<ChatListView> {
     }
   }
 
-  void _setupCallKeepEvents() {
-    // Không cần setup thêm — dùng ValueNotifier listeners ở initState
-  }
-
-  /// Khi app cold start từ việc nhấn Accept trên CallKeep native UI,
-  /// EventChannel đã mất → query activeCalls để lấy cuộc gọi đang active
-  bool _coldStartCallHandled = false;
-
-  /// Poll activeCalls vài lần — phòng race giữa native ghi ACTIVE_CALLS và app query
   Future<void> _pollActiveCalls() async {
     for (int i = 0; i < 5; i++) {
       if (!mounted || _coldStartCallHandled) return;
       try {
         final activeCalls = await CallKeep.instance.activeCalls();
-        debugPrint(
-          '[ChatList] poll[$i] activeCalls count=${activeCalls.length}',
-        );
         if (activeCalls.isNotEmpty) {
           _coldStartCallHandled = true;
           final event = activeCalls.first;
-          debugPrint(
-            '[ChatList] coldstart call: ${event.callerName} extra=${event.extra}',
-          );
-          await CallKeep.instance.endAllCalls(); // clear để không re-trigger
+          await CallKeep.instance.endAllCalls();
           if (mounted) _handleCallAccepted(event);
           return;
         }
-      } catch (e) {
-        debugPrint('[ChatList] _pollActiveCalls error: $e');
-      }
+      } catch (_) {}
       await Future.delayed(const Duration(milliseconds: 800));
     }
   }
 
   void _onCallAcceptedNotifier() {
     final event = CallNotificationService.acceptedCall.value;
-    debugPrint(
-      '[ChatList] _onCallAcceptedNotifier: event=${event?.callerName} mounted=$mounted',
-    );
     if (event == null || !mounted) return;
-    CallNotificationService.acceptedCall.value = null; // consume
+    CallNotificationService.acceptedCall.value = null;
     _handleCallAccepted(event);
   }
 
@@ -186,10 +154,7 @@ class _ChatListViewState extends State<ChatListView> {
     _handleCallDeclined(event);
   }
 
-  bool _callScreenOpened = false;
-
   void _handleCallAccepted(CallEvent event) {
-    debugPrint('[ChatList] _handleCallAccepted: extra=${event.extra}');
     if (!mounted || _callScreenOpened) return;
     _callScreenOpened = true;
     _coldStartCallHandled = true;
@@ -217,7 +182,6 @@ class _ChatListViewState extends State<ChatListView> {
           ),
         )
         .then((_) {
-          // Reset khi CallScreen đóng → cuộc gọi sau hoạt động lại
           _callScreenOpened = false;
           _coldStartCallHandled = false;
         });
@@ -227,11 +191,7 @@ class _ChatListViewState extends State<ChatListView> {
     if (!mounted) return;
     final extra = event.extra ?? {};
     final chat = context.read<ChatProvider>();
-    chat.rejectCall(
-      extra['conversation_id'] ?? '',
-      extra['caller_id'] ?? '',
-      reason: 'rejected',
-    );
+    chat.rejectCall(extra['conversation_id'] ?? '', extra['caller_id'] ?? '', reason: 'rejected');
     context.read<CallProvider>().rejectCall();
   }
 
@@ -249,7 +209,6 @@ class _ChatListViewState extends State<ChatListView> {
     );
 
     context.read<CallProvider>().receiveIncomingCall(callModel);
-
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute(
         builder: (_) => IncomingCallScreen(call: callModel),
@@ -261,46 +220,22 @@ class _ChatListViewState extends State<ChatListView> {
   void _onConversationTap(Conversation conversation) {
     context.read<ChatProvider>().openConversation(conversation);
     final isWideScreen = MediaQuery.of(context).size.width >= 700;
-
     if (isWideScreen) {
       setState(() => _selectedConversation = conversation);
     } else {
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => ChatScreen(conversation: conversation),
-        ),
+        MaterialPageRoute(builder: (_) => ChatScreen(conversation: conversation)),
       );
     }
   }
 
-  void _openSettings() {
-  SettingsDialog.show(
-    context,
-    onLogout: () async {
-      await _logout();
-    },
-  );
-}
-void _showFeedbackFlow(BuildContext context) {
-  showDialog(
-    context: context,
-    barrierDismissible: false, // Bắt buộc tương tác qua nút bấm trong modal
-    builder: (context) => const FeedbackFlowModal(),
-  );
-}
-  void _openAppearanceSettings() {
-    SettingsDialog.showAppearance(context);
-  }
-
-  Future<void> _logout() async {
-    final friendProvider = context.read<FriendProvider>();
-    await friendProvider.disposeRealtime();
-    friendProvider.clear();
-    await AuthService.logout();
-
-    if (!mounted) return;
-    context.go('/');
+  void _showFeedbackFlow(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const FeedbackFlowModal(),
+    );
   }
 
   @override
@@ -318,38 +253,10 @@ void _showFeedbackFlow(BuildContext context) {
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final isWideScreen = constraints.maxWidth >= 700;
-
-                    // Convert index when screen size changes
-                    if (_wasWideScreen != null &&
-                        _wasWideScreen != isWideScreen) {
+                    if (_wasWideScreen != null && _wasWideScreen != isWideScreen) {
                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (isWideScreen) {
-                          // Mobile → Wide conversion
-                          setState(() {
-                            if (_selectedNavIndex == 0) {
-                              _selectedNavIndex = 0; // Chat → Chat
-                            } else if (_selectedNavIndex == 1) {
-                              _selectedNavIndex = 2; // Contacts → Contacts
-                            } else {
-                              _selectedNavIndex = 0; // Discover/Profile → Chat
-                            }
-                            // Keep selected conversation when switching to wide
-                            _selectedConversation = _selectedConversation;
-                          });
-                        } else {
-                          // Wide → Mobile conversion
-                          setState(() {
-                            if (_selectedNavIndex == 0) {
-                              _selectedNavIndex = 0; // Chat → Chat
-                            } else if (_selectedNavIndex == 2) {
-                              _selectedNavIndex = 1; // Contacts → Contacts
-                            } else {
-                              _selectedNavIndex = 0; // Settings → Chat
-                            }
-                            // Clear selected conversation when switching to mobile
-                            // because mobile uses full-screen navigation
-                            _selectedConversation = null;
-                          });
+                        if (!isWideScreen) {
+                          setState(() => _selectedConversation = null);
                         }
                       });
                     }
@@ -364,30 +271,26 @@ void _showFeedbackFlow(BuildContext context) {
                             Expanded(
                               child: _selectedConversation == null
                                   ? _buildWelcomePanel(t, isDark)
-                                  : ChatScreen(
-                                      conversation: _selectedConversation!,
-                                    ),
+                                  : ChatScreen(conversation: _selectedConversation!),
                             ),
-                          ] else if (_selectedNavIndex == 2)
-                            const Expanded(
-                              child: ContactsView(isWideScreen: true),
-                            )
+                          ] else if (_selectedNavIndex == 1)
+                            const Expanded(child: ContactsView(isWideScreen: true))
+                          else if (_selectedNavIndex == 2)
+                            const Expanded(child: NewfeedScreen())
+                          else if (_selectedNavIndex == 3)
+                            const Expanded(child: ProfileScreen())
                           else ...[
-                            // Default to chat panel for any other index
                             _buildChatListPanelWide(t, isDark),
                             Expanded(
                               child: _selectedConversation == null
                                   ? _buildWelcomePanel(t, isDark)
-                                  : ChatScreen(
-                                      conversation: _selectedConversation!,
-                                    ),
+                                  : ChatScreen(conversation: _selectedConversation!),
                             ),
                           ],
                         ],
                       );
-                    } else {
-                      return _buildMobileView(t, isDark);
                     }
+                    return _buildMobileView(t, isDark);
                   },
                 ),
               ),
@@ -410,28 +313,19 @@ void _showFeedbackFlow(BuildContext context) {
             height: 48,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.3),
-                width: 2,
-              ),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
             ),
             child: const CircleAvatar(
               backgroundColor: Color(0xFF4CAF50),
-              child: Text(
-                'U',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              child: Text('U', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ),
           const SizedBox(height: 20),
           _buildSidebarItem(Icons.chat_bubble, 0, isDark),
-          _buildSidebarItem(Icons.contacts_outlined, 2, isDark),
+          _buildSidebarItem(Icons.contacts_outlined, 1, isDark),
+          _buildSidebarItem(Icons.auto_stories, 2, isDark),
+          _buildSidebarItem(Icons.person_outline, 3, isDark),
           const Spacer(),
-          _buildSidebarItem(Icons.settings_outlined, 1, isDark),
-          const SizedBox(height: 12),
         ],
       ),
     );
@@ -445,26 +339,15 @@ void _showFeedbackFlow(BuildContext context) {
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: isSelected
-              ? Colors.white.withValues(alpha: 0.15)
-              : Colors.transparent,
+          color: isSelected ? Colors.white.withValues(alpha: 0.15) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
         child: IconButton(
           onPressed: () {
-            if (index == 1) {
-              SettingsDialog.show(
-                context,
-                onLogout: () async {
-                  await _logout();
-                },
-              );
-            } else {
-              setState(() {
-                _selectedNavIndex = index;
-                _selectedConversation = null;
-              });
-            }
+            setState(() {
+              _selectedNavIndex = index;
+              _selectedConversation = null;
+            });
           },
           icon: Icon(icon, color: Colors.white, size: 24),
         ),
@@ -486,9 +369,7 @@ void _showFeedbackFlow(BuildContext context) {
       width: 340,
       decoration: BoxDecoration(
         color: AppColors.getSurface(isDark),
-        border: Border(
-          right: BorderSide(color: AppColors.getDivider(isDark), width: 1),
-        ),
+        border: Border(right: BorderSide(color: AppColors.getDivider(isDark), width: 1)),
       ),
       child: Column(
         children: [
@@ -500,15 +381,9 @@ void _showFeedbackFlow(BuildContext context) {
     );
   }
 
-  Widget _buildSearchHeader(
-    AppLocalizations t,
-    bool isDark, {
-    bool isMobile = false,
-  }) {
+  Widget _buildSearchHeader(AppLocalizations t, bool isDark, {bool isMobile = false}) {
     if (isMobile) {
-      final Color headerBg = isDark
-          ? const Color(0xFF1A1A1A)
-          : AppColors.primaryBlue;
+      final headerBg = isDark ? const Color(0xFF1A1A1A) : AppColors.primaryBlue;
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         color: headerBg,
@@ -520,27 +395,18 @@ void _showFeedbackFlow(BuildContext context) {
                 child: Container(
                   height: 40,
                   decoration: BoxDecoration(
-                    color: isDark
-                        ? const Color(0xFF2A2A2A)
-                        : Colors.white.withValues(alpha: 0.25),
+                    color: isDark ? const Color(0xFF2A2A2A) : Colors.white.withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Row(
                     children: [
                       const SizedBox(width: 14),
-                      Icon(
-                        Icons.search,
-                        color: Colors.white.withValues(alpha: 0.8),
-                        size: 20,
-                      ),
+                      Icon(Icons.search, color: Colors.white.withValues(alpha: 0.8), size: 20),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           t.get('searchPlaceholder'),
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.8),
-                            fontSize: 14,
-                          ),
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 14),
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -550,19 +416,12 @@ void _showFeedbackFlow(BuildContext context) {
               ),
             ),
             const SizedBox(width: 8),
-            _buildHeaderIconButton(
-              Icons.qr_code_scanner,
-              isDark,
-              () {},
-              iconColor: Colors.white,
-            ),
+            _buildHeaderIconButton(Icons.qr_code_scanner, isDark, () {}, iconColor: Colors.white),
             _buildHeaderIconButton(
               Icons.add,
               isDark,
               () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const NewConversationScreen(type: 'group'),
-                ),
+                MaterialPageRoute(builder: (_) => const NewConversationScreen(type: 'group')),
               ),
               iconColor: Colors.white,
             ),
@@ -582,27 +441,18 @@ void _showFeedbackFlow(BuildContext context) {
               child: Container(
                 height: 40,
                 decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF2A2A2A)
-                      : const Color(0xFFF5F5F5),
+                  color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF5F5F5),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Row(
                   children: [
                     const SizedBox(width: 14),
-                    Icon(
-                      Icons.search,
-                      color: AppColors.getTextSecondary(isDark),
-                      size: 20,
-                    ),
+                    Icon(Icons.search, color: AppColors.getTextSecondary(isDark), size: 20),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         t.get('searchPlaceholder'),
-                        style: TextStyle(
-                          color: AppColors.getTextSecondary(isDark),
-                          fontSize: 14,
-                        ),
+                        style: TextStyle(color: AppColors.getTextSecondary(isDark), fontSize: 14),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -617,9 +467,7 @@ void _showFeedbackFlow(BuildContext context) {
             Icons.group_add_outlined,
             isDark,
             () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const NewConversationScreen(type: 'group'),
-              ),
+              MaterialPageRoute(builder: (_) => const NewConversationScreen(type: 'group')),
             ),
           ),
         ],
@@ -627,72 +475,26 @@ void _showFeedbackFlow(BuildContext context) {
     );
   }
 
-  void _openSearchOverlay(BuildContext context) {
-    Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => SearchOverlayScreen(
-          onBack: () => Navigator.of(context).pop(),
-          onSearchResultTap: ({required userId, required name, avatar}) async {
-            Navigator.of(context).pop();
-            final chatProvider = context.read<ChatProvider>();
-            final conversation = await ChatService().createConversation(
-              type: 'private',
-              participantIds: [userId],
-            );
-            if (!context.mounted) return;
-            unawaited(chatProvider.openConversation(conversation));
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ChatScreen(conversation: conversation),
-              ),
-            );
-          },
-          recentContacts: const [],
-          onRecentContactTap: (_) {},
-        ),
-        transitionsBuilder: (_, animation, __, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        transitionDuration: const Duration(milliseconds: 200),
-      ),
-    );
-  }
-
-  Color _avatarColor(String name) {
-    final colors = [
-      const Color(0xFF4CAF50),
-      const Color(0xFF2196F3),
-      const Color(0xFFFF9800),
-      const Color(0xFF9C27B0),
-      const Color(0xFFE91E63),
-      const Color(0xFF00BCD4),
-      const Color(0xFF795548),
-      const Color(0xFF607D8B),
-    ];
-    if (name.isEmpty) return colors[0];
-    return colors[name.codeUnitAt(0) % colors.length];
-  }
-
-  Widget _buildHeaderIconButton(
-    IconData icon,
-    bool isDark,
-    VoidCallback onTap, {
-    Color? iconColor,
-  }) {
+  Widget _buildHeaderIconButton(IconData icon, bool isDark, VoidCallback onTap, {Color? iconColor}) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
-        child: Container(
-          width: 32,
-          height: 32,
-          alignment: Alignment.center,
-          child: Icon(
-            icon,
-            color: iconColor ?? AppColors.getTextSecondary(isDark),
-            size: 20,
-          ),
+        borderRadius: BorderRadius.circular(20),
+        child: SizedBox(
+          width: 36,
+          height: 36,
+          child: Icon(icon, color: iconColor ?? AppColors.getTextSecondary(isDark), size: 20),
+        ),
+      ),
+    );
+  }
+
+  void _openSearchOverlay(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SearchOverlayScreen(
+          onBack: () => Navigator.of(context).pop(),
         ),
       ),
     );
@@ -700,55 +502,38 @@ void _showFeedbackFlow(BuildContext context) {
 
   Widget _buildFilterTabs(AppLocalizations t, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       color: AppColors.getSurface(isDark),
+      height: 44,
       child: Row(
         children: [
           _buildFilterTab(t.get('all'), 'all', isDark),
-          const SizedBox(width: 16),
           _buildFilterTab(t.get('unread'), 'unread', isDark),
-          const Spacer(),
-          PopupMenuButton<String>(
-            offset: const Offset(0, 30),
-            child: Row(
-              children: [
-                Text(
-                  t.get('category'),
-                  style: TextStyle(
-                    color: AppColors.getTextSecondary(isDark),
-                    fontSize: 13,
-                  ),
-                ),
-                Icon(
-                  Icons.keyboard_arrow_down,
-                  color: AppColors.getTextSecondary(isDark),
-                  size: 18,
-                ),
-              ],
-            ),
-            itemBuilder: (context) => [
-              PopupMenuItem(value: 'all', child: Text(t.get('all'))),
-              PopupMenuItem(value: 'friends', child: Text(t.get('friends'))),
-              PopupMenuItem(value: 'groups', child: Text(t.get('groups'))),
-            ],
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildFilterTab(String label, String mode, bool isDark) {
-    final isSelected = _filterMode == mode;
+  Widget _buildFilterTab(String label, String value, bool isDark) {
+    final isSelected = _filterMode == value;
     return GestureDetector(
-      onTap: () => setState(() => _filterMode = mode),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-          color: isSelected
-              ? AppColors.primaryBlue
-              : AppColors.getTextSecondary(isDark),
+      onTap: () => setState(() => _filterMode = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isSelected ? AppColors.primaryBlue : Colors.transparent,
+              width: 2,
+            ),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            color: isSelected ? AppColors.primaryBlue : AppColors.getTextSecondary(isDark),
+          ),
         ),
       ),
     );
@@ -769,26 +554,17 @@ void _showFeedbackFlow(BuildContext context) {
                 children: [
                   const Icon(Icons.error_outline, color: Colors.red, size: 40),
                   const SizedBox(height: 12),
-                  const Text(
-                    'Không thể tải cuộc trò chuyện',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
+                  const Text('Không thể tải cuộc trò chuyện', style: TextStyle(fontWeight: FontWeight.w600)),
                   if (chat.errorMessage != null) ...[
                     const SizedBox(height: 8),
                     Text(
                       chat.errorMessage!,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.getTextSecondary(isDark),
-                      ),
+                      style: TextStyle(fontSize: 11, color: AppColors.getTextSecondary(isDark)),
                       textAlign: TextAlign.center,
                     ),
                   ],
                   const SizedBox(height: 16),
-                  TextButton(
-                    onPressed: () => chat.loadConversations(),
-                    child: const Text('Thử lại'),
-                  ),
+                  TextButton(onPressed: () => chat.loadConversations(), child: const Text('Thử lại')),
                 ],
               ),
             ),
@@ -807,9 +583,7 @@ void _showFeedbackFlow(BuildContext context) {
                 Icon(
                   Icons.chat_bubble_outline,
                   size: 64,
-                  color: AppColors.getTextSecondary(
-                    isDark,
-                  ).withValues(alpha: 0.4),
+                  color: AppColors.getTextSecondary(isDark).withValues(alpha: 0.4),
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -825,9 +599,7 @@ void _showFeedbackFlow(BuildContext context) {
                   'Tìm kiếm bạn bè để bắt đầu nhắn tin',
                   style: TextStyle(
                     fontSize: 13,
-                    color: AppColors.getTextSecondary(
-                      isDark,
-                    ).withValues(alpha: 0.7),
+                    color: AppColors.getTextSecondary(isDark).withValues(alpha: 0.7),
                   ),
                 ),
               ],
@@ -841,387 +613,154 @@ void _showFeedbackFlow(BuildContext context) {
           child: ListView.builder(
             padding: EdgeInsets.zero,
             itemCount: list.length,
-            itemBuilder: (context, index) =>
-                _buildConversationTileFromModel(list[index], t, isDark),
+            itemBuilder: (context, index) {
+              final conversation = list[index];
+              return _buildConversationTileModel(conversation, t, isDark);
+            },
           ),
         );
       },
     );
   }
 
-  String _formatRelativeTime(DateTime dt) {
-    final now = DateTime.now();
-    final diff = now.difference(dt);
-    if (diff.inSeconds < 60) return 'Vừa xong';
-    if (diff.inMinutes < 60) return '${diff.inMinutes} phút';
-    if (diff.inHours < 24)
-      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    if (diff.inDays == 1) return 'Hôm qua';
-    if (diff.inDays < 7) return '${dt.day}/${dt.month}';
-    return '${dt.day}/${dt.month}/${dt.year}';
-  }
+  Widget _buildConversationTileModel(Conversation conversation, AppLocalizations t, bool isDark) {
+    final name = conversation.displayName;
+    final lastMessage = conversation.lastMessage?.content ?? '';
+    final unreadCount = conversation.unreadCount;
+    final isGroup = conversation.type == 'group';
+    final memberCount = conversation.participants.length;
+    final isSelected = _selectedConversation?.id == conversation.id;
 
-  String _formatLastMessage(Conversation conv) {
-    final msg = conv.lastMessage;
-    if (msg == null) return '';
-
-    final String prefix;
-    if (msg.isMine) {
-      prefix = 'Bạn';
-    } else {
-      // Ưu tiên dùng tên từ conversation (đúng hơn senderName trong message)
-      final resolvedName = conv.type == 'private'
-          ? (conv.otherUserName ?? msg.senderName)
-          : msg.senderName;
-      final parts = resolvedName.trim().split(' ');
-      // Lấy từ CUỐI (tên người Việt thường là tên riêng ở cuối)
-      prefix = parts.isNotEmpty ? parts.last : resolvedName;
-    }
-
-    final String content;
-    if (msg.isDeleted) {
-      content = 'Tin nhắn đã bị thu hồi';
-    } else {
-      switch (msg.type) {
-        case 'image':
-          content = '[Hình ảnh]';
-          break;
-        case 'video':
-          content = '[Video]';
-          break;
-        case 'audio':
-          content = '[Tin nhắn thoại]';
-          break;
-        case 'file':
-          content = '[Tệp: ${msg.fileName ?? 'đính kèm'}]';
-          break;
-        case 'sticker':
-          content = '[Sticker]';
-          break;
-        default:
-          content = msg.content;
-      }
-    }
-
-    return '$prefix: $content';
-  }
-
-  Widget _buildConversationTileFromModel(
-    Conversation conv,
-    AppLocalizations t,
-    bool isDark,
-  ) {
-    final String name = conv.displayName;
-    final Color avatarColor = _avatarColor(name);
-    final String lastMessage = _formatLastMessage(conv);
-    final int unreadCount = conv.unreadCount;
-    final bool isGroup = conv.type == 'group';
-    final int memberCount = conv.participants.length;
-    final String lastMessageTime = _formatRelativeTime(
-      conv.lastMessage?.createdAt ?? conv.updatedAt,
-    );
-
-    final isOnline = !isGroup && conv.otherUserId != null &&
-        context.read<ChatProvider>().isUserOnline(conv.otherUserId!);
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => _onConversationTap(conv),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: [
-              // Avatar stack
-              SizedBox(
-                width: 52, height: 52,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    conv.displayAvatar.isNotEmpty
-                        ? CircleAvatar(radius: 26, backgroundImage: NetworkImage(conv.displayAvatar))
-                        : CircleAvatar(
-                            radius: 26,
-                            backgroundColor: avatarColor,
-                            child: Text(_getInitials(name), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 17)),
-                          ),
-                    // Group member count badge
-                    if (isGroup)
-                      Positioned(
-                        right: -2, bottom: -2,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFF8C00),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppColors.getSurface(isDark), width: 1.5),
-                          ),
-                          child: Text(memberCount.toString(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    // Online dot
-                    if (isOnline)
-                      Positioned(
-                        right: 1, bottom: 1,
-                        child: Container(
-                          width: 13, height: 13,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF00CC44),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AppColors.getSurface(isDark), width: 2),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Text content
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            name,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: unreadCount > 0 ? FontWeight.w700 : FontWeight.w500,
-                              color: AppColors.getTextPrimary(isDark),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          lastMessageTime,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: unreadCount > 0 ? AppColors.primaryBlue : AppColors.getTextSecondary(isDark),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            lastMessage,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: unreadCount > 0 ? FontWeight.w600 : FontWeight.normal,
-                              color: unreadCount > 0
-                                  ? AppColors.getTextPrimary(isDark)
-                                  : AppColors.getTextSecondary(isDark),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (unreadCount > 0) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            constraints: const BoxConstraints(minWidth: 20),
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryBlue,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              unreadCount > 99 ? '99+' : unreadCount.toString(),
-                              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSettingsPanel(AppLocalizations t, bool isDark) {
-    return Container(
-      color: isDark ? AppColors.darkBackground : AppColors.backgroundGray,
-      child: Center(
-        child: Container(
-          width: 400,
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: AppColors.getSurface(isDark),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                t.get('settings'),
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.getTextPrimary(isDark),
-                ),
-              ),
-              const SizedBox(height: 24),
-              _buildSettingsItem(
-                icon: isDark ? Icons.light_mode : Icons.dark_mode,
-                title: t.get('darkMode'),
-                subtitle: isDark ? t.get('darkModeOn') : t.get('darkModeOff'),
-                isDark: isDark,
-                trailing: Switch(
-                  value: isDark,
-                  onChanged: (value) => isDarkModeNotifier.value = value,
-                  activeThumbColor: AppColors.primaryBlue,
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildSettingsItem(
-                icon: Icons.language,
-                title: t.get('language'),
-                subtitle: AppLocalizations(localeNotifier.value).displayName,
-                isDark: isDark,
-                onTap: () => _showLanguageDialog(t, isDark),
-                trailing: Icon(
-                  Icons.chevron_right,
-                  color: AppColors.getTextSecondary(isDark),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildSettingsItem(
-                icon: Icons.logout,
-                title: t.get('logout'),
-                subtitle: t.get('logoutSubtitle'),
-                isDark: isDark,
-                onTap: () async {
-                  await _logout();
-                },
-                trailing: Icon(
-                  Icons.chevron_right,
-                  color: AppColors.getTextSecondary(isDark),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSettingsItem({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required bool isDark,
-    Widget? trailing,
-    VoidCallback? onTap,
-  }) {
     return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      onTap: () => _onConversationTap(conversation),
       child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkCard : AppColors.backgroundGray,
-          borderRadius: BorderRadius.circular(12),
-        ),
+        color: isSelected ? AppColors.primaryBlue.withValues(alpha: 0.08) : Colors.transparent,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.primaryBlue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: AppColors.primaryBlue, size: 22),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundImage: conversation.displayAvatar.isNotEmpty
+                      ? NetworkImage(conversation.displayAvatar)
+                      : null,
+                  backgroundColor: const Color(0xFF4CAF50),
+                  child: conversation.displayAvatar.isEmpty
+                      ? Text(
+                          _getInitials(name),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        )
+                      : null,
+                ),
+                if (isGroup)
+                  Positioned(
+                    left: -4,
+                    bottom: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.orange,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.getSurface(isDark), width: 2),
+                      ),
+                      child: Text(
+                        memberCount.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.getTextPrimary(isDark),
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: unreadCount > 0 ? FontWeight.w600 : FontWeight.w500,
+                            color: AppColors.getTextPrimary(isDark),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _formatConversationTime(conversation.updatedAt, t),
+                        style: TextStyle(fontSize: 11, color: AppColors.getTextSecondary(isDark)),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.getTextSecondary(isDark),
-                    ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          lastMessage.isEmpty ? 'Chưa có tin nhắn nào' : lastMessage,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: unreadCount > 0 ? AppColors.getTextPrimary(isDark) : AppColors.getTextSecondary(isDark),
+                            fontWeight: unreadCount > 0 ? FontWeight.w500 : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                      if (unreadCount > 0) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryBlue,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            unreadCount > 99 ? '99+' : unreadCount.toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
             ),
-            if (trailing != null) trailing,
           ],
         ),
       ),
     );
   }
 
-  void _showLanguageDialog(AppLocalizations t, bool isDark) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.getSurface(isDark),
-        title: Text(
-          t.get('selectLanguage'),
-          style: TextStyle(color: AppColors.getTextPrimary(isDark)),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: AppLocalizations.supportedLanguages.map((lang) {
-            final isSelected =
-                AppLocalizations(localeNotifier.value).displayName == lang;
-            return ListTile(
-              title: Text(
-                lang,
-                style: TextStyle(
-                  color: isSelected
-                      ? AppColors.primaryBlue
-                      : AppColors.getTextPrimary(isDark),
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                ),
-              ),
-              trailing: isSelected
-                  ? const Icon(Icons.check, color: AppColors.primaryBlue)
-                  : null,
-              onTap: () {
-                localeNotifier.value = AppLocalizations.localeFromDisplayName(
-                  lang,
-                );
-                Navigator.pop(context);
-              },
-            );
-          }).toList(),
-        ),
-      ),
-    );
+  String _formatConversationTime(DateTime updatedAt, AppLocalizations t) {
+    final now = DateTime.now();
+    final diff = now.difference(updatedAt);
+    if (diff.inMinutes < 1) return 'Now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m';
+    if (diff.inDays < 1) return '${diff.inHours}h';
+    if (diff.inDays < 7) return '${diff.inDays}d';
+    return '${updatedAt.day}/${updatedAt.month}';
   }
 
   Widget _buildWelcomePanel(AppLocalizations t, bool isDark) {
@@ -1231,135 +770,20 @@ void _showFeedbackFlow(BuildContext context) {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            const Icon(Icons.chat_bubble_outline, size: 72, color: Color(0xFFBDBDBD)),
+            const SizedBox(height: 16),
             Text(
-              t.get('welcomeTitle'),
+              t.get('messages'),
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 20,
                 fontWeight: FontWeight.w600,
                 color: AppColors.getTextPrimary(isDark),
               ),
             ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 48),
-              child: Text(
-                t.get('welcomeDescription'),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.getTextSecondary(isDark),
-                  height: 1.5,
-                ),
-              ),
-            ),
-            const SizedBox(height: 40),
-            Container(
-              width: 320,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: AppColors.getSurface(isDark),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 20,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Container(
-                    height: 160,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF1A1A2E), Color(0xFF2D2D44)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                    child: Stack(
-                      children: [
-                        Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.dark_mode,
-                                size: 48,
-                                color: Colors.white.withValues(alpha: 0.8),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Dark Mode',
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Positioned(
-                          right: 16,
-                          top: 16,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.nightlight_round,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    t.get('darkModeTitle'),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primaryBlue,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    t.get('darkModeDescription'),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.getTextSecondary(isDark),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _openAppearanceSettings,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryBlue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                    child: Text(
-                      t.get('tryNow'),
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ),
+            const SizedBox(height: 8),
+            Text(
+              'Chọn một cuộc trò chuyện để bắt đầu',
+              style: TextStyle(color: AppColors.getTextSecondary(isDark)),
             ),
           ],
         ),
@@ -1367,7 +791,6 @@ void _showFeedbackFlow(BuildContext context) {
     );
   }
 
-  /// Mobile view with bottom navigation switching between tabs
   Widget _buildMobileView(AppLocalizations t, bool isDark) {
     return Column(
       children: [
@@ -1375,23 +798,10 @@ void _showFeedbackFlow(BuildContext context) {
           child: IndexedStack(
             index: _selectedNavIndex,
             children: [
-              // Tab 0: Chat List
               _buildChatListPanel(t, isDark),
-              // Tab 1: Contacts
-              // const ContactsView(isWideScreen: false),
-              ContactsMainScreen(),
-              // Tab 2: Discover (placeholder)
-              _buildPlaceholderTab(
-                t.get('discover'),
-                Icons.explore_outlined,
-                isDark,
-              ),
-              // Tab 3: Profile (placeholder)
-              _buildPlaceholderTab(
-                t.get('profile'),
-                Icons.person_outline,
-                isDark,
-              ),
+              const ContactsMainScreen(),
+              const NewfeedScreen(),
+              const ProfileScreen(),
             ],
           ),
         ),
@@ -1400,53 +810,11 @@ void _showFeedbackFlow(BuildContext context) {
     );
   }
 
-  Widget _buildPlaceholderTab(String title, IconData icon, bool isDark) {
-    return Container(
-      color: isDark ? AppColors.darkBackground : AppColors.backgroundGray,
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 64,
-              color: AppColors.getTextSecondary(isDark).withValues(alpha: 0.4),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.getTextSecondary(isDark),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Coming soon...',
-              style: TextStyle(
-                fontSize: 13,
-                color: AppColors.getTextSecondary(
-                  isDark,
-                ).withValues(alpha: 0.6),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildBottomNavigation(bool isDark) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
-        border: Border(
-          top: BorderSide(color: AppColors.getDivider(isDark), width: 0.5),
-        ),
-        boxShadow: isDark ? null : [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 8, offset: const Offset(0, -2)),
-        ],
+        color: AppColors.getSurface(isDark),
+        border: Border(top: BorderSide(color: AppColors.getDivider(isDark), width: 1)),
       ),
       child: SafeArea(
         top: false,
@@ -1455,8 +823,8 @@ void _showFeedbackFlow(BuildContext context) {
           child: Row(
             children: [
               _buildBottomNavItem(Icons.chat_bubble, Icons.chat_bubble_outline, 0, 'Tin nhắn', isDark),
-              _buildBottomNavItem(Icons.contacts, Icons.contacts_outlined, 1, 'Danh bạ', isDark),
-              _buildBottomNavItem(Icons.auto_stories, Icons.auto_stories_outlined, 2, 'Khám phá', isDark),
+              _buildBottomNavItem(Icons.contacts, Icons.contacts_outlined, 1, 'Bạn bè', isDark),
+              _buildBottomNavItem(Icons.auto_stories, Icons.auto_stories_outlined, 2, 'Bảng tin', isDark),
               _buildBottomNavItem(Icons.person, Icons.person_outline, 3, 'Cá nhân', isDark),
             ],
           ),
@@ -1482,7 +850,14 @@ void _showFeedbackFlow(BuildContext context) {
           children: [
             Icon(isSelected ? activeIcon : inactiveIcon, color: color, size: 24),
             const SizedBox(height: 3),
-            Text(label, style: TextStyle(fontSize: 10, color: color, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal)),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                color: color,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
           ],
         ),
       ),

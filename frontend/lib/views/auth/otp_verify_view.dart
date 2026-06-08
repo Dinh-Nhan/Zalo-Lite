@@ -109,23 +109,10 @@ class _OtpVerifyViewState extends State<OtpVerifyView> {
   void _handleKeyEvent(int index, KeyEvent event) {
     if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.backspace) {
       if (_otpControllers[index].text.isEmpty && index > 0) {
-        // Nếu ô hiện tại đang trống mà nhấn xóa -> về ô trước và xóa số đó
         _otpControllers[index - 1].clear();
         _focusNodes[index - 1].requestFocus();
         _updateButtonState();
       }
-    }
-  }
-
-  void _onOtpKeyDown(int index, RawKeyEvent event) {
-    // Khi nhấn Backspace ở ô trống → quay lại ô trước
-    if (event is RawKeyDownEvent &&
-        event.logicalKey == LogicalKeyboardKey.backspace &&
-        _otpControllers[index].text.isEmpty &&
-        index > 0) {
-      _focusNodes[index - 1].requestFocus();
-      _otpControllers[index - 1].clear();
-      _updateButtonState();
     }
   }
 

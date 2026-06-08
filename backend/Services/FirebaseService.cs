@@ -25,94 +25,72 @@ public class FirebaseService
         if (string.IsNullOrWhiteSpace(projectId))
             throw new InvalidOperationException("Missing Firebase:ProjectId in appsettings.json.");
 
-        // ✅ Resolve TRƯỚC, dùng cho tất cả
         var resolvedPath = Path.GetFullPath(credentialsFilePath, AppContext.BaseDirectory);
         Console.WriteLine($"[FIREBASE] Resolved path: {resolvedPath}");
         Console.WriteLine($"[FIREBASE] File exists: {File.Exists(resolvedPath)}");
         if (!File.Exists(resolvedPath))
             throw new FileNotFoundException($"Firebase credentials file not found: {resolvedPath}");
 
-        // ✅ Cả FirebaseApp và Firestore đều dùng resolvedPath
+#pragma warning disable CS0618 // GoogleCredential.FromFile is deprecated; no replacement that works with FirestoreDbBuilder
         if (FirebaseApp.DefaultInstance == null)
         {
             FirebaseApp.Create(new AppOptions
             {
                 Credential = GoogleCredential.FromFile(resolvedPath),
-                ProjectId = projectId  // ✅ thêm ProjectId
+                ProjectId = projectId
             });
         }
 
-        var databaseId = section.GetValue<string>("DatabaseId"); // null = dùng "(default)"
-
+        var databaseId = section.GetValue<string>("DatabaseId");
         var builder = new FirestoreDbBuilder
         {
-            ProjectId  = projectId,
+            ProjectId = projectId,
             Credential = GoogleCredential.FromFile(resolvedPath)
         };
+#pragma warning restore CS0618
+
         if (!string.IsNullOrWhiteSpace(databaseId))
             builder.DatabaseId = databaseId;
 
         FirestoreDb = builder.Build();
     }
 
-    /// <summary>
-    /// Create or update user in Firebase Authentication with email
-    /// </summary>
     public async Task<UserRecord> CreateOrUpdateAuthUserAsync(string userId, string email)
     {
         if (string.IsNullOrWhiteSpace(userId))
-        {
             throw new ArgumentException("User ID is required.", nameof(userId));
-        }
-
         if (string.IsNullOrWhiteSpace(email))
-        {
             throw new ArgumentException("Email is required.", nameof(email));
-        }
 
         try
         {
-            // Try to get existing user
-            var userRecord = await FirebaseAuth.DefaultInstance.GetUserAsync(userId);
-
-            // Update existing user
+            await FirebaseAuth.DefaultInstance.GetUserAsync(userId);
             var args = new UserRecordArgs
             {
                 Uid = userId,
                 Email = email.Trim(),
                 EmailVerified = false
             };
-
             return await FirebaseAuth.DefaultInstance.UpdateUserAsync(args);
         }
         catch (FirebaseAuthException ex) when (ex.AuthErrorCode == AuthErrorCode.UserNotFound)
         {
-            // Create new user if not exists
             var args = new UserRecordArgs
             {
                 Uid = userId,
                 Email = email.Trim(),
                 EmailVerified = false
             };
-
             return await FirebaseAuth.DefaultInstance.CreateUserAsync(args);
         }
     }
 
-    /// <summary>
-    /// Update email in Firebase Authentication
-    /// </summary>
     public async Task<UserRecord?> UpdateAuthUserEmailAsync(string userId, string email)
     {
         if (string.IsNullOrWhiteSpace(userId))
-        {
             throw new ArgumentException("User ID is required.", nameof(userId));
-        }
-
         if (string.IsNullOrWhiteSpace(email))
-        {
             throw new ArgumentException("Email is required.", nameof(email));
-        }
 
         try
         {
@@ -122,7 +100,6 @@ public class FirebaseService
                 Email = email.Trim(),
                 EmailVerified = false
             };
-
             return await FirebaseAuth.DefaultInstance.UpdateUserAsync(args);
         }
         catch (FirebaseAuthException ex) when (ex.AuthErrorCode == AuthErrorCode.UserNotFound)

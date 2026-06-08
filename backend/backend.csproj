@@ -25,7 +25,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="FirebaseCredentials\serviceAccount.json" />
+    <None Include="config\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/providers/chat_provider.dart';
@@ -18,9 +19,8 @@ class FriendSearchPage extends StatefulWidget {
 class _FriendSearchPageState extends State<FriendSearchPage> {
   final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
-
+  List<FriendSummaryModel> _filteredFriends = [];
   List<UserSearchModel> _results = [];
-
   bool _isSearching = false;
   bool _hasError = false;
   bool _hasSearched = false;
@@ -28,6 +28,8 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
   @override
   void initState() {
     super.initState();
+    final provider = context.read<FriendProvider>();
+    _filteredFriends = provider.friends;
   }
 
   @override
@@ -36,6 +38,7 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
     _controller.dispose();
     super.dispose();
   }
+
   Future<void> _performSearch(String query) async {
     setState(() {
       _isSearching = true;
@@ -43,18 +46,23 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
     });
 
     try {
+      final provider = context.read<FriendProvider>();
+      final keyword = query.trim().toLowerCase();
+      final localFriends = provider.friends.where((f) {
+        return f.fullName.toLowerCase().contains(keyword);
+      }).toList();
       final results = await FriendService.searchUsers(query);
 
       if (!mounted) return;
 
       setState(() {
-        _results = results;
+        _filteredFriends = localFriends;
+        _results = results.where((u) => !provider.isFriend(u.id)).toList();
         _isSearching = false;
         _hasSearched = true;
       });
     } catch (_) {
       if (!mounted) return;
-
       setState(() {
         _results = [];
         _isSearching = false;
@@ -63,13 +71,15 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
       });
     }
   }
+
   void _onChanged(String value) {
     _debounce?.cancel();
-
     final keyword = value.trim();
 
     if (keyword.isEmpty) {
+      final provider = context.read<FriendProvider>();
       setState(() {
+        _filteredFriends = provider.friends;
         _results = [];
         _hasSearched = false;
         _hasError = false;
@@ -85,9 +95,10 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
   }
 
   void _clear() {
+    final provider = context.read<FriendProvider>();
     _controller.clear();
-
     setState(() {
+      _filteredFriends = provider.friends;
       _results = [];
       _hasSearched = false;
       _hasError = false;
@@ -105,26 +116,23 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
   }) {
     return Container(
       decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFEAEAEA)),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0xFFEAEAEA))),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 10,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
           children: [
             CircleAvatar(
               radius: 24,
               backgroundImage:
                   avatar.isNotEmpty ? NetworkImage(avatar) : null,
-              child: avatar.isEmpty ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?', ) : null,
+              child: avatar.isEmpty
+                  ? Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                    )
+                  : null,
             ),
-
             const SizedBox(width: 12),
-
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,9 +161,7 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
                 ],
               ),
             ),
-
             const SizedBox(width: 8),
-
             SizedBox(
               width: 120,
               child: Align(
@@ -169,22 +175,46 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
     );
   }
 
+  Widget _friendTile(FriendSummaryModel f) {
+    return _buildUserTile(
+      name: f.fullName,
+      avatar: f.avatar,
+      subtitle: 'Bạn bè',
+      trailing: IconButton(
+        icon: const Icon(Icons.chat_bubble_outline, color: AppColors.primaryBlue),
+        onPressed: () async {
+          final chatProvider = context.read<ChatProvider>();
+          final conversation = await ChatService().createConversation(
+            type: 'private',
+            participantIds: [f.friendId],
+          );
+          if (!mounted) return;
+          unawaited(chatProvider.openConversation(conversation));
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ChatScreen(conversation: conversation),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   // ================= SEARCH TILE =================
 
   Widget _searchTile(UserSearchModel user) {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final isSelf = user.id == currentUid;
     final provider = context.watch<FriendProvider>();
-
-    final sent = provider.pendingSent.any(
-      (f) => f.addresseeId == user.id,
-    );
-
+    final sent = provider.pendingSent.any((f) => f.addresseeId == user.id);
     final received = provider.getReceivedRequest(user.id);
-
     final isFriend = provider.isFriend(user.id);
 
     Widget action;
 
-    if (isFriend) {
+    if (isSelf) {
+      action = const SizedBox.shrink();
+    } else if (isFriend) {
       action = IconButton(
         icon: const Icon(
           Icons.chat_bubble_outline,
@@ -196,10 +226,12 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
             type: 'private',
             participantIds: [user.id],
           );
-          if (!context.mounted) return;
+          if (!mounted) return;
           unawaited(chatProvider.openConversation(conversation));
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => ChatScreen(conversation: conversation)),
+            MaterialPageRoute(
+              builder: (_) => ChatScreen(conversation: conversation),
+            ),
           );
         },
       );
@@ -247,19 +279,14 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
           },
           child: const Text(
             'Kết bạn',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-            ),
+            style: TextStyle(color: Colors.white, fontSize: 12),
           ),
         ),
       );
     }
 
     return _buildUserTile(
-      name: user.fullName.isNotEmpty
-          ? user.fullName
-          : user.email,
+      name: user.fullName.isNotEmpty ? user.fullName : user.email,
       avatar: user.avatar,
       subtitle: user.email,
       trailing: action,
@@ -270,19 +297,14 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<FriendProvider>();
-
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
-
       appBar: AppBar(
         backgroundColor: AppColors.primaryBlue,
         elevation: 0,
         titleSpacing: 0,
         leading: const BackButton(color: Colors.white),
-
         title: Container(
-          // margin: const EdgeInsets.only(right: 8),
           height: 40,
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.25),
@@ -300,22 +322,26 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
                 fontSize: 14,
               ),
               border: InputBorder.none,
-              prefixIcon: Icon(Icons.search, color: Colors.white.withValues(alpha: 0.8), size: 20),
+              prefixIcon: Icon(
+                Icons.search,
+                color: Colors.white.withValues(alpha: 0.8),
+                size: 20,
+              ),
               suffixIcon: _controller.text.isNotEmpty
-                ? IconButton(
-                    onPressed: _clear,
-                    icon: const Icon(
-                      Icons.close,
-                      size: 14,
-                      color: Colors.white70,
-                    ),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 28,
-                      minHeight: 28,
-                    ),
-                  )
-                : null,
+                  ? IconButton(
+                      onPressed: _clear,
+                      icon: const Icon(
+                        Icons.close,
+                        size: 14,
+                        color: Colors.white70,
+                      ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 28,
+                      ),
+                    )
+                  : null,
             ),
             onChanged: (v) {
               setState(() {});
@@ -334,56 +360,54 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
           ),
         ],
       ),
-
       body: Column(
         children: [
-          if (_isSearching)
-            const LinearProgressIndicator(minHeight: 2),
-
+          if (_isSearching) const LinearProgressIndicator(minHeight: 2),
           Expanded(
-            child: Builder(
-              builder: (_) {
-                if (_hasError) {
-                  return const Center(
-                    child: Text('Không thể kết nối'),
-                  );
-                }
-
-                if (_isSearching && _results.isEmpty) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
-
-                if (_hasSearched && _results.isEmpty) {
-                  return const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.search_off,
-                          size: 64,
-                          color: Colors.grey,
-                        ),
-                        SizedBox(height: 12),
-                        Text(
-                          'Không tìm thấy người dùng',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+            child: ListView(
+              children: [
+                if (_filteredFriends.isNotEmpty) ...[
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 12, 16, 6),
+                    child: Text(
+                      'Bạn bè',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey,
+                      ),
                     ),
-                  );
-                }
-
-                return ListView.builder(
-                  itemCount: _results.length,
-                  itemBuilder: (_, index) {
-                    return _searchTile(_results[index]);
-                  },
-                );
-              },
+                  ),
+                  ..._filteredFriends.map(_friendTile),
+                ],
+                if (_results.isNotEmpty) ...[
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 12, 16, 6),
+                    child: Text(
+                      'Kết quả tìm kiếm',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ),
+                  ..._results.map(_searchTile),
+                ],
+                if (_hasSearched &&
+                    _results.isEmpty &&
+                    _filteredFriends.isEmpty &&
+                    !_hasError)
+                  const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('Không tìm thấy kết quả')),
+                  ),
+                if (_hasError)
+                  const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('Có lỗi xảy ra khi tìm kiếm')),
+                  ),
+              ],
             ),
           ),
         ],

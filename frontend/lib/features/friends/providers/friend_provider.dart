@@ -6,81 +6,41 @@ import 'package:flutter/material.dart';
 import '../services/friend_hub_service.dart';
 import '../services/friend_service.dart';
 
-import '../../../services/auth_service.dart';
-
 enum LoadingState { idle, loading, success, error }
 
 class FriendProvider extends ChangeNotifier {
-  // =========================================================
-  // STATE
-  // =========================================================
   final Map<String, String?> _friendBirthdays = {};
-
-  Map<String, String?> get friendBirthdays =>
-      Map.unmodifiable(_friendBirthdays);
+  Map<String, String?> get friendBirthdays => Map.unmodifiable(_friendBirthdays);
 
   List<FriendSummaryModel> _friends = [];
-
   List<FriendshipModel> _pendingReceived = [];
-
   List<FriendshipModel> _pendingSent = [];
-
   List<UserSearchModel> _searchResults = [];
 
   LoadingState _friendsState = LoadingState.idle;
-
   LoadingState _requestsState = LoadingState.idle;
-
   LoadingState _searchState = LoadingState.idle;
 
   final Map<String, bool> _actionLoading = {};
-
   String? _errorMessage;
-
   String _searchQuery = '';
-
   String? _currentUid;
 
   void Function(String message, {bool isSuccess})? onRealtimeNotify;
-
-  // =========================================================
-  // REALTIME
-  // =========================================================
-
   final FriendHubService _hub = FriendHubService();
-
   StreamSubscription<FriendRealtimeEvent>? _hubSub;
 
-  // =========================================================
-  // GETTERS
-  // =========================================================
-
   List<FriendSummaryModel> get friends => List.unmodifiable(_friends);
-
-  List<FriendshipModel> get pendingReceived =>
-      List.unmodifiable(_pendingReceived);
-
+  List<FriendshipModel> get pendingReceived => List.unmodifiable(_pendingReceived);
   List<FriendshipModel> get pendingSent => List.unmodifiable(_pendingSent);
-
   List<UserSearchModel> get searchResults => List.unmodifiable(_searchResults);
-
   LoadingState get friendsState => _friendsState;
-
   LoadingState get requestsState => _requestsState;
-
   LoadingState get searchState => _searchState;
-
   String? get errorMessage => _errorMessage;
-
   String get searchQuery => _searchQuery;
-
   int get pendingReceivedCount => _pendingReceived.length;
-
   bool isActionLoading(String userId) => _actionLoading[userId] ?? false;
-
-  // =========================================================
-  // CURRENT USER
-  // =========================================================
 
   Future<void> setCurrentUid(String uid) async {
     if (_currentUid == uid) return;
@@ -90,10 +50,6 @@ class FriendProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // =========================================================
-  // RELATION HELPERS
-  // =========================================================
-
   bool isFriend(String userId) {
     return _friends.any((f) => f.friendId == userId);
   }
@@ -101,7 +57,7 @@ class FriendProvider extends ChangeNotifier {
   FriendshipModel? getSentRequest(String userId) {
     try {
       return _pendingSent.firstWhere(
-        (f) => f.addresseeId == userId,
+        (f) => f.senderId == _currentUid && f.addresseeId == userId,
       );
     } catch (_) {
       return null;
@@ -111,29 +67,22 @@ class FriendProvider extends ChangeNotifier {
   FriendshipModel? getReceivedRequest(String userId) {
     try {
       return _pendingReceived.firstWhere(
-        (f) => f.senderId == userId,
+        (f) => f.senderId == userId && f.addresseeId == _currentUid,
       );
     } catch (_) {
       return null;
     }
   }
 
-  // =========================================================
-  // LOAD FRIENDS
-  // =========================================================
-
   Future<void> loadFriends() async {
     debugPrint('loadFriends called');
     _friendsState = LoadingState.loading;
     _errorMessage = null;
     notifyListeners();
-
     try {
       _friends = await FriendService.getFriends();
       for (final f in friends) {
-        debugPrint(
-          'Friend: ${f.friendId}, Name: ${f.fullName}, Avatar: ${f.avatar}',
-        );
+        debugPrint('Friend: ${f.friendId}, Name: ${f.fullName}, Avatar: ${f.avatar}');
       }
       _friendsState = LoadingState.success;
     } catch (e) {
@@ -141,82 +90,32 @@ class FriendProvider extends ChangeNotifier {
       _friendsState = LoadingState.error;
       _errorMessage = e.toString();
     }
-
     notifyListeners();
   }
 
-  // =========================================================
-  // LOAD REQUESTS
-  // =========================================================
-
   Future<void> loadRequests() async {
     debugPrint('LOAD REQUESTS');
-
     _requestsState = LoadingState.loading;
-
     notifyListeners();
-
     try {
       final results = await Future.wait([
         FriendService.getPendingReceived(),
         FriendService.getPendingSent(),
       ]);
-
       _pendingReceived = results[0];
-
       _pendingSent = results[1];
-
-      // =========================
-      // DEBUG RECEIVED
-      // =========================
-
-      debugPrint('========== RECEIVED ==========');
-
-      for (final f in _pendingReceived) {
-        debugPrint('ID: ${f.id}');
-        debugPrint('senderId: ${f.senderId}');
-        debugPrint('senderName: ${f.senderName}');
-        debugPrint('senderAvatar: ${f.senderAvatar}');
-        debugPrint('addresseeId: ${f.addresseeId}');
-        debugPrint('status: ${f.status}');
-        debugPrint('----------------');
-      }
-
-      // =========================
-      // DEBUG SENT
-      // =========================
-
-      debugPrint('========== SENT ==========');
-
-      for (final f in _pendingSent) {
-        debugPrint('ID: ${f.id}');
-        debugPrint('senderId: ${f.senderId}');
-        debugPrint('senderName: ${f.senderName}');
-        debugPrint('addresseeId: ${f.addresseeId}');
-        debugPrint('status: ${f.status}');
-        debugPrint('----------------');
-      }
-
       _requestsState = LoadingState.success;
     } catch (e) {
-      debugPrint('LOAD REQUEST ERROR: $e');
-
+      debugPrint('loadRequests error: $e');
       _requestsState = LoadingState.error;
-
       _errorMessage = e.toString();
     }
-
     notifyListeners();
   }
-
-  // =========================================================
-  // LOAD ALL
-  // =========================================================
 
   Future<void> loadAll() async {
     await Future.wait([loadFriends(), loadRequests()]);
   }
-
   // =========================================================
   // REALTIME START
   // =========================================================
@@ -327,6 +226,37 @@ class FriendProvider extends ChangeNotifier {
         onRealtimeNotify?.call('❌ Lời mời kết bạn đã bị từ chối');
 
         break;
+
+      // =====================================================
+      // REQUEST CANCELLED (sender huỷ lời mời đã gửi cho mình)
+      // =====================================================
+
+      case FriendHubEvent.friendRequestCancelled:
+        _pendingReceived.removeWhere(
+          (f) =>
+              f.senderId == event.friendship.senderId &&
+              f.addresseeId == event.friendship.addresseeId,
+        );
+
+        notifyListeners();
+        break;
+
+      // =====================================================
+      // UNFRIENDED (bị bên kia unfriend)
+      // =====================================================
+
+      case FriendHubEvent.friendUnfriended:
+        _friends.removeWhere(
+          (f) =>
+              f.friendId == event.friendship.senderId ||
+              f.friendId == event.friendship.addresseeId,
+        );
+
+        notifyListeners();
+
+        onRealtimeNotify?.call('Đã bị xoá khỏi danh sách bạn bè');
+
+        break;
     }
   }
 
@@ -379,343 +309,108 @@ class FriendProvider extends ChangeNotifier {
   // =========================================================
   // FIND USER BY EMAIL
   // =========================================================
-
   Future<UserSearchModel?> findUserByEmail(String email) async {
     try {
-      _searchState = LoadingState.loading;
-
-      notifyListeners();
-
       final results = await FriendService.searchUsers(email);
-
-      final user = results.cast<UserSearchModel?>().firstWhere(
-        (u) => u?.email.toLowerCase() == email.toLowerCase(),
-        orElse: () => null,
-      );
-
-      _searchState = LoadingState.success;
-
-      notifyListeners();
-
-      return user;
+      if (results.isEmpty) return null;
+      return results.first;
     } catch (e) {
-      _searchState = LoadingState.error;
-
-      _errorMessage = e.toString();
-
-      notifyListeners();
-
+      debugPrint('findUserByEmail error: $e');
       return null;
     }
   }
 
-  // =========================================================
-  // SEND FRIEND REQUEST
-  // =========================================================
-
-  Future<void> sendFriendRequest(String targetUserId) async {
-    _setActionLoading(targetUserId, true);
-
-    try {
-      final friendship = await FriendService.sendRequest(
-        addresseeId: targetUserId,
-        sourceType: 'search',
-      );
-
-      _pendingSent = [friendship, ..._pendingSent];
-
-      notifyListeners();
-    } catch (e) {
-      _errorMessage = e.toString();
-
-      notifyListeners();
-
-      rethrow;
-    } finally {
-      _setActionLoading(targetUserId, false);
-    }
-  }
-
-  // =========================================================
-  // CANCEL FRIEND REQUEST
-  // =========================================================
-  // Future<void> cancelFriendRequest(
-  //   String targetUserId,
-  // ) async {
-  //   final friendship =
-  //       getSentRequest(targetUserId);
-
-  //   if (friendship == null) return;
-
-  //   _setActionLoading(targetUserId, true);
-
-  //   try {
-  //     await FriendService.cancelRequest(
-  //       friendship.id,
-  //     );
-
-  //     _pendingSent.removeWhere(
-  //       (f) =>  f.senderId == friendship.senderId && f.addresseeId == friendship.addresseeId
-  //     );
-
-  //     notifyListeners();
-  //   } catch (e) {
-  //     _errorMessage = e.toString();
-
-  //     notifyListeners();
-  //   } finally {
-  //     _setActionLoading(targetUserId, false);
-  //   }
-  // }
-  Future<void> cancelFriendRequest(String targetUserId) async {
-    final friendship = getSentRequest(targetUserId);
-    if (friendship == null) return;
-
-    _setActionLoading(targetUserId, true);
-
-    try {
-      await FriendService.cancelRequest(friendship.id);
-
-      // CHỈ UPDATE STATE THẬT
-      _pendingSent.removeWhere((f) => f.id == friendship.id);
-
-      notifyListeners();
-    } finally {
-      _setActionLoading(targetUserId, false);
-    }
-  }
-  // =========================================================
-  // RESEND FRIEND REQUEST
-  // =========================================================
-  // Future<void> resendFriendRequest({
-  //   required FriendshipModel oldRequest,
-  // }) async {
-  //   try {
-  //     // Gửi request mới
-  //     final newRequest =
-  //         await FriendService.sendRequest(
-  //       addresseeId:
-  //           oldRequest.addresseeId,
-  //     );
-
-  //     // Xóa request cũ fake
-  //     _pendingSent.removeWhere(
-  //       (f) => f.id == oldRequest.id,
-  //     );
-
-  //     // Add request mới thật
-  //     _pendingSent.insert(0, newRequest);
-
-  //     notifyListeners();
-  //   } catch (e) {
-  //     _errorMessage = e.toString();
-  //     notifyListeners();
-  //     rethrow;
-  //   }
-  // }
-  Future<void> resendFriendRequest({
-    required FriendshipModel oldRequest,
-  }) async {
-    final newRequest = await FriendService.sendRequest(
-      addresseeId: oldRequest.addresseeId,
-    );
-
-    _pendingSent.removeWhere((f) => f.id == oldRequest.id);
-
-    _pendingSent.insert(0, newRequest);
-
+  Future<void> sendFriendRequest(String addresseeId) async {
+    _actionLoading[addresseeId] = true;
     notifyListeners();
-  }
-  // =========================================================
-  // ACCEPT FRIEND REQUEST
-  // =========================================================
-
-  Future<void> acceptFriendRequest(String targetUserId) async {
-    final friendship = getReceivedRequest(targetUserId);
-
-    if (friendship == null) return;
-
-    _setActionLoading(targetUserId, true);
-
     try {
-      await FriendService.respondRequest(
-        friendshipId: friendship.id,
-        accept: true,
-      );
-
-      // _pendingReceived.removeWhere(
-      //   (f) => f.id == friendship.id,
-      // );
-      final index = _pendingReceived.indexWhere((f) => f.id == friendship.id);
-
-      if (index != -1) {
-        final old = _pendingReceived[index];
-
-        _pendingReceived[index] = FriendshipModel(
-          id: old.id,
-          senderId: old.senderId,
-          addresseeId: old.addresseeId,
-          status: 'accepted',
-          sourceType: old.sourceType,
-          createdAt: old.createdAt,
-          updatedAt: DateTime.now(),
-          senderName: old.senderName,
-          senderAvatar: old.senderAvatar,
-          addresseeName: old.addresseeName,
-        );
+      final result = await FriendService.sendRequest(addresseeId: addresseeId);
+      if (result.status == 'pending') {
+        _pendingSent.add(result);
       }
-      _pendingSent.removeWhere(
-        (f) =>
-            f.senderId == friendship.senderId &&
-            f.addresseeId == friendship.addresseeId,
-      );
       notifyListeners();
+    } finally {
+      _actionLoading[addresseeId] = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> acceptFriendRequest(String senderId) async {
+    _actionLoading[senderId] = true;
+    notifyListeners();
+    try {
+      final request = getReceivedRequest(senderId);
+      if (request == null) return;
+      await FriendService.respondRequest(friendshipId: request.id, accept: true);
+      _pendingReceived.removeWhere((f) => f.senderId == senderId);
       await loadFriends();
-    } catch (e) {
-      _errorMessage = e.toString();
-
       notifyListeners();
     } finally {
-      _setActionLoading(targetUserId, false);
+      _actionLoading[senderId] = false;
+      notifyListeners();
     }
   }
 
-  // =========================================================
-  // DECLINE FRIEND REQUEST
-  // =========================================================
-
-  Future<void> declineFriendRequest(String targetUserId) async {
-    final friendship = getReceivedRequest(targetUserId);
-
-    if (friendship == null) return;
-
-    _setActionLoading(targetUserId, true);
-
+  Future<void> declineFriendRequest(String senderId) async {
+    _actionLoading[senderId] = true;
+    notifyListeners();
     try {
-      await FriendService.respondRequest(
-        friendshipId: friendship.id,
-        accept: false,
-      );
-
-      _pendingReceived.removeWhere((f) => f.id == friendship.id);
-
-      notifyListeners();
-    } catch (e) {
-      _errorMessage = e.toString();
-
+      final request = getReceivedRequest(senderId);
+      if (request == null) return;
+      await FriendService.respondRequest(friendshipId: request.id, accept: false);
+      _pendingReceived.removeWhere((f) => f.senderId == senderId);
       notifyListeners();
     } finally {
-      _setActionLoading(targetUserId, false);
+      _actionLoading[senderId] = false;
+      notifyListeners();
     }
   }
 
-  // =========================================================
-  // UNFRIEND
-  // =========================================================
-
-  Future<void> unfriend(String targetUserId) async {
-    _setActionLoading(targetUserId, true);
-
+  Future<void> cancelFriendRequest(String addresseeId) async {
     try {
-      await FriendService.unfriend(targetUserId);
-
-      _friends.removeWhere((f) => f.friendId == targetUserId);
-
+      final request = getSentRequest(addresseeId);
+      if (request == null) return;
+      await FriendService.cancelRequest(request.id);
+      _pendingSent.removeWhere((f) => f.addresseeId == addresseeId);
       notifyListeners();
     } catch (e) {
-      _errorMessage = e.toString();
-
-      notifyListeners();
-    } finally {
-      _setActionLoading(targetUserId, false);
+      debugPrint('cancelFriendRequest error: $e');
     }
-  }
-
-  // =========================================================
-  // PRIVATE
-  // =========================================================
-
-  void _setActionLoading(String userId, bool value) {
-    _actionLoading[userId] = value;
-
-    notifyListeners();
-  }
-
-  void clearError() {
-    _errorMessage = null;
-
-    notifyListeners();
-  }
-
-  // =========================================================
-  // CLEAR
-  // =========================================================
-
-  void clear() {
-    _friends.clear();
-
-    _pendingReceived.clear();
-
-    _pendingSent.clear();
-
-    _searchResults.clear();
-
-    _actionLoading.clear();
-
-    _friendsState = LoadingState.idle;
-
-    _requestsState = LoadingState.idle;
-
-    _searchState = LoadingState.idle;
-
-    _errorMessage = null;
-
-    _searchQuery = '';
-
-    onRealtimeNotify = null;
-
-    notifyListeners();
-  }
-
-  // =========================================================
-  // DISPOSE REALTIME
-  // =========================================================
-
-  Future<void> disposeRealtime() async {
-    await _hubSub?.cancel();
-
-    _hubSub = null;
-
-    await _hub.disconnect();
   }
 
   Future<void> loadFriendBirthdays() async {
-    for (final friend in _friends) {
-      try {
-        final user = await AuthService.getUserById(friend.friendId);
-
-        _friendBirthdays[friend.friendId] = user.dateOfBirth;
-        debugPrint(
-          'Loaded birthday for ${friend.friendId}: ${user.dateOfBirth}',
-        );
-      } catch (e) {
-        debugPrint('Lỗi lấy ngày sinh ${friend.friendId}: $e');
-      }
-    }
-
+    _friendBirthdays
+      ..clear()
+      ..addEntries(
+        _friends.map(
+          (friend) => MapEntry(friend.friendId, null),
+        ),
+      );
     notifyListeners();
   }
 
-  // =========================================================
-  // DISPOSE
-  // =========================================================
+  Future<void> disposeRealtime() async {
+    await _hubSub?.cancel();
+    _hubSub = null;
+    _hub.dispose();
+  }
+
+
+
+  void clear() {
+    _friends = [];
+    _pendingReceived = [];
+    _pendingSent = [];
+    _searchResults = [];
+    _friendsState = LoadingState.idle;
+    _requestsState = LoadingState.idle;
+    _searchState = LoadingState.idle;
+  }
 
   @override
   void dispose() {
     _hubSub?.cancel();
-
     _hub.dispose();
-
     super.dispose();
   }
 }

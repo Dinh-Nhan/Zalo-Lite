@@ -5,7 +5,6 @@ import 'package:frontend/features/friends/screens/add_friend_screen.dart';
 import 'package:frontend/features/friends/screens/friend_tab_content.dart';
 import 'package:frontend/features/friends/screens/group_tab_content.dart';
 import 'package:frontend/features/friends/screens/qr_friend_screen.dart';
-import 'package:frontend/widgets/search_overlay_screen.dart';
 
 class ContactsMainScreen extends StatefulWidget {
   const ContactsMainScreen({super.key});
@@ -22,20 +21,7 @@ class _ContactsMainScreenState extends State<ContactsMainScreen> with SingleTick
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
   }
-  Color _avatarColor(String name) {
-    final colors = [
-      const Color(0xFF4CAF50),
-      const Color(0xFF2196F3),
-      const Color(0xFFFF9800),
-      const Color(0xFF9C27B0),
-      const Color(0xFFE91E63),
-      const Color(0xFF00BCD4),
-      const Color(0xFF795548),
-      const Color(0xFF607D8B),
-    ];
-    if (name.isEmpty) return colors[0];
-    return colors[name.codeUnitAt(0) % colors.length];
-  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -48,12 +34,9 @@ class _ContactsMainScreenState extends State<ContactsMainScreen> with SingleTick
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => FriendSearchPage(),
-              ),
+              MaterialPageRoute(builder: (_) => const FriendSearchPage()),
             );
           },
-
           child: Container(
             height: 40,
             margin: const EdgeInsets.only(left: 12),
@@ -61,25 +44,14 @@ class _ContactsMainScreenState extends State<ContactsMainScreen> with SingleTick
               color: Colors.white.withValues(alpha: 0.25),
               borderRadius: BorderRadius.circular(6),
             ),
-
             child: Row(
               children: [
                 const SizedBox(width: 12),
-
-                Icon(
-                  Icons.search,
-                  color: Colors.white.withValues(alpha: 0.8),
-                  size: 20,
-                ),
-
+                Icon(Icons.search, color: Colors.white.withValues(alpha: 0.8), size: 20),
                 const SizedBox(width: 10),
-
                 Text(
                   'Tìm kiếm',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    fontSize: 15,
-                  ),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 15),
                 ),
               ],
             ),
@@ -113,21 +85,21 @@ class _ContactsMainScreenState extends State<ContactsMainScreen> with SingleTick
               unselectedLabelColor: Colors.grey,
               indicatorColor: const Color(0xFF0091FF),
               indicatorWeight: 3,
-              indicatorSize: TabBarIndicatorSize.label, 
+              indicatorSize: TabBarIndicatorSize.label,
               indicatorPadding: const EdgeInsets.symmetric(horizontal: -80),
               labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
               tabs: const [
-                Tab(text: "Bạn bè"),
-                Tab(text: "Nhóm"),
+                Tab(text: 'Bạn bè'),
+                Tab(text: 'Nhóm'),
               ],
             ),
           ),
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              children: [
-                 FriendTabView(),
-                 GroupTabView(),
+              children: const [
+                FriendTabView(),
+                GroupTabView(),
               ],
             ),
           ),

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using FirebaseAdmin.Auth;
+using Microsoft.AspNetCore.Http;
 using Google.Cloud.Firestore;
 using Microsoft.Extensions.Logging;
 
@@ -12,6 +13,7 @@ public class FirebaseAuthMiddleware(RequestDelegate _next, ILogger<FirebaseAuthM
         if (!string.IsNullOrEmpty(header) && header.StartsWith("Bearer "))
         {
             var token = header.Substring("Bearer ".Length);
+            logger.LogInformation("[MiddleWare Auth: {token}]", token);
 
             try
             {
@@ -56,6 +58,8 @@ public class FirebaseAuthMiddleware(RequestDelegate _next, ILogger<FirebaseAuthM
             catch (Exception ex)
             {
                 logger.LogWarning("[FirebaseAuth] Token invalid: {Message}", ex.Message);
+
+                // Token sai → không set user
                 context.Items["User"] = null;
                 logger.LogWarning("Token verification FAILED: [{Type}] {Message}", ex.GetType().Name, ex.Message);
             }
