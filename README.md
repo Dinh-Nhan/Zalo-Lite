@@ -280,10 +280,10 @@ flutter run -d chrome
 
 ### Ứng dụng Mobile (frontend)
 
-| Mô tả            | Email                  | Mật khẩu      |
-| ---------------- | ---------------------- | ------------- |
-| Tài khoản test 1 | `testuser01@gmail.com` | `Test@123456` |
-| Tài khoản test 2 | `testuser02@gmail.com` | `Test@123456` |
+| Mô tả            | Email               | Mật khẩu   |
+| ---------------- | ------------------- | ---------- |
+| Tài khoản test 1 | `dinhnhan@gmai.com` | `Aa@12345` |
+| Tài khoản test 2 | `khanhha@gmail.com` | `Aa@12345` |
 
 > **Lưu ý:** Các tài khoản trên đã được đăng ký sẵn trên Firebase Authentication. Bạn có thể đăng ký tài khoản mới trực tiếp trên ứng dụng.
 
