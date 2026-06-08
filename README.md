@@ -137,7 +137,6 @@ Trước khi cài đặt, đảm bảo máy tính đã cài sẵn:
 | Redis Server                        | 7.x                 | Hướng dẫn cài đặt ở bên dưới bảng này                                    |
 | Android Studio / VS Code            | Mới nhất            | IDE lập trình                                                            |
 | Android Emulator hoặc thiết bị thật | Android 6.0+        | Chạy ứng dụng mobile                                                     |
-| Node.js (tùy chọn)                  | 18.x                | Cần nếu deploy Cloud Functions                                           |
 
 ### Cài đặt Redis Server trên Docker Desktop
 
@@ -251,7 +250,7 @@ flutter run
 **Chạy trên thiết bị Android thật (qua Wi-Fi cùng mạng):**
 
 1. Mở file `frontend/.env`
-2. Sửa `API_BASE_URL` thành IP máy tính của bạn:
+2. Sửa `API_BASE_URL` thành IP mạng của bạn:
    ```env
    API_BASE_URL=http://192.168.1.xxx:5244
    ```
@@ -389,7 +388,6 @@ Backend sử dụng Redis để lưu trữ trạng thái online/offline, OTP và
 | -------------------------- | --------------------------- |
 | Android Emulator           | `http://10.0.2.2:5244`      |
 | Thiết bị thật (cùng Wi-Fi) | `http://<IP-máy-tính>:5244` |
-| iOS Simulator              | `http://localhost:5244`     |
 
 ### 4. Thứ tự khởi chạy khuyến nghị
 
