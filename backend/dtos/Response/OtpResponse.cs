@@ -2,7 +2,7 @@
 {
     public class OtpResponse
     {
-        public String Otp { get; init; }
-        public String Email { get; init; }
+        public string Otp { get; init; } = string.Empty;
+        public string Email { get; init; } = string.Empty;
     }
 }

@@ -74,21 +74,21 @@ class Message {
   factory Message.fromJson(Map<String, dynamic> json) {
     return Message(
       id: json['id'] ?? '',
-      conversationId: json['conversation_id'] ?? '',
-      senderId: json['sender_id'] ?? '',
-      senderName: json['sender_name'] ?? '',
-      senderAvatar: json['sender_avatar'] ?? '',
+      conversationId: json['conversationId'] ?? json['conversation_id'] ?? '',
+      senderId: json['senderId'] ?? json['sender_id'] ?? '',
+      senderName: json['senderName'] ?? json['sender_name'] ?? '',
+      senderAvatar: json['senderAvatar'] ?? json['sender_avatar'] ?? '',
       type: json['type'] ?? 'text',
       content: json['content'] ?? '',
-      mediaUrl: json['media_url'],
-      thumbnailUrl: json['thumbnail_url'],
-      fileName: json['file_name'],
-      fileSize: json['file_size'],
+      mediaUrl: json['mediaUrl'] ?? json['media_url'],
+      thumbnailUrl: json['thumbnailUrl'] ?? json['thumbnail_url'],
+      fileName: json['fileName'] ?? json['file_name'],
+      fileSize: json['fileSize'] ?? json['file_size'],
       duration: json['duration'],
-      replyToMessageId: json['reply_to_message_id'],
-      replyToContent: json['reply_to_content'],
-      replyToSenderName: json['reply_to_sender_name'],
-      isForwarded: json['is_forwarded'] ?? false,
+      replyToMessageId: json['replyToMessageId'] ?? json['reply_to_message_id'],
+      replyToContent: json['replyToContent'] ?? json['reply_to_content'],
+      replyToSenderName: json['replyToSenderName'] ?? json['reply_to_sender_name'],
+      isForwarded: json['isForwarded'] ?? json['is_forwarded'] ?? false,
       reactions: json['reactions'] != null
           ? Map<String, List<String>>.from(
               (json['reactions'] as Map).map(
@@ -97,39 +97,84 @@ class Message {
               ),
             )
           : null,
-      totalReactions: json['total_reactions'] ?? 0,
-      isDeleted: json['is_deleted'] ?? false,
-      deletedAt: json['deleted_at'] != null
-          ? DateTime.parse(json['deleted_at'])
+      totalReactions: json['totalReactions'] ?? json['total_reactions'] ?? 0,
+      isDeleted: json['isDeleted'] ?? json['is_deleted'] ?? false,
+      deletedAt: (json['deletedAt'] ?? json['deleted_at']) != null
+          ? DateTime.parse(json['deletedAt'] ?? json['deleted_at'])
           : null,
-      isEdited: json['is_edited'] ?? false,
-      editedAt: json['edited_at'] != null
-          ? DateTime.parse(json['edited_at'])
+      isEdited: json['isEdited'] ?? json['is_edited'] ?? false,
+      editedAt: (json['editedAt'] ?? json['edited_at']) != null
+          ? DateTime.parse(json['editedAt'] ?? json['edited_at'])
           : null,
-      readBy: json['read_by'] != null
+      readBy: (json['readBy'] ?? json['read_by']) != null
           ? Map<String, DateTime>.from(
-              (json['read_by'] as Map).map(
+              ((json['readBy'] ?? json['read_by']) as Map).map(
                 (key, value) => MapEntry(key.toString(), DateTime.parse(value)),
               ),
             )
           : null,
-      deliveredTo: json['delivered_to'] != null
+      deliveredTo: (json['deliveredTo'] ?? json['delivered_to']) != null
           ? Map<String, DateTime>.from(
-              (json['delivered_to'] as Map).map(
+              ((json['deliveredTo'] ?? json['delivered_to']) as Map).map(
                 (key, value) => MapEntry(key.toString(), DateTime.parse(value)),
               ),
             )
           : null,
       status: json['status'] ?? 'sent',
       createdAt: DateTime.parse(
-        json['created_at'] ?? DateTime.now().toIso8601String(),
-      ),
+        json['createdAt'] ?? json['created_at'] ?? DateTime.now().toIso8601String(),
+      ).toLocal(),
       updatedAt: DateTime.parse(
-        json['updated_at'] ?? DateTime.now().toIso8601String(),
-      ),
-      isMine: json['is_mine'] ?? false,
+        json['updatedAt'] ?? json['updated_at'] ?? DateTime.now().toIso8601String(),
+      ).toLocal(),
+      isMine: json['isMine'] ?? json['is_mine'] ?? false,
     );
   }
+
+  Message copyWith({
+    Map<String, List<String>>? reactions,
+    int? totalReactions,
+    bool? isDeleted,
+    String? content,
+    bool? isEdited,
+    String? status,
+    bool? isMine,
+  }) {
+    return Message(
+      id: id,
+      conversationId: conversationId,
+      senderId: senderId,
+      senderName: senderName,
+      senderAvatar: senderAvatar,
+      type: type,
+      content: content ?? this.content,
+      mediaUrl: mediaUrl,
+      thumbnailUrl: thumbnailUrl,
+      fileName: fileName,
+      fileSize: fileSize,
+      duration: duration,
+      replyToMessageId: replyToMessageId,
+      replyToContent: replyToContent,
+      replyToSenderName: replyToSenderName,
+      isForwarded: isForwarded,
+      reactions: reactions ?? this.reactions,
+      totalReactions: totalReactions ?? this.totalReactions,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: deletedAt,
+      isEdited: isEdited ?? this.isEdited,
+      editedAt: editedAt,
+      readBy: readBy,
+      deliveredTo: deliveredTo,
+      status: status ?? this.status,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      isMine: isMine ?? this.isMine,
+    );
+  }
+
+  /// Fix isMine dựa vào currentUserId thay vì tin server
+  Message withCurrentUser(String currentUserId) =>
+      copyWith(isMine: senderId == currentUserId);
 
   Map<String, dynamic> toJson() {
     return {

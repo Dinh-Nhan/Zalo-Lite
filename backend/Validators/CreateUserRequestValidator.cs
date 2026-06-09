@@ -31,10 +31,17 @@ namespace backend.Validators
             .Matches("[0-9]").WithMessage("Password must contain at least one number");
 
         RuleFor(x => x.DateOfBirth)
-            .Must(dob => dob < DateOnly.FromDateTime(DateTime.UtcNow))
-                .WithMessage("Date of birth must be in the past")
-            .Must(dob => dob > DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-100)))
-                .WithMessage("Date of birth is not valid");
+            .Must(dob => {
+                if (string.IsNullOrEmpty(dob)) return false; // bắt buộc
+                if (!DateOnly.TryParse(dob, out var parsed)) return false; // phải đúng format
+                return parsed < DateOnly.FromDateTime(DateTime.UtcNow); // phải là ngày trong quá khứ
+            })
+                .WithMessage("Ngày sinh không hợp lệ (yêu cầu format yyyy-MM-dd và phải là ngày trong quá khứ)")
+            .Must(dob => {
+                if (string.IsNullOrEmpty(dob) || !DateOnly.TryParse(dob, out var parsed)) return true; // bỏ qua nếu đã fail rule trên
+                return parsed > DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-100));
+            })
+                .WithMessage("Ngày sinh không hợp lệ");
 
         RuleFor(x => x.Bio)
             .MaximumLength(200).WithMessage("Bio max 200 characters");

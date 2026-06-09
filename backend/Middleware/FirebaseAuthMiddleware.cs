@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using FirebaseAdmin.Auth;
+using Microsoft.AspNetCore.Http;
 using Google.Cloud.Firestore;
 using Microsoft.Extensions.Logging;
 
@@ -42,11 +43,23 @@ public class FirebaseAuthMiddleware(RequestDelegate _next, ILogger<FirebaseAuthM
                 }
 
                 context.Items["User"] = decoded;
+
+                // Set ClaimsPrincipal để User.GetUid() hoạt động trong controllers
+                var claims = new[]
+                {
+                    new System.Security.Claims.Claim(
+                        System.Security.Claims.ClaimTypes.NameIdentifier, decoded.Uid)
+                };
+                var identity = new System.Security.Claims.ClaimsIdentity(claims, "Firebase");
+                context.User = new System.Security.Claims.ClaimsPrincipal(identity);
+
                 logger.LogInformation("Token verified OK — uid={Uid}", decoded.Uid);
             }
             catch (Exception ex)
             {
                 logger.LogWarning("[FirebaseAuth] Token invalid: {Message}", ex.Message);
+
+                // Token sai → không set user
                 context.Items["User"] = null;
                 logger.LogWarning("Token verification FAILED: [{Type}] {Message}", ex.GetType().Name, ex.Message);
             }

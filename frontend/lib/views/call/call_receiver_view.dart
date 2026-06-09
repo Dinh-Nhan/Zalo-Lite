@@ -32,6 +32,7 @@ class _CallReceiverViewState extends State<CallReceiverView> {
     // 1. Kiểm tra quyền Camera & Mic
     bool hasPermission = await _callService.requestPermissions();
     if (hasPermission) {
+      if (!mounted) return;
       final prov = context.read<CallProvider>();
       // 2. Nếu là cuộc gọi Video, tiến hành khởi tạo Camera
       if (prov.currentCall?.isVideo == true) {
@@ -160,69 +161,6 @@ class _CallReceiverViewState extends State<CallReceiverView> {
   //     ),
   //   );
   // }
-
-Widget _buildStatusOrTimer(CallProvider prov, CallModel call) {
-  // Nếu đã bắt máy -> Hiển thị thời gian
-  if (call.status == CallStatus.active) {
-    return Text(
-      prov.formattedDuration,
-      style: const TextStyle(color: Colors.white, fontSize: 20),
-    );
-  }
-
-  // Logic hiển thị text theo từng trường hợp
-  String displaySubtitle = "";
-  if (call.status == CallStatus.dialing) {
-    displaySubtitle = "Đang đổ chuông...";
-  } else if (prov.statusText.isNotEmpty) {
-    // statusText lấy từ Provider (ví dụ: "Người nhận hiện đang bận")
-    displaySubtitle = prov.statusText; 
-  }
-
-  return Text(
-    displaySubtitle,
-    textAlign: TextAlign.center,
-    style: const TextStyle(
-      color: Colors.white70,
-      fontSize: 16,
-      letterSpacing: 1.2,
-    ),
-  );
-}
-  // Widget cho các nút ở phía trên
-  Widget _buildHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.keyboard_arrow_left, color: Colors.white, size: 24),
-            onPressed: () => context.pop(),
-            style: IconButton.styleFrom(
-              backgroundColor: const Color.fromARGB(121, 102, 102, 102),
-              padding: const EdgeInsets.all(8),
-              // Để nút nhỏ lại, bạn cần chỉnh cả 2 thông số này
-              minimumSize: const Size(32, 32), 
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap, // Loại bỏ khoảng trống thừa xung quanh
-            ),
-          ),
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.person_add_alt_1_outlined, color: Colors.white),
-                onPressed: () {}, // Thêm người vào cuộc gọi
-              ),
-              IconButton(
-                icon: const Icon(Icons.more_vert, color: Colors.white),
-                onPressed: () {},
-              ),
-            ],
-          )
-        ],
-      ),
-    );
-  }
 
   // Widget Avatar tách riêng để tái sử dụng
   Widget _buildAvatar(CallModel call) {

@@ -55,74 +55,11 @@ class AppTopbar extends ConsumerWidget {
 
           const Spacer(),
 
-          // Search shortcut
-          _SearchButton(),
-
-          const SizedBox(width: 8),
-
-          // Notifications
-          _NotificationButton(),
-
           const SizedBox(width: 8),
 
           // Admin Menu
           _AdminMenu(ref: ref),
         ],
-      ),
-    );
-  }
-}
-
-class _SearchButton extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'Global search',
-      child: InkWell(
-        onTap: () {}, // TODO: global search
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceVariant,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.search_rounded,
-                  size: 16, color: AppColors.textMuted),
-              const SizedBox(width: 8),
-              Text('Search...', style: AppTextStyles.bodySmall),
-              const SizedBox(width: 12),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.border,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text('⌘K', style: AppTextStyles.caption),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NotificationButton extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Badge(
-      label: const Text('3'),
-      backgroundColor: AppColors.error,
-      child: IconButton(
-        onPressed: () {},
-        icon: const Icon(Icons.notifications_outlined),
-        color: AppColors.textSecondary,
-        tooltip: 'Notifications',
       ),
     );
   }

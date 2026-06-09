@@ -206,7 +206,7 @@ class _ResetPasswordViewState extends State<ResetPasswordView> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
                       backgroundColor: AppColors.primaryBlue,
                       foregroundColor: Colors.white,
-                      disabledBackgroundColor: AppColors.primaryBlue.withOpacity(0.3),
+                      disabledBackgroundColor: AppColors.primaryBlue.withValues(alpha: 0.3),
                       disabledForegroundColor: Colors.white,
                       elevation: 0,
                     ),

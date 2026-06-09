@@ -25,11 +25,19 @@ namespace backend.Validators
                 .WithMessage("Privacy must be 'public', 'friends' or 'private'");
 
             RuleFor(x => x.Content)
-                .NotNull().WithMessage("Content is required");
+            .NotNull().WithMessage("Content is required");
 
-            RuleFor(x => x.Content.Caption)
-                .NotEmpty().WithMessage("Caption is required")
+        When(x => x.Type == "post", () =>
+        {
+            RuleFor(x => x.Content!.Caption)
                 .MaximumLength(2000).WithMessage("Caption must not exceed 2000 characters");
+        });
+
+        When(x => x.Type == "story", () =>
+        {
+            RuleFor(x => x.Content!.Caption)
+                .MaximumLength(2000).WithMessage("Caption must not exceed 2000 characters");
+        });
 
             // RuleFor(x => x.Content.Media)
             //     .NotEmpty().WithMessage("At least one media file is required");

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:signalr_netcore/signalr_client.dart';
 import '../../models/chat/message.dart';
 import '../../models/chat/conversation.dart';
@@ -33,14 +34,30 @@ class SignalRService {
   Function(String conversationId)? onRemovedFromConversation;
   Function(String message)? onError;
 
+  // Call callbacks
+  Function(String conversationId, String callerId, String callerName,
+      String callerAvatar, String callType)? onIncomingCall;
+  Function(String conversationId)? onCallAccepted;
+  Function(String conversationId, String reason)? onCallRejected;
+  Function(String conversationId)? onCallEnded;
+
   SignalRService({required this.baseUrl, required this.userId});
 
-  Future<void> connect() async {
-    _hubConnection = HubConnectionBuilder()
-        .withUrl('$baseUrl/hubs/chat?userId=$userId')
-        .withAutomaticReconnect()
-        .build();
+  Future<void> connect({String? accessToken}) async {
+    final url = accessToken != null
+        ? '$baseUrl/hubs/chat?userId=$userId&access_token=$accessToken'
+        : '$baseUrl/hubs/chat?userId=$userId';
 
+    _hubConnection = HubConnectionBuilder()
+        .withUrl(
+          url,
+          options: HttpConnectionOptions(
+            transport: HttpTransportType.WebSockets,
+            skipNegotiation: true,
+          ),
+        )
+        .withAutomaticReconnect(retryDelays: [2000, 5000, 10000, 30000])
+        .build();
     // Register event handlers
     _hubConnection!.on('ReceiveMessage', (args) => _handleReceiveMessage(args));
     _hubConnection!.on('MessageSent', (args) => _handleMessageSent(args));
@@ -78,19 +95,34 @@ class SignalRService {
       (args) => _handleRemovedFromConversation(args),
     );
     _hubConnection!.on('Error', (args) => _handleError(args));
+    _hubConnection!.on('IncomingCall', (args) => _handleIncomingCall(args));
+    _hubConnection!.on('CallAccepted', (args) => _handleCallAccepted(args));
+    _hubConnection!.on('CallRejected', (args) => _handleCallRejected(args));
+    _hubConnection!.on('CallEnded', (args) => _handleCallEnded(args));
 
     await _hubConnection!.start();
-    print('SignalR Connected');
+    debugPrint('SignalR Connected');
   }
 
   Future<void> disconnect() async {
     await _hubConnection?.stop();
-    print('SignalR Disconnected');
+    debugPrint('SignalR Disconnected');
+  }
+
+  Future<void> setOnline() async {
+    await _hubConnection?.invoke('SetOnline', args: [userId]);
+  }
+
+  Future<void> setOffline() async {
+    await _hubConnection?.invoke('SetOffline', args: [userId]);
+  }
+
+  Future<void> heartbeat() async {
+    await _hubConnection?.invoke('Heartbeat', args: [userId]);
   }
 
   bool get isConnected => _hubConnection?.state == HubConnectionState.Connected;
 
-  // Send message
   Future<void> sendMessage({
     required String conversationId,
     required String type,
@@ -103,7 +135,7 @@ class SignalRService {
     String? replyToMessageId,
     bool isForwarded = false,
   }) async {
-    await _hubConnection?.invoke(
+    await _hubConnection?.send(
       'SendMessage',
       args: [
         {
@@ -207,9 +239,9 @@ class SignalRService {
         {
           'type': type,
           'participant_ids': participantIds,
-          'group_name': ?groupName,
-          'group_avatar_url': ?groupAvatarUrl,
-          'group_description': ?groupDescription,
+          if (groupName != null) 'group_name': groupName,
+          if (groupAvatarUrl != null) 'group_avatar_url': groupAvatarUrl,
+          if (groupDescription != null) 'group_description': groupDescription,
         },
         userId,
       ],
@@ -265,7 +297,7 @@ class SignalRService {
   // Event handlers
   void _handleReceiveMessage(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final messageJson = args[0] as Map<String, dynamic>;
+      final messageJson = _toMap(args[0]);
       final message = Message.fromJson(messageJson);
       onReceiveMessage?.call(message);
     }
@@ -273,7 +305,7 @@ class SignalRService {
 
   void _handleMessageSent(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final messageJson = args[0] as Map<String, dynamic>;
+      final messageJson = _toMap(args[0]);
       final message = Message.fromJson(messageJson);
       onMessageSent?.call(message);
     }
@@ -281,7 +313,7 @@ class SignalRService {
 
   void _handleUserTyping(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final data = args[0] as Map<String, dynamic>;
+      final data = _toMap(args[0]);
       onUserTyping?.call(
         data['conversation_id'] ?? data['ConversationId'],
         data['user_id'] ?? data['UserId'],
@@ -292,7 +324,7 @@ class SignalRService {
 
   void _handleMessageRead(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final data = args[0] as Map<String, dynamic>;
+      final data = _toMap(args[0]);
       onMessageRead?.call(
         data['conversation_id'] ?? data['ConversationId'],
         data['message_id'] ?? data['MessageId'],
@@ -303,7 +335,7 @@ class SignalRService {
 
   void _handleMessageDelivered(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final data = args[0] as Map<String, dynamic>;
+      final data = _toMap(args[0]);
       onMessageDelivered?.call(
         data['conversation_id'] ?? data['ConversationId'],
         data['message_id'] ?? data['MessageId'],
@@ -314,7 +346,7 @@ class SignalRService {
 
   void _handleMessageReactionUpdated(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final data = args[0] as Map<String, dynamic>;
+      final data = _toMap(args[0]);
       final reactions = data['reactions'] ?? data['Reactions'];
       onMessageReactionUpdated?.call(
         data['conversation_id'] ?? data['ConversationId'],
@@ -326,7 +358,7 @@ class SignalRService {
 
   void _handleMessageDeleted(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final data = args[0] as Map<String, dynamic>;
+      final data = _toMap(args[0]);
       onMessageDeleted?.call(
         data['conversation_id'] ?? data['ConversationId'],
         data['message_id'] ?? data['MessageId'],
@@ -336,7 +368,7 @@ class SignalRService {
 
   void _handleMessageUpdated(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final messageJson = args[0] as Map<String, dynamic>;
+      final messageJson = _toMap(args[0]);
       final message = Message.fromJson(messageJson);
       onMessageUpdated?.call(message);
     }
@@ -344,7 +376,7 @@ class SignalRService {
 
   void _handleUserStatusChanged(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final data = args[0] as Map<String, dynamic>;
+      final data = _toMap(args[0]);
       final lastSeenStr = data['last_seen'] ?? data['LastSeen'];
       onUserStatusChanged?.call(
         data['user_id'] ?? data['UserId'],
@@ -356,7 +388,7 @@ class SignalRService {
 
   void _handleConversationCreated(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final convJson = args[0] as Map<String, dynamic>;
+      final convJson = _toMap(args[0]);
       final conversation = Conversation.fromJson(convJson);
       onConversationCreated?.call(conversation);
     }
@@ -364,7 +396,7 @@ class SignalRService {
 
   void _handleGroupUpdated(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final convJson = args[0] as Map<String, dynamic>;
+      final convJson = _toMap(args[0]);
       final conversation = Conversation.fromJson(convJson);
       onGroupUpdated?.call(conversation);
     }
@@ -372,7 +404,7 @@ class SignalRService {
 
   void _handleParticipantsAdded(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final data = args[0] as Map<String, dynamic>;
+      final data = _toMap(args[0]);
       onParticipantsAdded?.call(
         data['conversation_id'] ?? data['ConversationId'],
         data['new_participants'] ?? data['NewParticipants'],
@@ -382,7 +414,7 @@ class SignalRService {
 
   void _handleParticipantRemoved(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final data = args[0] as Map<String, dynamic>;
+      final data = _toMap(args[0]);
       onParticipantRemoved?.call(
         data['conversation_id'] ?? data['ConversationId'],
         data['removed_user_id'] ?? data['RemovedUserId'],
@@ -392,7 +424,7 @@ class SignalRService {
 
   void _handleRemovedFromConversation(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final data = args[0] as Map<String, dynamic>;
+      final data = _toMap(args[0]);
       onRemovedFromConversation?.call(
         data['conversation_id'] ?? data['ConversationId'],
       );
@@ -401,10 +433,80 @@ class SignalRService {
 
   void _handleError(List<Object?>? args) {
     if (args != null && args.isNotEmpty) {
-      final error = args[0] as Map<String, dynamic>;
+      final error = _toMap(args[0]);
       final message = error['message'] ?? error['Message'] ?? 'Unknown error';
       print('SignalR Error: $message');
       onError?.call(message);
     }
+  }
+
+  // ── Call event handlers ──────────────────────────────────────────
+
+  void _handleIncomingCall(List<Object?>? args) {
+    if (args == null || args.isEmpty) return;
+    final d = _toMap(args[0]);
+    onIncomingCall?.call(
+      d['conversation_id'] ?? '',
+      d['caller_id'] ?? '',
+      d['caller_name'] ?? '',
+      d['caller_avatar'] ?? '',
+      d['call_type'] ?? 'voice',
+    );
+  }
+
+  void _handleCallAccepted(List<Object?>? args) {
+    if (args == null || args.isEmpty) return;
+    final d = _toMap(args[0]);
+    onCallAccepted?.call(d['conversation_id'] ?? '');
+  }
+
+  void _handleCallRejected(List<Object?>? args) {
+    if (args == null || args.isEmpty) return;
+    final d = _toMap(args[0]);
+    onCallRejected?.call(
+      d['conversation_id'] ?? '',
+      d['reason'] ?? 'rejected',
+    );
+  }
+
+  void _handleCallEnded(List<Object?>? args) {
+    if (args == null || args.isEmpty) return;
+    final d = _toMap(args[0]);
+    onCallEnded?.call(d['conversation_id'] ?? '');
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────
+
+  // signalr_netcore có thể trả về Map<Object?, Object?> thay vì Map<String, dynamic>
+  Map<String, dynamic> _toMap(Object? raw) {
+    if (raw is Map<String, dynamic>) return raw;
+    if (raw is Map) return raw.map((k, v) => MapEntry(k.toString(), v));
+    return {};
+  }
+
+  // ── Call signaling methods ───────────────────────────────────────
+
+  Future<void> initiateCall({
+    required String conversationId,
+    required String calleeId,
+    required String callType,
+    required String callerName,
+    required String callerAvatar,
+  }) async {
+    await _hubConnection?.send('InitiateCall', args: [
+      conversationId, calleeId, callType, userId, callerName, callerAvatar,
+    ]);
+  }
+
+  Future<void> acceptCall(String conversationId, String callerId) async {
+    await _hubConnection?.send('AcceptCall', args: [conversationId, callerId]);
+  }
+
+  Future<void> rejectCall(String conversationId, String callerId, {String reason = 'rejected'}) async {
+    await _hubConnection?.send('RejectCall', args: [conversationId, callerId, reason]);
+  }
+
+  Future<void> endCallSignal(String conversationId, String otherUserId) async {
+    await _hubConnection?.send('EndCall', args: [conversationId, otherUserId]);
   }
 }
