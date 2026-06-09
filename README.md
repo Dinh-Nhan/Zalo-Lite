@@ -411,3 +411,11 @@ Backend sử dụng Redis để lưu trữ trạng thái online/offline, OTP và
 ## 📄 License
 
 Dự án này được thực hiện cho mục đích học tập tại Trường Đại học Giao thông Vận tải TP.HCM (UTC2).
+
+## 📞 Contact
+
+- Name: Mai Quốc Đại
+- Email: 6451071013@st.utc2.edu.vn
+
+- Name: Đinh Nhật Huyền Nhân
+- Email: 6451071055@st.utc2.edu.vn
