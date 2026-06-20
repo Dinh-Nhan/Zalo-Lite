@@ -40,7 +40,8 @@ class _LoginViewState extends State<LoginView> {
 
   void _validateForm() {
     setState(() {
-      _isFormValid = _emailController.text.isNotEmpty &&
+      _isFormValid =
+          _emailController.text.isNotEmpty &&
           _emailController.text.contains('@') &&
           _passwordController.text.isNotEmpty;
     });
@@ -54,53 +55,7 @@ class _LoginViewState extends State<LoginView> {
       _isLoading = true;
       _debugError = null;
     });
-<<<<<<< HEAD
 
-    final result = await AuthService.login(
-      _emailController.text.trim(),
-      _passwordController.text,
-    );
-
-    if (!mounted) return;
-
-    if (result.isSuccess) {
-      try {
-        final friendProvider = context.read<FriendProvider>();
-        final response = await DioClient.instance.get('/api/auth/profile');
-        //final profile = response.data['result'];
-        // await friendProvider.setCurrentUid(profile['id']);
-        final firebaseUid = FirebaseAuth.instance.currentUser!.uid;
-
-        await friendProvider.setCurrentUid(firebaseUid);
-        await friendProvider.loadAll();
-        await friendProvider.startRealtime();
-
-        if (!mounted) return;
-
-        context.go('/chat-list');
-      } catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Lỗi khởi tạo dữ liệu: $e')));
-      }
-    } else {
-      setState(() {
-        _isLoading = false;
-        _apiSuccess = false;
-        _apiStatus = 'Login thất bại';
-
-        _apiBody =
-            result.errorMessage ??
-            (result.errorCode != null ? 'Code: ${result.errorCode}' : null);
-      });
-    }
-  }
-
-  // --- Giữ nguyên hàm _testProfileApi của bạn ---
-  Future<void> _testProfileApi() async {
-=======
-
->>>>>>> 15dbe15f773d1c38201037e3f770d655fa3f9209
     try {
       final result = await AuthService.login(
         _emailController.text.trim(),
@@ -120,15 +75,16 @@ class _LoginViewState extends State<LoginView> {
           context.go('/chat-list');
         } catch (e) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Lỗi khởi tạo dữ liệu: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Lỗi khởi tạo dữ liệu: $e')));
           setState(() => _isLoading = false);
         }
       } else {
         setState(() {
           _isLoading = false;
-          _debugError = result.errorMessage ?? result.errorCode ?? 'Unknown error';
+          _debugError =
+              result.errorMessage ?? result.errorCode ?? 'Unknown error';
         });
       }
     } catch (e) {
@@ -163,10 +119,6 @@ class _LoginViewState extends State<LoginView> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 16),
-<<<<<<< HEAD
-
-              // --- Email field
-=======
               if (_debugError != null)
                 Container(
                   padding: const EdgeInsets.all(8),
@@ -176,18 +128,13 @@ class _LoginViewState extends State<LoginView> {
                     style: const TextStyle(color: Colors.red, fontSize: 12),
                   ),
                 ),
->>>>>>> 15dbe15f773d1c38201037e3f770d655fa3f9209
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
                 validator: (value) {
-<<<<<<< HEAD
                   if (value == null || value.isEmpty)
                     return 'Vui lòng nhập email';
-                  if (!value.contains('@')) return 'Email không đúng định dạng';
-=======
-                  if (value == null || value.isEmpty) return 'Vui lòng nhập email';
                   final email = value.trim();
                   final emailRegex = RegExp(
                     r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
@@ -195,7 +142,6 @@ class _LoginViewState extends State<LoginView> {
                   if (!emailRegex.hasMatch(email)) {
                     return 'Email không đúng định dạng';
                   }
->>>>>>> 15dbe15f773d1c38201037e3f770d655fa3f9209
                   return null;
                 },
                 decoration: InputDecoration(
@@ -217,24 +163,11 @@ class _LoginViewState extends State<LoginView> {
                     borderSide: BorderSide(color: Colors.red, width: 1),
                   ),
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
-<<<<<<< HEAD
-                  errorStyle: const TextStyle(
-                    height: 0,
-                  ), // Ẩn text lỗi để giống Zalo
-                ),
-              ),
-              const SizedBox(height: 4),
-
-              // --- Password field ---
-              TextFormField(
-                // Đổi thành TextFormField
-=======
                   errorStyle: const TextStyle(height: 0),
                 ),
               ),
               const SizedBox(height: 4),
               TextFormField(
->>>>>>> 15dbe15f773d1c38201037e3f770d655fa3f9209
                 controller: _passwordController,
                 obscureText: !_isPasswordVisible,
                 textInputAction: TextInputAction.done,
@@ -286,54 +219,7 @@ class _LoginViewState extends State<LoginView> {
                       color: Color(0xFF0068FF),
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
-<<<<<<< HEAD
                     ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 28),
-
-              // Login button
-              Center(
-                child: SizedBox(
-                  height: 50,
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    // 3. Logic Enable/Disable: Nếu đang load HOẶC form chưa valid thì null (Disable)
-                    onPressed: (_isLoading || !_isFormValid)
-                        ? null
-                        : _handleLogin,
-                    style: ElevatedButton.styleFrom(
-                      // Màu khi disable sẽ tự động nhạt đi, màu chính khi enable
-                      backgroundColor: const Color(0xFF0068FF),
-                      disabledBackgroundColor: const Color(
-                        0xFF0068FF,
-                      ).withOpacity(0.3),
-                      foregroundColor: Colors.white,
-                      disabledForegroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2.5,
-                            ),
-                          )
-                        : const Text(
-                            'Đăng nhập',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-=======
-                    ),
->>>>>>> 15dbe15f773d1c38201037e3f770d655fa3f9209
                   ),
                 ),
               ),
@@ -344,18 +230,27 @@ class _LoginViewState extends State<LoginView> {
                   onPressed: _isLoading ? null : _handleLogin,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF0068FF),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     elevation: 0,
                   ),
                   child: _isLoading
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
                         )
                       : const Text(
                           'Đăng nhập',
-                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                 ),
               ),
