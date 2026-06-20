@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Zalo Lite is a Zalo-like chat application with 1-1 and group messaging, built with an ASP.NET Core 8 backend and a Flutter frontend. Real-time communication uses SignalR; data is stored in Firestore; media uploads go through Cloudinary; and Redis is used for caching.
+Zalo Lite is a Zalo-like chat application with 1-1 and group messaging, built with an ASP.NET Core 8 backend and a Flutter frontend. Real-time communication uses SignalR; data is stored in Firestore; media uploads go through Cloudinary; and Redis is used for caching. A separate `web_admin/` Flutter Web app provides an admin dashboard that reads/writes Firestore directly (no backend API involved).
 
 ## Commands
 
@@ -21,6 +21,8 @@ Backend requires `appsettings.json` with `Firebase.ProjectId`, `Firebase.Credent
 
 Swagger UI is available at `https://localhost:7000/swagger` in Development mode.
 
+There is no backend test project in this repo currently.
+
 ### Frontend (from `frontend/`)
 
 ```bash
@@ -31,6 +33,17 @@ flutter analyze         # Lint
 ```
 
 Frontend requires a `.env` file in `frontend/` with `AGORA_APP_ID` and `AGORA_APP_CERTIFICATE`. Firebase options are in `frontend/lib/firebase_options.dart`.
+
+### Admin dashboard (from `web_admin/`)
+
+```bash
+flutter pub get         # Install packages
+flutter run -d chrome   # Run as a web app
+flutter build web       # Build for deployment
+flutter analyze         # Lint
+```
+
+Requires a `.env` file in `web_admin/` with `ADMIN_EMAIL` and `ADMIN_PASSWORD` (see `web_admin/env.example.json` for reference). Firebase options are in `web_admin/lib/firebase_options.dart`.
 
 ## Architecture
 
@@ -89,6 +102,18 @@ Middleware/             → FirebaseAuthMiddleware, GlobalExceptionHandler
 - `conversations/{id}/messages/` — messages subcollection
 - `feeds/` — stories/posts with expiration
 - `friendships/` — edges between users with `sender_id`, `addressee_id`, `status`
+
+### Admin dashboard (`web_admin/`)
+
+`web_admin` is a standalone Flutter Web app — it does **not** call the ASP.NET backend. It talks to Firebase Auth and Firestore directly via the `firebase_auth`/`cloud_firestore` SDKs, using `flutter_riverpod` for state and `go_router` for routing.
+
+**Auth:** there's a single hardcoded admin account, not Firebase user records. `AuthRepositoryImpl.signIn()` (`lib/features/auth/data/auth_repository_impl.dart`) checks the entered email/password against `ADMIN_EMAIL`/`ADMIN_PASSWORD` from `.env`, then signs into Firebase Auth with those same credentials just to obtain a valid token for Firestore security rules. `routerProvider` (`lib/core/router/router.dart`) redirects based on `authStateProvider`.
+
+**Feature structure:** each feature under `lib/features/<feature>/` follows `domain/` (repository interface + models), `data/` (Firestore-backed repository impl), `presentation/` (Riverpod providers + pages) — no code generation, repositories are constructed by hand. Features: `admins`, `auth`, `dashboard`, `feedbacks`, `feeds`, `friendships`, `hidden_posts`, `notifications`, `reports`, `users`.
+
+**Firestore collection names** are centralized in `lib/core/constants/app_constants.dart` (`AppConstants.usersCollection`, etc.) — add new collection names there rather than inlining strings.
+
+This app reads/writes the *same* Firestore collections the backend and mobile app use (`users`, `feeds`, `friendships`), plus admin-only collections (`admin_notifications`, `feedbacks`, `hidden_posts`, `reports`, `admins`). Since there's no backend layer here, any business-rule validation the backend normally enforces (e.g. via `AppException`) is **not** applied to writes made from this app — be careful when adding mutations.
 
 ## Call Flow
 

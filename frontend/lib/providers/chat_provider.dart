@@ -1,10 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'package:firebase_auth/firebase_auth.dart';
-<<<<<<< HEAD
-=======
 import 'package:flutter/foundation.dart';
->>>>>>> origin/dev
 import 'package:flutter/widgets.dart';
 import 'package:frontend/config/api_config.dart';
 import 'package:frontend/models/call_model.dart';
@@ -43,6 +40,11 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   // FIFO queue — track thứ tự pending messages để match đúng khi server confirm
   final Queue<String> _pendingQueue = Queue<String>();
+
+  // Chống double-save log cuộc gọi (cả _onCallEnded lẫn Agora onUserOffline đều có thể save)
+  bool _callLogSaved = false;
+  bool get callLogSaved => _callLogSaved;
+  void markCallLogSaved() => _callLogSaved = true;
 
   // Số tin chưa đọc lúc mở conversation (để scroll + divider)
   int _openedWithUnreadCount = 0;
@@ -542,6 +544,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
         ? conv!.otherUserAvatar!
         : callerAvatar;
 
+    _callLogSaved = false;
     final call = CallModel(
       conversationId: conversationId,
       callerId: callerId,
@@ -581,9 +584,23 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _onCallEnded(String conversationId) {
-    _context != null
-        ? Provider.of<CallProvider>(_context!, listen: false).onCallEnded()
+    final callProvider = _context != null
+        ? Provider.of<CallProvider>(_context!, listen: false)
         : null;
+    if (callProvider == null) return;
+
+    // Lưu log trước khi onCallEnded() đổi status → ended
+    final call = callProvider.currentCall;
+    if (call != null && call.status == CallStatus.active && !_callLogSaved) {
+      _callLogSaved = true;
+      saveCallMessage(
+        conversationId: conversationId,
+        callType: call.isVideo ? 'video' : 'voice',
+        status: 'answered',
+        durationSeconds: callProvider.seconds,
+      );
+    }
+    callProvider.onCallEnded();
   }
 
   Future<void> initiateCall({
@@ -593,6 +610,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     String? callerName,
     String? callerAvatar,
   }) async {
+    _callLogSaved = false;
     // Khi caller timeout 30s (không ai bắt), lưu tin nhắn nhỡ phía caller
     if (_context != null) {
       final callProvider = Provider.of<CallProvider>(_context!, listen: false);

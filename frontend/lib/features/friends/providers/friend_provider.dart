@@ -23,7 +23,7 @@ class FriendProvider extends ChangeNotifier {
 
   final Map<String, bool> _actionLoading = {};
   String? _errorMessage;
-  final String _searchQuery = '';
+  String _searchQuery = '';
   String? _currentUid;
 
   void Function(String message, {bool isSuccess})? onRealtimeNotify;
@@ -393,29 +393,6 @@ class FriendProvider extends ChangeNotifier {
     await _hubSub?.cancel();
     _hubSub = null;
     _hub.dispose();
-  }
-
-  void startRealtime() {
-    _hubSub?.cancel();
-    _hubSub = _hub.events.listen(_handleHubEvent);
-    _hub.connect();
-  }
-
-  void _handleHubEvent(FriendRealtimeEvent event) {
-    switch (event.type) {
-      case FriendHubEvent.friendRequestReceived:
-        _pendingReceived.insert(0, event.friendship);
-        notifyListeners();
-        break;
-      case FriendHubEvent.friendRequestAccepted:
-        _pendingSent.removeWhere((f) => f.addresseeId == event.friendship.addresseeId);
-        loadFriends();
-        break;
-      case FriendHubEvent.friendRequestDeclined:
-        _pendingSent.removeWhere((f) => f.addresseeId == event.friendship.addresseeId);
-        notifyListeners();
-        break;
-    }
   }
 
   void clear() {
