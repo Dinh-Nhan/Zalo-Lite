@@ -17,6 +17,10 @@ dependencies:
   firebase_core: ^2.31.0
   firebase_auth: ^4.19.0
   cloud_firestore: ^4.17.5
+  firebase_messaging: ^14.9.4
+  flutter_local_notifications: ^17.2.4
+  flutter_callkeep: ^1.0.0
+  uuid: ^4.5.1
 
   bloc: ^9.2.0
   flutter_bloc: ^9.1.1
@@ -36,6 +40,13 @@ dependencies:
   agora_rtc_engine: ^6.3.2
   agora_token_generator: ^1.0.0
   flutter_dotenv: ^6.0.1
+
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^5.2.3
+
+  #calenda
+  table_calendar: ^3.1.2
+  scrollable_positioned_list: ^0.3.8
 
 dev_dependencies:
   flutter_test:

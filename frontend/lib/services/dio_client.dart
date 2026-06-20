@@ -77,7 +77,11 @@ class DioClient {
         baseUrl: ApiConfig.baseUrl,
         connectTimeout: const Duration(seconds: 15),
         receiveTimeout: const Duration(seconds: 15),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          // Không đặt Content-Type mặc định để Dio tự động chọn đúng:
+          // - multipart/form-data khi body là FormData (upload file)
+          // - application/json khi body là Map/JSON
+        },
       ),
     );
 

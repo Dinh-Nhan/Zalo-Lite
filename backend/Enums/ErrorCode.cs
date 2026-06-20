@@ -41,6 +41,9 @@ namespace backend.Enums
         [ErrorMeta(4001, "Already in conversation", HttpStatusCode.Conflict)]
         ALREADY_IN_CONVERSATION,
 
+        [ErrorMeta(4002, "Group conversation requires at least 3 members", HttpStatusCode.BadRequest)]
+        GROUP_MIN_MEMBERS,
+
         // Common - 9xxx
         [ErrorMeta(9000, "Validation failed", HttpStatusCode.UnprocessableEntity)]
         VALIDATION_ERROR,
@@ -102,6 +105,22 @@ namespace backend.Enums
 
         [ErrorMeta(6010, "You have already blocked this user", HttpStatusCode.Conflict)]
         ALREADY_BLOCKED,
+
+        // Conversation extended - 4xxx
+        [ErrorMeta(4002, "This operation requires a group conversation", HttpStatusCode.BadRequest)]
+        NOT_A_GROUP,
+
+        [ErrorMeta(4003, "No message is currently pinned", HttpStatusCode.NotFound)]
+        NO_PINNED_MESSAGE,
+
+        [ErrorMeta(4004, "Join request not found", HttpStatusCode.NotFound)]
+        JOIN_REQUEST_NOT_FOUND,
+
+        [ErrorMeta(4005, "A pending join request already exists for this user", HttpStatusCode.Conflict)]
+        JOIN_REQUEST_ALREADY_EXISTS,
+
+        [ErrorMeta(4006, "User is already a participant of this conversation", HttpStatusCode.Conflict)]
+        ALREADY_PARTICIPANT,
     }
 
     [AttributeUsage(AttributeTargets.Field)]

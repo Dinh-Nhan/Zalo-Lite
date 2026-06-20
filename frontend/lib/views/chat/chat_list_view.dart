@@ -1,106 +1,59 @@
+import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_callkeep/flutter_callkeep.dart';
 import 'package:frontend/apps/app_locale.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/config/dark_mode_config.dart';
+import 'package:frontend/features/calling/screens/call_screen.dart';
+import 'package:frontend/features/calling/screens/incoming_call_screen.dart';
+import 'package:frontend/features/feedback/screens/feedback_screen.dart';
 import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/features/friends/screens/contact_main_screen.dart';
-import 'package:frontend/services/auth_service.dart';
+import 'package:frontend/features/newfeed/screens/newfeed_screen.dart';
+import 'package:frontend/features/profile/screens/profile_screen.dart';
+import 'package:frontend/models/call_model.dart';
+import 'package:frontend/models/chat/conversation.dart';
+import 'package:frontend/providers/call_provider.dart';
+import 'package:frontend/providers/chat_provider.dart';
+import 'package:frontend/services/call_notification_service.dart';
+import 'package:frontend/services/message_notification_service.dart';
 import 'package:frontend/utils/app_localizations.dart';
-import 'package:frontend/views/chat/chat_detail_view.dart';
+import 'package:frontend/views/chat/chat_screen.dart';
+import 'package:frontend/views/chat/new_conversation_screen.dart';
 import 'package:frontend/views/contacts/contacts_view.dart';
-import 'package:frontend/views/settings/settings_dialog.dart';
 import 'package:frontend/widgets/search_overlay_screen.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-/// Man hinh danh sach tin nhan - Thiet ke giong Zalo Web
 class ChatListView extends StatefulWidget {
   const ChatListView({super.key});
 
   @override
-  State<ChatListView> createState() => _ChatListViewState();
+  State<ChatListView> createState() => ChatListViewState();
 }
 
-class _ChatListViewState extends State<ChatListView> {
+class ChatListViewState extends State<ChatListView> {
   String _filterMode = 'all';
   int _selectedNavIndex = 0;
-  Map<String, dynamic>? _selectedConversation;
-  bool? _wasWideScreen; // Track previous screen size
+  Conversation? _selectedConversation;
+  bool? _wasWideScreen;
+  bool _coldStartCallHandled = false;
+  bool _callScreenOpened = false;
 
-  final List<Map<String, dynamic>> _mockConversations = [
-    {
-      'id': 'conv_001',
-      'name': 'Đình Nhân',
-      'avatar': null,
-      'avatarColor': const Color(0xFF4CAF50),
-      'lastMessageKey': 'youPrefix',
-      'lastMessageContent': 'Nice to meet you',
-      'lastMessageTimeValue': 5,
-      'lastMessageTimeUnit': 'minutes',
-      'unreadCount': 0,
-      'isPinned': false,
-      'isGroup': false,
-    },
-    {
-      'id': 'conv_002',
-      'name': 'Nhóm Dự Án',
-      'avatar': null,
-      'avatarColor': const Color(0xFF9C27B0),
-      'lastMessageKey': 'youPrefix',
-      'lastMessageContent': 'Nice to meet you',
-      'lastMessageTimeValue': 10,
-      'lastMessageTimeUnit': 'minutes',
-      'unreadCount': 3,
-      'isPinned': false,
-      'isGroup': true,
-      'memberCount': 5,
-    },
-    {
-      'id': 'conv_003',
-      'name': 'Minh Anh',
-      'avatar': null,
-      'avatarColor': const Color(0xFF2196F3),
-      'lastMessageKey': '',
-      'lastMessageContent': 'Chào bạn!',
-      'lastMessageTimeValue': 30,
-      'lastMessageTimeUnit': 'minutes',
-      'unreadCount': 0,
-      'isPinned': false,
-      'isGroup': false,
-    },
-    {
-      'id': 'conv_004',
-      'name': 'Nhóm Lớp K18',
-      'avatar': null,
-      'avatarColor': const Color(0xFFFF9800),
-      'lastMessageKey': '',
-      'lastMessageContent': 'Ai có tài liệu không?',
-      'lastMessageTimeValue': 1,
-      'lastMessageTimeUnit': 'hours',
-      'unreadCount': 12,
-      'isPinned': false,
-      'isGroup': true,
-      'memberCount': 45,
-    },
-    {
-      'id': 'conv_005',
-      'name': 'Tuấn Kiệt',
-      'avatar': null,
-      'avatarColor': const Color(0xFFE91E63),
-      'lastMessageKey': 'youPrefix',
-      'lastMessageContent': 'Ok bạn',
-      'lastMessageTimeValue': 2,
-      'lastMessageTimeUnit': 'hours',
-      'unreadCount': 0,
-      'isPinned': false,
-      'isGroup': false,
-    },
-  ];
+  void switchTab(int index) {
+    setState(() => _selectedNavIndex = index);
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      const hasPendingFeedbackEvaluation = true;
+      if (hasPendingFeedbackEvaluation) {
+        _showFeedbackFlow(context);
+      }
+    });
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -108,75 +61,181 @@ class _ChatListViewState extends State<ChatListView> {
       ),
     );
     Future.microtask(() {
-      final provider = context.read<FriendProvider>();
+      final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
-      provider.loadFriends();
-      provider.loadRequests();
+      final provider = context.read<FriendProvider>();
+      if (uid.isNotEmpty) {
+        provider.setCurrentUid(uid); // set uid + loadAll()
+      } else {
+        provider.loadAll();
+      }
       provider.startRealtime();
+
+      if (uid.isNotEmpty) {
+        final chatProvider = context.read<ChatProvider>();
+        chatProvider.setContext(context);
+        chatProvider.init(uid);
+      }
+
+      if (mounted) CallNotificationService.checkPendingCall(_handleFcmCall);
+      _pollActiveCalls();
+      MessageNotificationService.onNotificationTap = _openConversationById;
+      MessageNotificationService.checkInitialMessage();
     });
+
+    context.read<CallProvider>().addListener(_onCallStateChanged);
+    CallNotificationService.acceptedCall.addListener(_onCallAcceptedNotifier);
+    CallNotificationService.declinedCall.addListener(_onCallDeclinedNotifier);
+    if (CallNotificationService.acceptedCall.value != null) {
+      Future.microtask(_onCallAcceptedNotifier);
+    }
   }
 
   @override
   void dispose() {
+    MessageNotificationService.onNotificationTap = null;
+    context.read<CallProvider>().removeListener(_onCallStateChanged);
+    CallNotificationService.acceptedCall.removeListener(_onCallAcceptedNotifier);
+    CallNotificationService.declinedCall.removeListener(_onCallDeclinedNotifier);
     super.dispose();
   }
 
-  List<Map<String, dynamic>> get _filteredConversations {
-    var list = _mockConversations;
-    if (_filterMode == 'unread') {
-      list = list.where((conv) => conv['unreadCount'] > 0).toList();
-    }
-    return list;
+  Future<void> _openConversationById(String conversationId) async {
+    if (!mounted) return;
+    final chatProvider = context.read<ChatProvider>();
+    Conversation? conv = chatProvider.conversations.where((c) => c.id == conversationId).firstOrNull;
+    conv ??= await chatProvider.fetchConversation(conversationId);
+    if (conv == null || !mounted) return;
+    await chatProvider.openConversation(conv);
+    if (!mounted) return;
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatScreen(conversation: conv!)));
   }
 
-  void _onConversationTap(Map<String, dynamic> conversation) {
-    // Check if we're on wide screen
-    final isWideScreen = MediaQuery.of(context).size.width >= 700;
-
-    if (isWideScreen) {
-      // On wide screen, update selected conversation to show in right panel
-      setState(() {
-        _selectedConversation = conversation;
-      });
-    } else {
-      // On mobile, navigate to full screen chat
-      Navigator.push(
-        context,
+  void _onCallStateChanged() {
+    final call = context.read<CallProvider>().currentCall;
+    if (call != null && call.isIncoming && call.status == CallStatus.ringing) {
+      Navigator.of(context, rootNavigator: true).push(
         MaterialPageRoute(
-          builder: (context) => ChatDetailView(
-            conversationId: conversation['id'],
-            contactName: conversation['name'],
-            avatarColor: conversation['avatarColor'],
-            isGroup: conversation['isGroup'] ?? false,
-            memberCount: conversation['memberCount'],
-          ),
+          builder: (_) => IncomingCallScreen(call: call),
+          fullscreenDialog: true,
         ),
       );
     }
   }
 
-  void _openSettings() {
-  SettingsDialog.show(
-    context,
-    onLogout: () async {
-      await _logout();
-    },
-  );
-}
-
-  void _openAppearanceSettings() {
-    SettingsDialog.showAppearance(context);
+  Future<void> _pollActiveCalls() async {
+    for (int i = 0; i < 5; i++) {
+      if (!mounted || _coldStartCallHandled) return;
+      try {
+        final activeCalls = await CallKeep.instance.activeCalls();
+        if (activeCalls.isNotEmpty) {
+          _coldStartCallHandled = true;
+          final event = activeCalls.first;
+          await CallKeep.instance.endAllCalls();
+          if (mounted) _handleCallAccepted(event);
+          return;
+        }
+      } catch (_) {}
+      await Future.delayed(const Duration(milliseconds: 800));
+    }
   }
 
-  Future<void> _logout() async {
-    final friendProvider = context.read<FriendProvider>();
-    await friendProvider.disposeRealtime();
-    friendProvider.clear();
-    await AuthService.logout();
+  void _onCallAcceptedNotifier() {
+    final event = CallNotificationService.acceptedCall.value;
+    if (event == null || !mounted) return;
+    CallNotificationService.acceptedCall.value = null;
+    _handleCallAccepted(event);
+  }
 
+  void _onCallDeclinedNotifier() {
+    final event = CallNotificationService.declinedCall.value;
+    if (event == null || !mounted) return;
+    CallNotificationService.declinedCall.value = null;
+    _handleCallDeclined(event);
+  }
+
+  void _handleCallAccepted(CallEvent event) {
+    if (!mounted || _callScreenOpened) return;
+    _callScreenOpened = true;
+    _coldStartCallHandled = true;
+    final extra = event.extra ?? {};
+    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final call = CallModel(
+      conversationId: extra['conversation_id'] ?? '',
+      callerId: extra['caller_id'] ?? '',
+      calleeId: currentUid,
+      remoteName: extra['caller_name'] ?? event.callerName ?? '',
+      remoteAvatar: extra['caller_avatar'] ?? '',
+      isVideo: extra['call_type'] == 'video',
+      isIncoming: true,
+      status: CallStatus.active,
+    );
+
+    context.read<CallProvider>().acceptCall();
+    context.read<ChatProvider>().acceptCall(call.conversationId, call.callerId);
+
+    Navigator.of(context, rootNavigator: true)
+        .push(
+          MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => CallScreen(call: call),
+          ),
+        )
+        .then((_) {
+          _callScreenOpened = false;
+          _coldStartCallHandled = false;
+        });
+  }
+
+  void _handleCallDeclined(CallEvent event) {
     if (!mounted) return;
-    context.go('/');
+    final extra = event.extra ?? {};
+    final chat = context.read<ChatProvider>();
+    chat.rejectCall(extra['conversation_id'] ?? '', extra['caller_id'] ?? '', reason: 'rejected');
+    context.read<CallProvider>().rejectCall();
+  }
 
+  void _handleFcmCall(Map<String, String> data) {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final callModel = CallModel(
+      conversationId: data['conversation_id'] ?? '',
+      callerId: data['caller_id'] ?? '',
+      calleeId: currentUid,
+      remoteName: data['caller_name'] ?? '',
+      remoteAvatar: data['caller_avatar'] ?? '',
+      isVideo: data['call_type'] == 'video',
+      isIncoming: true,
+      status: CallStatus.ringing,
+    );
+
+    context.read<CallProvider>().receiveIncomingCall(callModel);
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(
+        builder: (_) => IncomingCallScreen(call: callModel),
+        fullscreenDialog: true,
+      ),
+    );
+  }
+
+  void _onConversationTap(Conversation conversation) {
+    context.read<ChatProvider>().openConversation(conversation);
+    final isWideScreen = MediaQuery.of(context).size.width >= 700;
+    if (isWideScreen) {
+      setState(() => _selectedConversation = conversation);
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => ChatScreen(conversation: conversation)),
+      );
+    }
+  }
+
+  void _showFeedbackFlow(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const FeedbackFlowModal(),
+    );
   }
 
   @override
@@ -194,38 +253,10 @@ class _ChatListViewState extends State<ChatListView> {
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final isWideScreen = constraints.maxWidth >= 700;
-
-                    // Convert index when screen size changes
-                    if (_wasWideScreen != null &&
-                        _wasWideScreen != isWideScreen) {
+                    if (_wasWideScreen != null && _wasWideScreen != isWideScreen) {
                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (isWideScreen) {
-                          // Mobile → Wide conversion
-                          setState(() {
-                            if (_selectedNavIndex == 0) {
-                              _selectedNavIndex = 0; // Chat → Chat
-                            } else if (_selectedNavIndex == 1) {
-                              _selectedNavIndex = 2; // Contacts → Contacts
-                            } else {
-                              _selectedNavIndex = 0; // Discover/Profile → Chat
-                            }
-                            // Keep selected conversation when switching to wide
-                            _selectedConversation = _selectedConversation;
-                          });
-                        } else {
-                          // Wide → Mobile conversion
-                          setState(() {
-                            if (_selectedNavIndex == 0) {
-                              _selectedNavIndex = 0; // Chat → Chat
-                            } else if (_selectedNavIndex == 2) {
-                              _selectedNavIndex = 1; // Contacts → Contacts
-                            } else {
-                              _selectedNavIndex = 0; // Settings → Chat
-                            }
-                            // Clear selected conversation when switching to mobile
-                            // because mobile uses full-screen navigation
-                            _selectedConversation = null;
-                          });
+                        if (!isWideScreen) {
+                          setState(() => _selectedConversation = null);
                         }
                       });
                     }
@@ -240,52 +271,26 @@ class _ChatListViewState extends State<ChatListView> {
                             Expanded(
                               child: _selectedConversation == null
                                   ? _buildWelcomePanel(t, isDark)
-                                  : ChatDetailView(
-                                      conversationId:
-                                          _selectedConversation!['id'],
-                                      contactName:
-                                          _selectedConversation!['name'],
-                                      avatarColor:
-                                          _selectedConversation!['avatarColor'],
-                                      isGroup:
-                                          _selectedConversation!['isGroup'] ??
-                                          false,
-                                      memberCount:
-                                          _selectedConversation!['memberCount'],
-                                      showBackButton: false,
-                                    ),
+                                  : ChatScreen(conversation: _selectedConversation!),
                             ),
-                          ] else if (_selectedNavIndex == 2)
-                            const Expanded(
-                              child: ContactsView(isWideScreen: true),
-                            )
+                          ] else if (_selectedNavIndex == 1)
+                            const Expanded(child: ContactsView(isWideScreen: true))
+                          else if (_selectedNavIndex == 2)
+                            const Expanded(child: NewfeedScreen())
+                          else if (_selectedNavIndex == 3)
+                            const Expanded(child: ProfileScreen())
                           else ...[
-                            // Default to chat panel for any other index
                             _buildChatListPanelWide(t, isDark),
                             Expanded(
                               child: _selectedConversation == null
                                   ? _buildWelcomePanel(t, isDark)
-                                  : ChatDetailView(
-                                      conversationId:
-                                          _selectedConversation!['id'],
-                                      contactName:
-                                          _selectedConversation!['name'],
-                                      avatarColor:
-                                          _selectedConversation!['avatarColor'],
-                                      isGroup:
-                                          _selectedConversation!['isGroup'] ??
-                                          false,
-                                      memberCount:
-                                          _selectedConversation!['memberCount'],
-                                      showBackButton: false,
-                                    ),
+                                  : ChatScreen(conversation: _selectedConversation!),
                             ),
                           ],
                         ],
                       );
-                    } else {
-                      return _buildMobileView(t, isDark);
                     }
+                    return _buildMobileView(t, isDark);
                   },
                 ),
               ),
@@ -308,28 +313,19 @@ class _ChatListViewState extends State<ChatListView> {
             height: 48,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.3),
-                width: 2,
-              ),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
             ),
             child: const CircleAvatar(
               backgroundColor: Color(0xFF4CAF50),
-              child: Text(
-                'U',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              child: Text('U', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ),
           const SizedBox(height: 20),
           _buildSidebarItem(Icons.chat_bubble, 0, isDark),
-          _buildSidebarItem(Icons.contacts_outlined, 2, isDark),
+          _buildSidebarItem(Icons.contacts_outlined, 1, isDark),
+          _buildSidebarItem(Icons.auto_stories, 2, isDark),
+          _buildSidebarItem(Icons.person_outline, 3, isDark),
           const Spacer(),
-          _buildSidebarItem(Icons.settings_outlined, 1, isDark),
-          const SizedBox(height: 12),
         ],
       ),
     );
@@ -343,26 +339,15 @@ class _ChatListViewState extends State<ChatListView> {
         width: 48,
         height: 48,
         decoration: BoxDecoration(
-          color: isSelected
-              ? Colors.white.withValues(alpha: 0.15)
-              : Colors.transparent,
+          color: isSelected ? Colors.white.withValues(alpha: 0.15) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
         child: IconButton(
           onPressed: () {
-            if (index == 1) {
-              SettingsDialog.show(
-                context,
-                onLogout: () async {
-                  await _logout();
-                },
-              );
-            } else {
-              setState(() {
-                _selectedNavIndex = index;
-                _selectedConversation = null;
-              });
-            }
+            setState(() {
+              _selectedNavIndex = index;
+              _selectedConversation = null;
+            });
           },
           icon: Icon(icon, color: Colors.white, size: 24),
         ),
@@ -384,9 +369,7 @@ class _ChatListViewState extends State<ChatListView> {
       width: 340,
       decoration: BoxDecoration(
         color: AppColors.getSurface(isDark),
-        border: Border(
-          right: BorderSide(color: AppColors.getDivider(isDark), width: 1),
-        ),
+        border: Border(right: BorderSide(color: AppColors.getDivider(isDark), width: 1)),
       ),
       child: Column(
         children: [
@@ -398,14 +381,9 @@ class _ChatListViewState extends State<ChatListView> {
     );
   }
 
-  Widget _buildSearchHeader(
-    AppLocalizations t,
-    bool isDark, {
-    bool isMobile = false,
-  }) {
+  Widget _buildSearchHeader(AppLocalizations t, bool isDark, {bool isMobile = false}) {
     if (isMobile) {
-      final Color headerBg =
-          isDark ? const Color(0xFF1A1A1A) : AppColors.primaryBlue;
+      final headerBg = isDark ? const Color(0xFF1A1A1A) : AppColors.primaryBlue;
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         color: headerBg,
@@ -417,27 +395,18 @@ class _ChatListViewState extends State<ChatListView> {
                 child: Container(
                   height: 40,
                   decoration: BoxDecoration(
-                    color: isDark
-                        ? const Color(0xFF2A2A2A)
-                        : Colors.white.withValues(alpha: 0.25),
+                    color: isDark ? const Color(0xFF2A2A2A) : Colors.white.withValues(alpha: 0.25),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Row(
                     children: [
                       const SizedBox(width: 14),
-                      Icon(
-                        Icons.search,
-                        color: Colors.white.withValues(alpha: 0.8),
-                        size: 20,
-                      ),
+                      Icon(Icons.search, color: Colors.white.withValues(alpha: 0.8), size: 20),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           t.get('searchPlaceholder'),
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.8),
-                            fontSize: 14,
-                          ),
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 14),
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -447,16 +416,13 @@ class _ChatListViewState extends State<ChatListView> {
               ),
             ),
             const SizedBox(width: 8),
-            _buildHeaderIconButton(
-              Icons.qr_code_scanner,
-              isDark,
-              () {},
-              iconColor: Colors.white,
-            ),
+            _buildHeaderIconButton(Icons.qr_code_scanner, isDark, () {}, iconColor: Colors.white),
             _buildHeaderIconButton(
               Icons.add,
               isDark,
-              () {},
+              () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const NewConversationScreen(type: 'group')),
+              ),
               iconColor: Colors.white,
             ),
           ],
@@ -475,27 +441,18 @@ class _ChatListViewState extends State<ChatListView> {
               child: Container(
                 height: 40,
                 decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF2A2A2A)
-                      : const Color(0xFFF5F5F5),
+                  color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF5F5F5),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Row(
                   children: [
                     const SizedBox(width: 14),
-                    Icon(
-                      Icons.search,
-                      color: AppColors.getTextSecondary(isDark),
-                      size: 20,
-                    ),
+                    Icon(Icons.search, color: AppColors.getTextSecondary(isDark), size: 20),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         t.get('searchPlaceholder'),
-                        style: TextStyle(
-                          color: AppColors.getTextSecondary(isDark),
-                          fontSize: 14,
-                        ),
+                        style: TextStyle(color: AppColors.getTextSecondary(isDark), fontSize: 14),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -506,91 +463,38 @@ class _ChatListViewState extends State<ChatListView> {
           ),
           const SizedBox(width: 8),
           _buildHeaderIconButton(Icons.person_add_outlined, isDark, () {}),
-          _buildHeaderIconButton(Icons.group_add_outlined, isDark, () {}),
+          _buildHeaderIconButton(
+            Icons.group_add_outlined,
+            isDark,
+            () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const NewConversationScreen(type: 'group')),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildHeaderIconButton(IconData icon, bool isDark, VoidCallback onTap, {Color? iconColor}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: SizedBox(
+          width: 36,
+          height: 36,
+          child: Icon(icon, color: iconColor ?? AppColors.getTextSecondary(isDark), size: 20),
+        ),
       ),
     );
   }
 
   void _openSearchOverlay(BuildContext context) {
     Navigator.of(context).push(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => SearchOverlayScreen(
+      MaterialPageRoute(
+        builder: (_) => SearchOverlayScreen(
           onBack: () => Navigator.of(context).pop(),
-          onSearchResultTap: ({required userId, required name, avatar}) {
-            Navigator.of(context).pop();
-            final avatarColor = _avatarColor(name);
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => ChatDetailView(
-                  conversationId: 'user_$userId',
-                  contactName: name,
-                  avatarColor: avatarColor,
-                  isGroup: false,
-                ),
-              ),
-            );
-          },
-          recentContacts: _mockConversations,
-          onRecentContactTap: (contact) {
-            Navigator.of(context).pop();
-            final name = contact['name'] as String;
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => ChatDetailView(
-                  conversationId: contact['id'],
-                  contactName: name,
-                  avatarColor: contact['avatarColor'],
-                  isGroup: contact['isGroup'] ?? false,
-                  memberCount: contact['memberCount'],
-                ),
-              ),
-            );
-          },
-        ),
-        transitionsBuilder: (_, animation, __, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
-        transitionDuration: const Duration(milliseconds: 200),
-      ),
-    );
-  }
-
-  Color _avatarColor(String name) {
-    final colors = [
-      const Color(0xFF4CAF50),
-      const Color(0xFF2196F3),
-      const Color(0xFFFF9800),
-      const Color(0xFF9C27B0),
-      const Color(0xFFE91E63),
-      const Color(0xFF00BCD4),
-      const Color(0xFF795548),
-      const Color(0xFF607D8B),
-    ];
-    if (name.isEmpty) return colors[0];
-    return colors[name.codeUnitAt(0) % colors.length];
-  }
-
-  Widget _buildHeaderIconButton(
-    IconData icon,
-    bool isDark,
-    VoidCallback onTap, {
-    Color? iconColor,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
-        child: Container(
-          width: 32,
-          height: 32,
-          alignment: Alignment.center,
-          child: Icon(
-            icon,
-            color: iconColor ?? AppColors.getTextSecondary(isDark),
-            size: 20,
-          ),
         ),
       ),
     );
@@ -598,106 +502,139 @@ class _ChatListViewState extends State<ChatListView> {
 
   Widget _buildFilterTabs(AppLocalizations t, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       color: AppColors.getSurface(isDark),
+      height: 44,
       child: Row(
         children: [
           _buildFilterTab(t.get('all'), 'all', isDark),
-          const SizedBox(width: 16),
           _buildFilterTab(t.get('unread'), 'unread', isDark),
-          const Spacer(),
-          PopupMenuButton<String>(
-            offset: const Offset(0, 30),
-            child: Row(
-              children: [
-                Text(
-                  t.get('category'),
-                  style: TextStyle(
-                    color: AppColors.getTextSecondary(isDark),
-                    fontSize: 13,
-                  ),
-                ),
-                Icon(
-                  Icons.keyboard_arrow_down,
-                  color: AppColors.getTextSecondary(isDark),
-                  size: 18,
-                ),
-              ],
-            ),
-            itemBuilder: (context) => [
-              PopupMenuItem(value: 'all', child: Text(t.get('all'))),
-              PopupMenuItem(value: 'friends', child: Text(t.get('friends'))),
-              PopupMenuItem(value: 'groups', child: Text(t.get('groups'))),
-            ],
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildFilterTab(String label, String mode, bool isDark) {
-    final isSelected = _filterMode == mode;
+  Widget _buildFilterTab(String label, String value, bool isDark) {
+    final isSelected = _filterMode == value;
     return GestureDetector(
-      onTap: () => setState(() => _filterMode = mode),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-          color: isSelected
-              ? AppColors.primaryBlue
-              : AppColors.getTextSecondary(isDark),
+      onTap: () => setState(() => _filterMode = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isSelected ? AppColors.primaryBlue : Colors.transparent,
+              width: 2,
+            ),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            color: isSelected ? AppColors.primaryBlue : AppColors.getTextSecondary(isDark),
+          ),
         ),
       ),
     );
   }
 
   Widget _buildConversationList(AppLocalizations t, bool isDark) {
-    return ListView.builder(
-      padding: EdgeInsets.zero,
-      itemCount: _filteredConversations.length,
-      itemBuilder: (context, index) {
-        final conversation = _filteredConversations[index];
-        return _buildConversationTile(conversation, t, isDark);
+    return Consumer<ChatProvider>(
+      builder: (context, chat, _) {
+        if (chat.conversationsState == ChatLoadingState.loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (chat.conversationsState == ChatLoadingState.error) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 40),
+                  const SizedBox(height: 12),
+                  const Text('Không thể tải cuộc trò chuyện', style: TextStyle(fontWeight: FontWeight.w600)),
+                  if (chat.errorMessage != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      chat.errorMessage!,
+                      style: TextStyle(fontSize: 11, color: AppColors.getTextSecondary(isDark)),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  TextButton(onPressed: () => chat.loadConversations(), child: const Text('Thử lại')),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final list = _filterMode == 'unread'
+            ? chat.conversations.where((c) => c.unreadCount > 0).toList()
+            : chat.conversations;
+
+        if (list.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.chat_bubble_outline,
+                  size: 64,
+                  color: AppColors.getTextSecondary(isDark).withValues(alpha: 0.4),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Chưa có cuộc trò chuyện nào',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.getTextSecondary(isDark),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Tìm kiếm bạn bè để bắt đầu nhắn tin',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.getTextSecondary(isDark).withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return RefreshIndicator(
+          color: AppColors.primaryBlue,
+          onRefresh: () => chat.loadConversations(),
+          child: ListView.builder(
+            padding: EdgeInsets.zero,
+            itemCount: list.length,
+            itemBuilder: (context, index) {
+              final conversation = list[index];
+              return _buildConversationTileModel(conversation, t, isDark);
+            },
+          ),
+        );
       },
     );
   }
 
-  String _formatTimeAgo(int value, String unit, AppLocalizations t) {
-    if (unit == 'minutes') {
-      return t.isVietnamese ? '$value phút' : '$value min';
-    } else if (unit == 'hours') {
-      return t.isVietnamese ? '$value giờ' : '$value hr';
-    } else if (unit == 'days') {
-      return t.isVietnamese ? '$value ngày' : '$value d';
-    }
-    return '';
-  }
-
-  Widget _buildConversationTile(
-    Map<String, dynamic> conversation,
-    AppLocalizations t,
-    bool isDark,
-  ) {
-    final String name = conversation['name'];
-    final Color avatarColor = conversation['avatarColor'];
-    final String messageKey = conversation['lastMessageKey'] ?? '';
-    final String messageContent = conversation['lastMessageContent'] ?? '';
-    final int timeValue = conversation['lastMessageTimeValue'] ?? 0;
-    final String timeUnit = conversation['lastMessageTimeUnit'] ?? '';
-    final int unreadCount = conversation['unreadCount'];
-    final bool isGroup = conversation['isGroup'] ?? false;
-    final int? memberCount = conversation['memberCount'];
-
-    // Format message with localization
-    final String lastMessage = messageKey.isNotEmpty
-        ? '${t.get(messageKey)} $messageContent'
-        : messageContent;
-    final String lastMessageTime = _formatTimeAgo(timeValue, timeUnit, t);
+  Widget _buildConversationTileModel(Conversation conversation, AppLocalizations t, bool isDark) {
+    final name = conversation.displayName;
+    final lastMessage = conversation.lastMessage?.content ?? '';
+    final unreadCount = conversation.unreadCount;
+    final isGroup = conversation.type == 'group';
+    final memberCount = conversation.participants.length;
+    final isSelected = _selectedConversation?.id == conversation.id;
 
     return InkWell(
       onTap: () => _onConversationTap(conversation),
       child: Container(
+        color: isSelected ? AppColors.primaryBlue.withValues(alpha: 0.08) : Colors.transparent,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           children: [
@@ -706,32 +643,31 @@ class _ChatListViewState extends State<ChatListView> {
               children: [
                 CircleAvatar(
                   radius: 24,
-                  backgroundColor: avatarColor,
-                  child: Text(
-                    _getInitials(name),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                    ),
-                  ),
+                  backgroundImage: conversation.displayAvatar.isNotEmpty
+                      ? NetworkImage(conversation.displayAvatar)
+                      : null,
+                  backgroundColor: const Color(0xFF4CAF50),
+                  child: conversation.displayAvatar.isEmpty
+                      ? Text(
+                          _getInitials(name),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        )
+                      : null,
                 ),
-                if (isGroup && memberCount != null)
+                if (isGroup)
                   Positioned(
                     left: -4,
                     bottom: -4,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: Colors.orange,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: AppColors.getSurface(isDark),
-                          width: 2,
-                        ),
+                        border: Border.all(color: AppColors.getSurface(isDark), width: 2),
                       ),
                       child: Text(
                         memberCount.toString(),
@@ -755,36 +691,58 @@ class _ChatListViewState extends State<ChatListView> {
                       Expanded(
                         child: Text(
                           name,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: unreadCount > 0
-                                ? FontWeight.w600
-                                : FontWeight.w500,
-                            color: AppColors.getTextPrimary(isDark),
-                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (lastMessageTime.isNotEmpty)
-                        Text(
-                          lastMessageTime,
                           style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.getTextSecondary(isDark),
+                            fontSize: 15,
+                            fontWeight: unreadCount > 0 ? FontWeight.w600 : FontWeight.w500,
+                            color: AppColors.getTextPrimary(isDark),
                           ),
                         ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _formatConversationTime(conversation.updatedAt, t),
+                        style: TextStyle(fontSize: 11, color: AppColors.getTextSecondary(isDark)),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    lastMessage,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.getTextSecondary(isDark),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          lastMessage.isEmpty ? 'Chưa có tin nhắn nào' : lastMessage,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: unreadCount > 0 ? AppColors.getTextPrimary(isDark) : AppColors.getTextSecondary(isDark),
+                            fontWeight: unreadCount > 0 ? FontWeight.w500 : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                      if (unreadCount > 0) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryBlue,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            unreadCount > 99 ? '99+' : unreadCount.toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
@@ -795,178 +753,14 @@ class _ChatListViewState extends State<ChatListView> {
     );
   }
 
-  Widget _buildSettingsPanel(AppLocalizations t, bool isDark) {
-    return Container(
-      color: isDark ? AppColors.darkBackground : AppColors.backgroundGray,
-      child: Center(
-        child: Container(
-          width: 400,
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: AppColors.getSurface(isDark),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 20,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                t.get('settings'),
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.getTextPrimary(isDark),
-                ),
-              ),
-              const SizedBox(height: 24),
-              _buildSettingsItem(
-                icon: isDark ? Icons.light_mode : Icons.dark_mode,
-                title: t.get('darkMode'),
-                subtitle: isDark ? t.get('darkModeOn') : t.get('darkModeOff'),
-                isDark: isDark,
-                trailing: Switch(
-                  value: isDark,
-                  onChanged: (value) => isDarkModeNotifier.value = value,
-                  activeThumbColor: AppColors.primaryBlue,
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildSettingsItem(
-                icon: Icons.language,
-                title: t.get('language'),
-                subtitle: AppLocalizations(localeNotifier.value).displayName,
-                isDark: isDark,
-                onTap: () => _showLanguageDialog(t, isDark),
-                trailing: Icon(
-                  Icons.chevron_right,
-                  color: AppColors.getTextSecondary(isDark),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildSettingsItem(
-                icon: Icons.logout,
-                title: t.get('logout'),
-                subtitle: t.get('logoutSubtitle'),
-                isDark: isDark,
-                onTap: () async {
-                  await _logout();
-                },
-                trailing: Icon(
-                  Icons.chevron_right,
-                  color: AppColors.getTextSecondary(isDark),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSettingsItem({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required bool isDark,
-    Widget? trailing,
-    VoidCallback? onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkCard : AppColors.backgroundGray,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.primaryBlue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: AppColors.primaryBlue, size: 22),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.getTextPrimary(isDark),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.getTextSecondary(isDark),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            ?trailing,
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showLanguageDialog(AppLocalizations t, bool isDark) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.getSurface(isDark),
-        title: Text(
-          t.get('selectLanguage'),
-          style: TextStyle(color: AppColors.getTextPrimary(isDark)),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: AppLocalizations.supportedLanguages.map((lang) {
-            final isSelected =
-                AppLocalizations(localeNotifier.value).displayName == lang;
-            return ListTile(
-              title: Text(
-                lang,
-                style: TextStyle(
-                  color: isSelected
-                      ? AppColors.primaryBlue
-                      : AppColors.getTextPrimary(isDark),
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                ),
-              ),
-              trailing: isSelected
-                  ? const Icon(Icons.check, color: AppColors.primaryBlue)
-                  : null,
-              onTap: () {
-                localeNotifier.value = AppLocalizations.localeFromDisplayName(
-                  lang,
-                );
-                Navigator.pop(context);
-              },
-            );
-          }).toList(),
-        ),
-      ),
-    );
+  String _formatConversationTime(DateTime updatedAt, AppLocalizations t) {
+    final now = DateTime.now();
+    final diff = now.difference(updatedAt);
+    if (diff.inMinutes < 1) return 'Now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m';
+    if (diff.inDays < 1) return '${diff.inHours}h';
+    if (diff.inDays < 7) return '${diff.inDays}d';
+    return '${updatedAt.day}/${updatedAt.month}';
   }
 
   Widget _buildWelcomePanel(AppLocalizations t, bool isDark) {
@@ -976,135 +770,20 @@ class _ChatListViewState extends State<ChatListView> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            const Icon(Icons.chat_bubble_outline, size: 72, color: Color(0xFFBDBDBD)),
+            const SizedBox(height: 16),
             Text(
-              t.get('welcomeTitle'),
+              t.get('messages'),
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 20,
                 fontWeight: FontWeight.w600,
                 color: AppColors.getTextPrimary(isDark),
               ),
             ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 48),
-              child: Text(
-                t.get('welcomeDescription'),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.getTextSecondary(isDark),
-                  height: 1.5,
-                ),
-              ),
-            ),
-            const SizedBox(height: 40),
-            Container(
-              width: 320,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: AppColors.getSurface(isDark),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 20,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Container(
-                    height: 160,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF1A1A2E), Color(0xFF2D2D44)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                    child: Stack(
-                      children: [
-                        Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.dark_mode,
-                                size: 48,
-                                color: Colors.white.withValues(alpha: 0.8),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Dark Mode',
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Positioned(
-                          right: 16,
-                          top: 16,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.nightlight_round,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    t.get('darkModeTitle'),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primaryBlue,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    t.get('darkModeDescription'),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.getTextSecondary(isDark),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _openAppearanceSettings,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryBlue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                    child: Text(
-                      t.get('tryNow'),
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ),
+            const SizedBox(height: 8),
+            Text(
+              'Chọn một cuộc trò chuyện để bắt đầu',
+              style: TextStyle(color: AppColors.getTextSecondary(isDark)),
             ),
           ],
         ),
@@ -1112,7 +791,6 @@ class _ChatListViewState extends State<ChatListView> {
     );
   }
 
-  /// Mobile view with bottom navigation switching between tabs
   Widget _buildMobileView(AppLocalizations t, bool isDark) {
     return Column(
       children: [
@@ -1120,23 +798,10 @@ class _ChatListViewState extends State<ChatListView> {
           child: IndexedStack(
             index: _selectedNavIndex,
             children: [
-              // Tab 0: Chat List
               _buildChatListPanel(t, isDark),
-              // Tab 1: Contacts
-              // const ContactsView(isWideScreen: false),
-              ContactsMainScreen(),
-              // Tab 2: Discover (placeholder)
-              _buildPlaceholderTab(
-                t.get('discover'),
-                Icons.explore_outlined,
-                isDark,
-              ),
-              // Tab 3: Profile (placeholder)
-              _buildPlaceholderTab(
-                t.get('profile'),
-                Icons.person_outline,
-                isDark,
-              ),
+              const ContactsMainScreen(),
+              const NewfeedScreen(),
+              const ProfileScreen(),
             ],
           ),
         ),
@@ -1145,82 +810,22 @@ class _ChatListViewState extends State<ChatListView> {
     );
   }
 
-  Widget _buildPlaceholderTab(String title, IconData icon, bool isDark) {
-    return Container(
-      color: isDark ? AppColors.darkBackground : AppColors.backgroundGray,
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 64,
-              color: AppColors.getTextSecondary(isDark).withValues(alpha: 0.4),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.getTextSecondary(isDark),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Coming soon...',
-              style: TextStyle(
-                fontSize: 13,
-                color: AppColors.getTextSecondary(
-                  isDark,
-                ).withValues(alpha: 0.6),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildBottomNavigation(bool isDark) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1A1A1A) : AppColors.getSurface(isDark),
-        border: Border(
-          top: BorderSide(color: AppColors.getDivider(isDark), width: 1),
-        ),
+        color: AppColors.getSurface(isDark),
+        border: Border(top: BorderSide(color: AppColors.getDivider(isDark), width: 1)),
       ),
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
+        child: SizedBox(
+          height: 56,
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildBottomNavItem(
-                Icons.chat_bubble,
-                Icons.chat_bubble_outline,
-                0,
-                isDark,
-              ),
-              _buildBottomNavItem(
-                Icons.contacts,
-                Icons.contacts_outlined,
-                1,
-                isDark,
-              ),
-              _buildBottomNavItem(
-                Icons.auto_stories,
-                Icons.auto_stories_outlined,
-                2,
-                isDark,
-              ),
-              _buildBottomNavItem(
-                Icons.person,
-                Icons.person_outline,
-                3,
-                isDark,
-              ),
+              _buildBottomNavItem(Icons.chat_bubble, Icons.chat_bubble_outline, 0, 'Tin nhắn', isDark),
+              _buildBottomNavItem(Icons.contacts, Icons.contacts_outlined, 1, 'Bạn bè', isDark),
+              _buildBottomNavItem(Icons.auto_stories, Icons.auto_stories_outlined, 2, 'Bảng tin', isDark),
+              _buildBottomNavItem(Icons.person, Icons.person_outline, 3, 'Cá nhân', isDark),
             ],
           ),
         ),
@@ -1232,19 +837,29 @@ class _ChatListViewState extends State<ChatListView> {
     IconData activeIcon,
     IconData inactiveIcon,
     int index,
+    String label,
     bool isDark,
   ) {
     final isSelected = _selectedNavIndex == index;
-    return IconButton(
-      onPressed: () {
-        setState(() => _selectedNavIndex = index);
-      },
-      icon: Icon(
-        isSelected ? activeIcon : inactiveIcon,
-        color: isSelected
-            ? AppColors.primaryBlue
-            : AppColors.getTextSecondary(isDark),
-        size: 26,
+    final color = isSelected ? AppColors.primaryBlue : AppColors.getTextSecondary(isDark);
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _selectedNavIndex = index),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(isSelected ? activeIcon : inactiveIcon, color: color, size: 24),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                color: color,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

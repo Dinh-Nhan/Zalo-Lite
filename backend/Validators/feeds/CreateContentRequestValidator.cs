@@ -12,10 +12,7 @@ namespace backend.Validators
         public CreateContentRequestValidator()
         {
             RuleFor(x => x.Caption)
-            .NotEmpty().WithMessage("Caption is required");
-
-            RuleFor(x => x.Media)
-            .NotEmpty().WithMessage("Media is required");
+            .MaximumLength(2000).WithMessage("Caption must not exceed 2000 characters");
         }
     }
 }

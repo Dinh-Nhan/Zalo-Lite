@@ -2,6 +2,7 @@ using backend.common;
 using backend.dtos;
 using backend.dtos.Request;
 using backend.dtos.Response;
+using backend.dtos.Response.Chat;
 using backend.Enums;
 using backend.Exceptions;
 using backend.Models;
@@ -15,7 +16,7 @@ namespace backend.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [FirebaseAuthorize]
-public class UserController(UserService userService) : ControllerBase
+public class UserController(UserService userService, ChatService chatService) : ControllerBase
 {
     /// <summary>
     /// Lấy UId từ token
@@ -27,6 +28,8 @@ public class UserController(UserService userService) : ControllerBase
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         return firebaseToken.Uid;
     }
+
+    private string CurrentUserId => GetUserIdFromToken();
 
 
     /// <summary>
@@ -86,11 +89,9 @@ public class UserController(UserService userService) : ControllerBase
         // var firebaseToken = HttpContext.Items["User"] as FirebaseToken;
         // var uid = firebaseToken?.Uid ?? request.Id;
 
-        var uid = GetUserIdFromToken(); // Cố gắng lấy UID từ token trước
-        if(uid == null)
-        {
-            uid = request.Id; // Cho phép lấy UID từ body nếu token không có (trường hợp register)
-        }
+        // Lấy UID an toàn: ưu tiên token (user đã login), fallback về request.Id (register flow)
+        var firebaseToken = HttpContext.Items["User"] as FirebaseToken;
+        var uid = firebaseToken?.Uid ?? request.Id;
 
         if (string.IsNullOrEmpty(uid))
             return BadRequest(new ApiResponse<object>
@@ -164,6 +165,28 @@ public class UserController(UserService userService) : ControllerBase
     }
 
     /// <summary>
+    /// Enable user — admin only
+    /// PATCH /api/user/{id}/enable
+    /// </summary>
+    [HttpPatch("{id}/enable")]
+    public async Task<IActionResult> EnableUser(string id)
+    {
+        await userService.SetEnableAsync(id, true);
+        return Ok(new ApiResponse<object> { Code = 200, Message = "User enabled" });
+    }
+
+    /// <summary>
+    /// Disable user (soft-ban) — admin only
+    /// PATCH /api/user/{id}/disable
+    /// </summary>
+    [HttpPatch("{id}/disable")]
+    public async Task<IActionResult> DisableUser(string id)
+    {
+        await userService.SetEnableAsync(id, false);
+        return Ok(new ApiResponse<object> { Code = 200, Message = "User disabled" });
+    }
+
+    /// <summary>
     /// Tìm kiếm user theo email
     /// GET /api/user/search/{email}
     /// </summary>
@@ -181,8 +204,27 @@ public class UserController(UserService userService) : ControllerBase
     {
         return Ok(new ApiResponse<UserResponse>()
         {
-            Result = await userService.UpdateAvatarAsync(GetUserIdFromToken(), request),
+            Result = await userService.UpdateAvatarAsync(CurrentUserId, request),
             Message = "Cập nhật avatar thành công"
         });
+    }
+
+    /// <summary>Lưu FCM token để nhận push notification cuộc gọi</summary>
+    [HttpPost("fcm-token")]
+    public async Task<IActionResult> SaveFcmToken([FromBody] SaveFcmTokenRequest request)
+    {
+        await userService.SaveFcmTokenAsync(GetUserIdFromToken(), request.Token);
+        return Ok(new ApiResponse<object> { Code = 200, Message = "FCM token saved" });
+    }
+
+    /// <summary>
+    /// Get online status of a user
+    /// GET /api/user/{id}/online
+    /// </summary>
+    [HttpGet("{id}/online")]
+    public async Task<IActionResult> GetOnlineStatus(string id)
+    {
+        var status = await chatService.GetOnlineStatusAsync(id);
+        return Ok(new ApiResponse<OnlineStatusResponse> { Code = 200, Result = status });
     }
 }

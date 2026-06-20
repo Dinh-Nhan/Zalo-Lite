@@ -1,10 +1,8 @@
-import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/services/auth_service.dart';
-import 'package:frontend/services/dio_client.dart';
 import 'package:frontend/utils/validator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -17,33 +15,46 @@ class LoginView extends StatefulWidget {
 }
 
 class _LoginViewState extends State<LoginView> {
-  final _formKey = GlobalKey<FormState>(); // 1. Khai báo FormKey
+  final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
   bool _isPasswordVisible = false;
   bool _isLoading = false;
-  bool _isFormValid = false; // Biến theo dõi trạng thái form
+  bool _isFormValid = false;
+  String? _debugError;
 
-  String? _apiStatus;
-  String? _apiBody;
-  bool _apiSuccess = false;
+  @override
+  void initState() {
+    super.initState();
+    _emailController.addListener(_validateForm);
+    _passwordController.addListener(_validateForm);
+  }
 
-  // Hàm kiểm tra form mỗi khi người dùng nhập liệu
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
   void _validateForm() {
     setState(() {
-      _isFormValid = _formKey.currentState?.validate() ?? false;
+      _isFormValid = _emailController.text.isNotEmpty &&
+          _emailController.text.contains('@') &&
+          _passwordController.text.isNotEmpty;
     });
   }
 
   Future<void> _handleLogin() async {
+    if (_isLoading || !_isFormValid) return;
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
       _isLoading = true;
-      _apiStatus = null;
-      _apiBody = null;
+      _debugError = null;
     });
+<<<<<<< HEAD
 
     final result = await AuthService.login(
       _emailController.text.trim(),
@@ -87,22 +98,44 @@ class _LoginViewState extends State<LoginView> {
 
   // --- Giữ nguyên hàm _testProfileApi của bạn ---
   Future<void> _testProfileApi() async {
+=======
+
+>>>>>>> 15dbe15f773d1c38201037e3f770d655fa3f9209
     try {
-      final response = await DioClient.instance.get('/api/auth/profile');
+      final result = await AuthService.login(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+
+      if (!mounted) return;
+
+      if (result.isSuccess) {
+        try {
+          final friendProvider = context.read<FriendProvider>();
+          final firebaseUid = FirebaseAuth.instance.currentUser!.uid;
+          await friendProvider.setCurrentUid(firebaseUid);
+          await friendProvider.loadAll();
+          friendProvider.startRealtime();
+          if (!mounted) return;
+          context.go('/chat-list');
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi khởi tạo dữ liệu: $e')),
+          );
+          setState(() => _isLoading = false);
+        }
+      } else {
+        setState(() {
+          _isLoading = false;
+          _debugError = result.errorMessage ?? result.errorCode ?? 'Unknown error';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _apiSuccess = true;
-        _apiStatus = '✅ ${response.statusCode} OK';
-        _apiBody = response.data.toString();
-      });
-      await Future.delayed(const Duration(milliseconds: 1500));
-      if (mounted) context.go('/chat-list');
-    } on DioException catch (e) {
-      setState(() {
-        _isLoading = false;
-        _apiSuccess = false;
-        _apiStatus = '❌ ${e.response?.statusCode ?? 'Network Error'}';
-        _apiBody = e.response?.data?.toString() ?? e.message;
+        _debugError = 'Exception: $e';
       });
     }
   }
@@ -126,20 +159,43 @@ class _LoginViewState extends State<LoginView> {
         padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
-          onChanged: _validateForm,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 16),
+<<<<<<< HEAD
 
               // --- Email field
+=======
+              if (_debugError != null)
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  color: Colors.red.shade50,
+                  child: Text(
+                    _debugError!,
+                    style: const TextStyle(color: Colors.red, fontSize: 12),
+                  ),
+                ),
+>>>>>>> 15dbe15f773d1c38201037e3f770d655fa3f9209
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
                 validator: (value) {
+<<<<<<< HEAD
                   if (value == null || value.isEmpty)
                     return 'Vui lòng nhập email';
                   if (!value.contains('@')) return 'Email không đúng định dạng';
+=======
+                  if (value == null || value.isEmpty) return 'Vui lòng nhập email';
+                  final email = value.trim();
+                  final emailRegex = RegExp(
+                    r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
+                  );
+                  if (!emailRegex.hasMatch(email)) {
+                    return 'Email không đúng định dạng';
+                  }
+>>>>>>> 15dbe15f773d1c38201037e3f770d655fa3f9209
                   return null;
                 },
                 decoration: InputDecoration(
@@ -157,7 +213,11 @@ class _LoginViewState extends State<LoginView> {
                       width: 1.5,
                     ),
                   ),
+                  errorBorder: const UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.red, width: 1),
+                  ),
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
+<<<<<<< HEAD
                   errorStyle: const TextStyle(
                     height: 0,
                   ), // Ẩn text lỗi để giống Zalo
@@ -168,19 +228,24 @@ class _LoginViewState extends State<LoginView> {
               // --- Password field ---
               TextFormField(
                 // Đổi thành TextFormField
+=======
+                  errorStyle: const TextStyle(height: 0),
+                ),
+              ),
+              const SizedBox(height: 4),
+              TextFormField(
+>>>>>>> 15dbe15f773d1c38201037e3f770d655fa3f9209
                 controller: _passwordController,
                 obscureText: !_isPasswordVisible,
-                validator: (value) {
-                  return Validator.password(value);
-                },
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) => _handleLogin(),
+                validator: (value) => Validator.password(value),
                 decoration: InputDecoration(
                   hintText: 'Mật khẩu',
                   hintStyle: const TextStyle(color: Colors.grey, fontSize: 16),
                   suffixIcon: TextButton(
                     onPressed: () {
-                      setState(() {
-                        _isPasswordVisible = !_isPasswordVisible;
-                      });
+                      setState(() => _isPasswordVisible = !_isPasswordVisible);
                     },
                     child: Text(
                       _isPasswordVisible ? 'ẨN' : 'HIỆN',
@@ -203,13 +268,14 @@ class _LoginViewState extends State<LoginView> {
                       width: 1.5,
                     ),
                   ),
+                  errorBorder: const UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.red, width: 1),
+                  ),
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
                   errorStyle: const TextStyle(height: 0),
                 ),
               ),
               const SizedBox(height: 20),
-
-              // Quên mật khẩu
               Align(
                 alignment: Alignment.centerLeft,
                 child: GestureDetector(
@@ -220,6 +286,7 @@ class _LoginViewState extends State<LoginView> {
                       color: Color(0xFF0068FF),
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
+<<<<<<< HEAD
                     ),
                   ),
                 ),
@@ -264,15 +331,34 @@ class _LoginViewState extends State<LoginView> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
+=======
+                    ),
+>>>>>>> 15dbe15f773d1c38201037e3f770d655fa3f9209
                   ),
                 ),
               ),
-
-              // Hiển thị thông báo API (Giữ nguyên của bạn)
-              if (_apiStatus != null) ...[
-                const SizedBox(height: 24),
-                // ... (Đoạn Container hiển thị kết quả giữ nguyên)
-              ],
+              const SizedBox(height: 36),
+              SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _handleLogin,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0068FF),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    elevation: 0,
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text(
+                          'Đăng nhập',
+                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
+                ),
+              ),
             ],
           ),
         ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../models/chat/conversation.dart';
 import '../../models/chat/participant.dart';
 
@@ -29,7 +30,7 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
         elevation: 1,
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => GoRouter.of(context).pop(),
         ),
         title: Text('Thông tin nhóm', style: TextStyle(color: Colors.black)),
       ),
@@ -544,8 +545,8 @@ class _GroupInfoScreenState extends State<GroupInfoScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              Navigator.pop(context); // Close group info
-              Navigator.pop(context); // Close chat screen
+              GoRouter.of(context).pop(); // Close group info
+              GoRouter.of(context).pop(); // Close chat screen
               _showSuccess('Đã rời khỏi nhóm');
             },
             child: Text('Rời nhóm', style: TextStyle(color: Colors.red)),

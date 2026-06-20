@@ -30,6 +30,13 @@ public class FriendController(FriendshipService friendshipService) : ControllerB
         Ok(ApiResponse<List<FriendSummaryResponse>>.SuccessResponse(
             await friendshipService.GetFriendsAsync(CurrentUid)));
 
+    // ── GET /api/friends/user/{userId} ─────────────────────────
+    /// <summary>Lấy danh sách bạn bè của một user cụ thể (public info)</summary>
+    [HttpGet("user/{userId}")]
+    public async Task<IActionResult> GetUserFriends(string userId) =>
+        Ok(ApiResponse<List<FriendSummaryResponse>>.SuccessResponse(
+            await friendshipService.GetFriendsAsync(userId)));
+
     // ── GET /api/friends/requests/received ───────────────────────
     /// <summary>Lấy danh sách lời mời kết bạn đã NHẬN (đang pending)</summary>
     [HttpGet("requests/received")]
@@ -80,7 +87,7 @@ public class FriendController(FriendshipService friendshipService) : ControllerB
     public async Task<IActionResult> CancelRequest(string friendshipId)
     {
         await friendshipService.CancelRequestAsync(CurrentUid, friendshipId);
-        return Ok(ApiResponse<object>.SuccessResponse(null));
+        return Ok(ApiResponse<object>.SuccessResponse(default(object)));
     }
 
     // ── DELETE /api/friends/{targetUserId} ───────────────────────
@@ -89,7 +96,7 @@ public class FriendController(FriendshipService friendshipService) : ControllerB
     public async Task<IActionResult> Unfriend(string targetUserId)
     {
         await friendshipService.UnfriendAsync(CurrentUid, targetUserId);
-        return Ok(ApiResponse<object>.SuccessResponse(null));
+        return Ok(ApiResponse<object>.SuccessResponse(default(object)));
     }
 
     // ── POST /api/friends/block/{targetUserId} ───────────────────
@@ -107,6 +114,6 @@ public class FriendController(FriendshipService friendshipService) : ControllerB
     public async Task<IActionResult> Unblock(string targetUserId)
     {
         await friendshipService.UnblockAsync(CurrentUid, targetUserId);
-        return Ok(ApiResponse<object>.SuccessResponse(null));
+        return Ok(ApiResponse<object>.SuccessResponse(default(object)));
     }
 }

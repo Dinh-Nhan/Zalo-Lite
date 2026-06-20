@@ -220,6 +220,12 @@ public class FriendshipService(
 
         logger.LogInformation("Friend request {Id} cancelled by {UserId}",
             friendshipId, currentUserId);
+
+        // ── SignalR: notify người nhận biết lời mời đã bị huỷ ────
+        var response = friendship.Adapt<FriendshipResponse>();
+        await hubContext.Clients
+            .Group(FriendHub.GroupName(friendship.AddresseeId))
+            .SendAsync("FriendRequestCancelled", response);
     }
 
     /// <summary>
@@ -243,6 +249,16 @@ public class FriendshipService(
         await db.Collection(Col).Document(existing.Id).DeleteAsync();
 
         logger.LogInformation("Unfriend: {A} ↔ {B}", currentUserId, targetUserId);
+
+        // ── SignalR: notify bên kia biết đã bị unfriend ──────────
+        var otherUserId = existing.SenderId == currentUserId
+            ? existing.AddresseeId
+            : existing.SenderId;
+
+        var response = existing.Adapt<FriendshipResponse>();
+        await hubContext.Clients
+            .Group(FriendHub.GroupName(otherUserId))
+            .SendAsync("FriendUnfriended", response);
     }
 
     /// <summary>
@@ -673,7 +689,8 @@ public class FriendshipService(
             {
                 FriendshipId = entries[i].FriendshipId,
                 FriendId     = user.Id,
-                FullName     = $"{user.FirstName} {user.LastName}".Trim(),
+                FirstName    = user.FirstName,
+                LastName     = user.LastName,
                 Avatar       = user.Avatar,
                 FriendsSince = entries[i].Since
             });

@@ -68,42 +68,77 @@ class Conversation {
               ?.map((p) => Participant.fromJson(p))
               .toList() ??
           [],
-      lastMessage: json['last_message'] != null
-          ? Message.fromJson(json['last_message'])
+      lastMessage: (json['lastMessage'] ?? json['last_message']) != null
+          ? Message.fromJson(json['lastMessage'] ?? json['last_message'])
           : null,
       createdAt: DateTime.parse(
-        json['created_at'] ?? DateTime.now().toIso8601String(),
-      ),
+        json['createdAt'] ?? json['created_at'] ?? DateTime.now().toIso8601String(),
+      ).toLocal(),
       updatedAt: DateTime.parse(
-        json['updated_at'] ?? DateTime.now().toIso8601String(),
-      ),
-      groupName: json['group_name'],
-      groupAvatarUrl: json['group_avatar_url'],
-      groupDescription: json['group_description'],
-      createdBy: json['created_by'],
-      onlyAdminCanSend: json['only_admin_can_send'] ?? false,
-      onlyAdminCanEditInfo: json['only_admin_can_edit_info'] ?? false,
-      otherUserId: json['other_user_id'],
-      otherUserName: json['other_user_name'],
-      otherUserAvatar: json['other_user_avatar'],
-      otherUserOnline: json['other_user_online'],
-      otherUserLastSeen: json['other_user_last_seen'] != null
-          ? DateTime.parse(json['other_user_last_seen'])
+        json['updatedAt'] ?? json['updated_at'] ?? DateTime.now().toIso8601String(),
+      ).toLocal(),
+      groupName: json['groupName'] ?? json['group_name'],
+      groupAvatarUrl: json['groupAvatarUrl'] ?? json['group_avatar_url'],
+      groupDescription: json['groupDescription'] ?? json['group_description'],
+      createdBy: json['createdBy'] ?? json['created_by'],
+      onlyAdminCanSend: json['onlyAdminCanSend'] ?? json['only_admin_can_send'] ?? false,
+      onlyAdminCanEditInfo: json['onlyAdminCanEditInfo'] ?? json['only_admin_can_edit_info'] ?? false,
+      otherUserId: json['otherUserId'] ?? json['other_user_id'],
+      otherUserName: json['otherUserName'] ?? json['other_user_name'],
+      otherUserAvatar: json['otherUserAvatar'] ?? json['other_user_avatar'],
+      otherUserOnline: json['otherUserOnline'] ?? json['other_user_online'],
+      otherUserLastSeen: (json['otherUserLastSeen'] ?? json['other_user_last_seen']) != null
+          ? DateTime.parse(json['otherUserLastSeen'] ?? json['other_user_last_seen']).toLocal()
           : null,
-      isMuted: json['is_muted'] ?? false,
-      isPinned: json['is_pinned'] ?? false,
-      unreadCount: json['unread_count'] ?? 0,
-      isArchived: json['is_archived'] ?? false,
-      pinnedMessageId: json['pinned_message_id'],
-      pinnedMessageContent: json['pinned_message_content'],
+      isMuted: json['isMuted'] ?? json['is_muted'] ?? false,
+      isPinned: json['isPinned'] ?? json['is_pinned'] ?? false,
+      unreadCount: json['unreadCount'] ?? json['unread_count'] ?? 0,
+      isArchived: json['isArchived'] ?? json['is_archived'] ?? false,
+      pinnedMessageId: json['pinnedMessageId'] ?? json['pinned_message_id'],
+      pinnedMessageContent: json['pinnedMessageContent'] ?? json['pinned_message_content'],
+    );
+  }
+
+  Conversation copyWith({
+    Message? lastMessage,
+    int? unreadCount,
+    DateTime? updatedAt,
+  }) {
+    return Conversation(
+      id: id,
+      type: type,
+      participants: participants,
+      lastMessage: lastMessage ?? this.lastMessage,
+      createdAt: createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      groupName: groupName,
+      groupAvatarUrl: groupAvatarUrl,
+      groupDescription: groupDescription,
+      createdBy: createdBy,
+      onlyAdminCanSend: onlyAdminCanSend,
+      onlyAdminCanEditInfo: onlyAdminCanEditInfo,
+      otherUserId: otherUserId,
+      otherUserName: otherUserName,
+      otherUserAvatar: otherUserAvatar,
+      otherUserOnline: otherUserOnline,
+      otherUserLastSeen: otherUserLastSeen,
+      isMuted: isMuted,
+      isPinned: isPinned,
+      unreadCount: unreadCount ?? this.unreadCount,
+      isArchived: isArchived,
+      pinnedMessageId: pinnedMessageId,
+      pinnedMessageContent: pinnedMessageContent,
     );
   }
 
   String get displayName {
     if (type == 'group') {
-      return groupName ?? 'Nhóm';
+      final name = groupName?.trim();
+      return (name != null && name.isNotEmpty) ? name : 'Nhóm';
     }
-    return otherUserName ?? 'Người dùng';
+    final name = otherUserName?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return otherUserId ?? 'Người dùng';
   }
 
   String get displayAvatar {

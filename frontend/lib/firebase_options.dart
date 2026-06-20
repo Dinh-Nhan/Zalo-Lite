@@ -47,7 +47,6 @@ class DefaultFirebaseOptions {
     projectId: 'zalo-lite-v2',
     storageBucket: 'zalo-lite-v2.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyDlMEptedzwcIzIzH0gCxF29WpUTtthnEU',
     appId: '1:1004023558166:ios:749e2d878480914f094537',
@@ -56,7 +55,6 @@ class DefaultFirebaseOptions {
     storageBucket: 'zalo-lite-v2.firebasestorage.app',
     iosBundleId: 'com.example.frontend',
   );
-
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyAaxGgjUGYHJfLEHZ9OdvC29T-NlXGyjyo',
     appId: '1:1004023558166:web:e44c5cbc606d7d59094537',
@@ -83,5 +81,4 @@ class DefaultFirebaseOptions {
     authDomain: 'zalo-lite-v2.firebaseapp.com',
     storageBucket: 'zalo-lite-v2.firebasestorage.app',
   );
-
 }
