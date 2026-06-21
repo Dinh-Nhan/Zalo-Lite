@@ -9,6 +9,9 @@ using backend.Models.Conversation;
 using Google.Cloud.Firestore;
 using Mapster;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.Http;
+using FluentValidation;
+using FluentValidation.Results;
 
 namespace backend.Services;
 

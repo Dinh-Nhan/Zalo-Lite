@@ -6,6 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../features/calling/screens/call_screen.dart';
 import '../../models/call_model.dart';
 import '../../models/chat/conversation.dart';
@@ -48,6 +51,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final Set<String> _historyIds = {};
   bool _historyLoaded = false;
 
+  // Recording
+  bool _isRecording = false;
+  bool _isRecordingActionInProgress = false;
+  int _recordingDuration = 0;
+  Timer? _recordingTimer;
+  late final AudioRecorder _audioRecorder;
+
   @override
   void didUpdateWidget(ChatScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -89,6 +99,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    debugPrint('[ChatScreen] initState called');
+    _audioRecorder = AudioRecorder();
     WidgetsBinding.instance.addObserver(this);
     _loadMessages();
     _setupScrollListener();
@@ -112,6 +124,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    debugPrint('[ChatScreen] dispose called');
     WidgetsBinding.instance.removeObserver(this);
     _chatProvider
       ..setConversationVisible(false)
@@ -120,6 +133,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _scrollController.dispose();
     _focusNode.dispose();
     _typingTimer?.cancel();
+    _recordingTimer?.cancel();
+    _audioRecorder.dispose();
     super.dispose();
   }
 
@@ -745,6 +760,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildInputArea() {
+    if (_isRecording) {
+      return _buildRecordingInputArea();
+    }
     final hasText = _messageController.text.trim().isNotEmpty;
     const iconColor = Color(0xFF707070);
 
@@ -1170,8 +1188,238 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _showInfo('Tính năng chọn tệp đang được phát triển');
   }
 
+  Widget _buildRecordingInputArea() {
+    final minutes = _recordingDuration ~/ 60;
+    final seconds = _recordingDuration % 60;
+    final timeStr =
+        '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Color(0xFFEEEEEE), width: 0.5)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              // Hủy ghi âm
+              IconButton(
+                icon: const Icon(
+                  Icons.delete_outline,
+                  color: Colors.redAccent,
+                  size: 26,
+                ),
+                onPressed: _cancelRecording,
+              ),
+              const SizedBox(width: 8),
+
+              // Thanh hiển thị trạng thái và thời gian
+              Expanded(
+                child: Container(
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF2F2F2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      const _FlashingRedDot(),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Đang ghi âm...',
+                        style: TextStyle(
+                          color: Color(0xFF555555),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        timeStr,
+                        style: const TextStyle(
+                          color: Color(0xFF0068FF),
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Hoàn thành ghi âm và gửi
+              GestureDetector(
+                onTap: _stopAndSendRecording,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF00CC44),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check, color: Colors.white, size: 22),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startRecording() async {
+    debugPrint('[ChatScreen] _startRecording called');
+    if (_isRecordingActionInProgress) return;
+    _isRecordingActionInProgress = true;
+    try {
+      // 1. Kiểm tra và yêu cầu quyền microphone
+      final status = await Permission.microphone.request();
+      debugPrint('[ChatScreen] Microphone permission status: $status');
+      if (status != PermissionStatus.granted) {
+        debugPrint('[ChatScreen] Permission.microphone was denied');
+        _showError(
+          'Ứng dụng cần quyền sử dụng microphone để ghi âm tin nhắn thoại.',
+        );
+        return;
+      }
+
+      // 2. Chuẩn bị đường dẫn lưu file ghi âm tạm thời (.m4a)
+      final tempDir = await getTemporaryDirectory();
+      final path =
+          '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      debugPrint('[ChatScreen] Target path for temp audio file: $path');
+
+      // 3. Khởi chạy ghi âm
+      if (await _audioRecorder.hasPermission()) {
+        await _audioRecorder.start(
+          const RecordConfig(encoder: AudioEncoder.aacLc),
+          path: path,
+        );
+        debugPrint('[ChatScreen] AudioRecorder successfully started recording');
+
+        setState(() {
+          _isRecording = true;
+          _recordingDuration = 0;
+        });
+
+        // 4. Bắt đầu đếm thời gian
+        _recordingTimer?.cancel();
+        _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          if (mounted) {
+            setState(() {
+              _recordingDuration++;
+            });
+            // Giới hạn ghi âm tối đa là 5 phút (300 giây)
+            if (_recordingDuration >= 300) {
+              debugPrint(
+                '[ChatScreen] Recording duration limit (300s) reached. Stopping and sending.',
+              );
+              _stopAndSendRecording();
+            }
+          }
+        });
+      } else {
+        throw Exception('Thiếu quyền truy cập microphone trên thiết bị.');
+      }
+    } catch (e) {
+      debugPrint('[ChatScreen] _startRecording error: $e');
+      _showError('Không thể khởi động ghi âm: $e');
+    } finally {
+      _isRecordingActionInProgress = false;
+    }
+  }
+
+  Future<void> _cancelRecording() async {
+    debugPrint('[ChatScreen] _cancelRecording called');
+    if (_isRecordingActionInProgress) return;
+    _isRecordingActionInProgress = true;
+    try {
+      _recordingTimer?.cancel();
+      final path = await _audioRecorder.stop();
+      debugPrint('[ChatScreen] AudioRecorder stopped. Temp path: $path');
+      if (path != null) {
+        final file = File(path);
+        if (await file.exists()) {
+          await file.delete();
+          debugPrint('[ChatScreen] Deleted temp audio file at: $path');
+        }
+      }
+      setState(() {
+        _isRecording = false;
+        _recordingDuration = 0;
+      });
+      _showInfo('Đã hủy ghi âm.');
+    } catch (e) {
+      debugPrint('[ChatScreen] _cancelRecording error: $e');
+    } finally {
+      _isRecordingActionInProgress = false;
+    }
+  }
+
+  Future<void> _stopAndSendRecording() async {
+    debugPrint('[ChatScreen] _stopAndSendRecording called');
+    if (_isRecordingActionInProgress) return;
+    _isRecordingActionInProgress = true;
+    try {
+      _recordingTimer?.cancel();
+      final path = await _audioRecorder.stop();
+      debugPrint('[ChatScreen] AudioRecorder stopped. Output file path: $path');
+
+      final finalDuration = _recordingDuration;
+      setState(() {
+        _isRecording = false;
+        _recordingDuration = 0;
+      });
+
+      if (path != null && finalDuration > 0) {
+        final file = File(path);
+        if (await file.exists()) {
+          debugPrint(
+            '[ChatScreen] File exists at $path. Triggering sendAudioMessage on ChatProvider. Duration: $finalDuration',
+          );
+          if (!mounted) return;
+          // Gửi tin nhắn thoại thông qua ChatProvider
+          await context.read<ChatProvider>().sendAudioMessage(
+            file,
+            finalDuration,
+          );
+          _scrollToBottom();
+        } else {
+          throw Exception(
+            'Không tìm thấy tệp ghi âm tạm thời sau khi dừng ghi.',
+          );
+        }
+      } else {
+        debugPrint(
+          '[ChatScreen] Stop recording ignored: path is null or duration is 0',
+        );
+      }
+    } catch (e) {
+      debugPrint('[ChatScreen] _stopAndSendRecording error: $e');
+      _showError('Lỗi khi lưu hoặc gửi file ghi âm: $e');
+    } finally {
+      _isRecordingActionInProgress = false;
+    }
+  }
+
   void _recordAudio() {
-    _showInfo('Tính năng ghi âm đang được phát triển');
+    debugPrint('[ChatScreen] _recordAudio called');
+    if (_isRecordingActionInProgress) {
+      debugPrint(
+        '[ChatScreen] Record action in progress, ignoring duplicate tap.',
+      );
+      return;
+    }
+    if (_isRecording) {
+      _stopAndSendRecording();
+    } else {
+      _startRecording();
+    }
   }
 
   Future<void> _shareLocation() async {
@@ -1468,4 +1716,46 @@ class _AnimatedBubbleState extends State<_AnimatedBubble>
     opacity: _fade,
     child: SlideTransition(position: _slide, child: widget.child),
   );
+}
+
+class _FlashingRedDot extends StatefulWidget {
+  const _FlashingRedDot();
+
+  @override
+  State<_FlashingRedDot> createState() => _FlashingRedDotState();
+}
+
+class _FlashingRedDotState extends State<_FlashingRedDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _controller,
+      child: Container(
+        width: 8,
+        height: 8,
+        decoration: const BoxDecoration(
+          color: Colors.red,
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
+  }
 }

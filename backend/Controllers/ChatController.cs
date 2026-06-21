@@ -24,14 +24,7 @@ public class ChatController : ControllerBase
     private readonly UserService _userService;
     private readonly CloudinaryService _cloudinaryService;
 
-    private static readonly string[] AllowedMediaMimeTypes =
-    [
-        "image/jpeg", "image/png", "image/gif", "image/webp",
-        "video/mp4", "video/quicktime", "video/x-msvideo", "video/webm", "video/x-matroska"
-    ];
 
-    private const long MaxImageSize = 10 * 1024 * 1024; // 10 MB
-    private const long MaxVideoSize = 100 * 1024 * 1024; // 100 MB
 
     public ChatController(ChatService chatService, ILogger<ChatController> logger,
         IHubContext<ChatHub> hubContext, FcmService fcm, UserService userService,
@@ -233,32 +226,23 @@ public class ChatController : ControllerBase
     /// <summary>Upload an image/video for a chat message (returns the Cloudinary URL)</summary>
     [HttpPost("upload")]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> UploadMedia([FromForm] string conversationId, [FromForm] IFormFile file)
+    public async Task<IActionResult> UploadMedia([FromForm] UploadMediaRequest request)
     {
         var userId = User.GetUid();
+        _logger.LogInformation("[UploadMedia] User {UserId} bắt đầu upload file '{FileName}' (ContentType: {ContentType}, Size: {Size} bytes) cho Conversation {ConversationId}", userId, request.File.FileName, request.File.ContentType, request.File.Length, request.ConversationId);
 
         // Ensure the caller is a participant of the conversation before accepting the upload
-        await _chatService.GetConversationByIdAsync(conversationId, userId);
+        await _chatService.GetConversationByIdAsync(request.ConversationId, userId);
 
-        if (file.Length == 0)
-            throw new AppException(ErrorCode.VALIDATION_ERROR);
-
-        if (!AllowedMediaMimeTypes.Contains(file.ContentType))
-            throw new AppException(ErrorCode.VALIDATION_ERROR);
-
-        var isVideo = file.ContentType.StartsWith("video/");
-        var maxSize = isVideo ? MaxVideoSize : MaxImageSize;
-        if (file.Length > maxSize)
-            throw new AppException(ErrorCode.VALIDATION_ERROR);
-
-        var (url, _, mediaType) = await _cloudinaryService.UploadChatMediaAsync(file, userId, conversationId);
+        var (url, _, mediaType) = await _cloudinaryService.UploadChatMediaAsync(request.File, userId, request.ConversationId);
+        _logger.LogInformation("[UploadMedia] Upload thành công lên Cloudinary. URL: {Url}, MediaType: {MediaType}", url, mediaType);
 
         var response = new MediaUploadResponse
         {
             MediaUrl = url,
             MediaType = mediaType,
-            FileName = file.FileName,
-            FileSize = file.Length,
+            FileName = request.File.FileName,
+            FileSize = request.File.Length,
         };
         return Ok(ApiResponse<MediaUploadResponse>.SuccessResponse(response, "Media uploaded successfully"));
     }

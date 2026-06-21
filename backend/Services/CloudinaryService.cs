@@ -103,16 +103,19 @@ namespace backend.Services
         public async Task<(string Url, string PublicId, string MediaType)> UploadChatMediaAsync(
             IFormFile file, string userId, string conversationId)
         {
+            _logger.LogInformation("[CloudinaryService] Bắt đầu xử lý upload cho chat. File: {FileName}, MimeType: {MimeType}, User: {UserId}", file.FileName, file.ContentType, userId);
             var cloudinary = GetClient();
             await using var stream = file.OpenReadStream();
             var isVideo = file.ContentType.StartsWith("video/");
-            var mediaType = isVideo ? "video" : "image";
+            var isAudio = file.ContentType.StartsWith("audio/");
+            var mediaType = isVideo ? "video" : (isAudio ? "audio" : "image");
 
             // chat/{conversationId}/{userId}/
             var folder = $"chat/{conversationId}/{userId}";
 
-            if (isVideo)
+            if (isVideo || isAudio)
             {
+                _logger.LogInformation("[CloudinaryService] Phát hiện file Video/Audio. Sử dụng VideoUploadParams để upload. File: {FileName}", file.FileName);
                 var result = await cloudinary.UploadAsync(new VideoUploadParams
                 {
                     File = new FileDescription(file.FileName, stream),
@@ -122,14 +125,15 @@ namespace backend.Services
 
                 if (result.Error != null)
                 {
-                    _logger.LogError("[Cloudinary] Chat video upload failed: {Message}", result.Error.Message);
-                    throw new Exception($"Cloudinary video upload failed: {result.Error.Message}");
+                    _logger.LogError("[Cloudinary] Chat media (video/audio) upload failed: {Message}", result.Error.Message);
+                    throw new Exception($"Không thể tải video/audio lên Cloudinary: {result.Error.Message}");
                 }
 
-                _logger.LogInformation("[Cloudinary] Uploaded chat video {PublicId}", result.PublicId);
+                _logger.LogInformation("[Cloudinary] Đã upload chat media (video/audio) thành công. PublicId: {PublicId}", result.PublicId);
                 return (result.SecureUrl.ToString(), result.PublicId, mediaType);
             }
 
+            _logger.LogInformation("[CloudinaryService] Phát hiện file Image. Sử dụng ImageUploadParams để upload. File: {FileName}", file.FileName);
             var imageResult = await cloudinary.UploadAsync(new ImageUploadParams
             {
                 File = new FileDescription(file.FileName, stream),
@@ -140,10 +144,10 @@ namespace backend.Services
             if (imageResult.Error != null)
             {
                 _logger.LogError("[Cloudinary] Chat image upload failed: {Message}", imageResult.Error.Message);
-                throw new Exception($"Cloudinary image upload failed: {imageResult.Error.Message}");
+                throw new Exception($"Không thể tải hình ảnh lên Cloudinary: {imageResult.Error.Message}");
             }
 
-            _logger.LogInformation("[Cloudinary] Uploaded chat image {PublicId}", imageResult.PublicId);
+            _logger.LogInformation("[Cloudinary] Đã upload chat image thành công. PublicId: {PublicId}", imageResult.PublicId);
             return (imageResult.SecureUrl.ToString(), imageResult.PublicId, mediaType);
         }
 

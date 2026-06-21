@@ -7,7 +7,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Ứng dụng cần truy cập máy ảnh để chụp ảnh đại diện trực tiếp.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Ứng dụng cần truy cập micro (nếu bạn quay video).</string>
+	<string>Zalo Lite cần quyền truy cập microphone của bạn để thực hiện cuộc gọi và ghi âm tin nhắn thoại.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

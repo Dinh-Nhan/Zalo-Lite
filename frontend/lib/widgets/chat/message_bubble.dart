@@ -4,6 +4,7 @@ import 'package:frontend/widgets/location_message_bubble.dart';
 import 'package:intl/intl.dart';
 import '../../models/chat/message.dart';
 import 'fullscreen_image_viewer.dart';
+import 'audio_message_player.dart';
 
 class MessageBubble extends StatelessWidget {
   final Message message;
@@ -369,37 +370,66 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildAudioContent() {
-    final iconColor = message.isMine ? Colors.white : _zaloBlue;
-    final textColor = message.isMine ? Colors.white : Colors.black87;
-    final subColor = message.isMine ? Colors.white70 : Colors.grey[600]!;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.play_circle_fill, color: iconColor, size: 30),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Tin nhắn thoại',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: textColor,
-                  fontWeight: FontWeight.w500,
-                ),
+    debugPrint('[MessageBubble] _buildAudioContent called for message ID: ${message.id}');
+    final hasRemote = message.mediaUrl != null && message.mediaUrl!.isNotEmpty;
+    final hasLocal = message.localFilePath != null;
+
+    if (hasRemote) {
+      return AudioMessagePlayer(
+        audioUrl: message.mediaUrl!,
+        durationSeconds: message.duration,
+        isMine: message.isMine,
+      );
+    } else if (hasLocal && message.status == 'sending') {
+      final iconColor = message.isMine ? Colors.white : _zaloBlue;
+      final textColor = message.isMine ? Colors.white : Colors.black87;
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: iconColor,
               ),
-              if (message.duration != null)
-                Text(
-                  _formatDuration(message.duration!),
-                  style: TextStyle(fontSize: 11, color: subColor),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'Đang gửi ghi âm...',
+              style: TextStyle(
+                fontSize: 13,
+                color: textColor,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      final iconColor = message.isMine ? Colors.white : _zaloBlue;
+      final textColor = message.isMine ? Colors.white : Colors.black87;
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline, color: iconColor, size: 20),
+            const SizedBox(width: 10),
+            Text(
+              'Ghi âm không khả dụng',
+              style: TextStyle(
+                fontSize: 13,
+                color: textColor,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Widget _buildFileContent() {
@@ -768,12 +798,6 @@ class MessageBubble extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _formatDuration(int seconds) {
-    final m = seconds ~/ 60;
-    final s = seconds % 60;
-    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   String _formatFileSize(int bytes) {

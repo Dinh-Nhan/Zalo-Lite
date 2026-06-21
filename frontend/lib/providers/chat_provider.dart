@@ -260,12 +260,17 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     String? thumbnailUrl,
     String? fileName,
     int? fileSize,
+    int? duration,
     double? latitude,
     double? longitude,
     String? address,
   }) async {
+    debugPrint('[ChatProvider] sendMessage called. Type: $type, ContentLength: ${content.length}');
     final conv = _activeConversation;
-    if (conv == null) return;
+    if (conv == null) {
+      debugPrint('[ChatProvider] sendMessage error: No active conversation');
+      return;
+    }
 
     // ── Optimistic UI: hiện tin nhắn ngay lập tức ──────────────
     final tempId = '_pending_${DateTime.now().millisecondsSinceEpoch}';
@@ -281,6 +286,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       thumbnailUrl: thumbnailUrl,
       fileName: fileName,
       fileSize: fileSize,
+      duration: duration,
       replyToMessageId: replyToMessageId,
       isForwarded: false,
       isDeleted: false,
@@ -306,6 +312,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       thumbnailUrl: thumbnailUrl,
       fileName: fileName,
       fileSize: fileSize,
+      duration: duration,
       replyToMessageId: replyToMessageId,
       latitude: latitude,
       longitude: longitude,
@@ -322,11 +329,13 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     String? thumbnailUrl,
     String? fileName,
     int? fileSize,
+    int? duration,
     String? replyToMessageId,
     double? latitude,
     double? longitude,
     String? address,
   }) async {
+    debugPrint('[ChatProvider] _trySendViaSignalR called for tempId: $tempId, type: $type');
     try {
       await _signalR?.sendMessage(
         conversationId: conversationId,
@@ -337,24 +346,27 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
         thumbnailUrl: thumbnailUrl,
         fileName: fileName,
         fileSize: fileSize,
+        duration: duration,
         replyToMessageId: replyToMessageId,
         latitude: latitude, // thêm
         longitude: longitude, // thêm
         address: address,
       );
+      debugPrint('[ChatProvider] _trySendViaSignalR invoke completed for tempId: $tempId');
     } catch (e) {
       // Giữ message trên UI, đánh dấu gửi lỗi để user có thể nhấn gửi lại
       _messages = _messages
           .map((m) => m.id == tempId ? m.copyWith(status: 'failed') : m)
           .toList();
       _errorMessage = e.toString();
-      debugPrint('[ChatProvider] sendMessage error: $e');
+      debugPrint('[ChatProvider] _trySendViaSignalR error: $e');
       notifyListeners();
     }
   }
 
   /// Gửi lại một tin nhắn đã ở trạng thái 'failed'.
   Future<void> retrySendMessage(String tempId) async {
+    debugPrint('[ChatProvider] retrySendMessage called for tempId: $tempId');
     final msg = _messages.firstWhere(
       (m) => m.id == tempId,
       orElse: () => Message(
@@ -369,20 +381,37 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
         updatedAt: DateTime.now(),
       ),
     );
-    if (msg.id.isEmpty || msg.status != 'failed') return;
+    if (msg.id.isEmpty) {
+      debugPrint('[ChatProvider] retrySendMessage error: Message not found');
+      return;
+    }
+    if (msg.status != 'failed') {
+      debugPrint('[ChatProvider] retrySendMessage ignored: Message status is ${msg.status}');
+      return;
+    }
 
     _messages = _messages
         .map((m) => m.id == tempId ? m.copyWith(status: 'sending') : m)
         .toList();
     notifyListeners();
 
-    // Ảnh chưa upload xong lần trước (lỗi ngay từ bước upload) → thử lại từ đầu
+    // Ảnh hoặc Audio chưa upload xong lần trước (lỗi ngay từ bước upload) → thử lại từ đầu
     if (msg.mediaUrl == null && msg.localFilePath != null) {
-      await _uploadAndSendImage(
-        tempId: tempId,
-        conversationId: msg.conversationId,
-        localFilePath: msg.localFilePath!,
-      );
+      debugPrint('[ChatProvider] retrySendMessage: File local chưa upload. Bắt đầu upload lại cho type: ${msg.type}');
+      if (msg.type == 'image') {
+        await _uploadAndSendImage(
+          tempId: tempId,
+          conversationId: msg.conversationId,
+          localFilePath: msg.localFilePath!,
+        );
+      } else if (msg.type == 'audio') {
+        await _uploadAndSendAudio(
+          tempId: tempId,
+          conversationId: msg.conversationId,
+          localFilePath: msg.localFilePath!,
+          duration: msg.duration ?? 0,
+        );
+      }
       return;
     }
 
@@ -395,14 +424,19 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       thumbnailUrl: msg.thumbnailUrl,
       fileName: msg.fileName,
       fileSize: msg.fileSize,
+      duration: msg.duration,
       replyToMessageId: msg.replyToMessageId,
     );
   }
 
   /// Gửi ảnh: hiện preview local NGAY (① render trước), upload + gửi ở nền (② call API sau).
   Future<void> sendImageMessage(File imageFile) async {
+    debugPrint('[ChatProvider] sendImageMessage called. FilePath: ${imageFile.path}');
     final conv = _activeConversation;
-    if (conv == null) return;
+    if (conv == null) {
+      debugPrint('[ChatProvider] sendImageMessage error: No active conversation');
+      return;
+    }
 
     // ① Optimistic UI: hiện ảnh local ngay lập tức, chưa cần URL từ Cloudinary
     final tempId = '_pending_${DateTime.now().millisecondsSinceEpoch}';
@@ -440,11 +474,13 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     required String conversationId,
     required String localFilePath,
   }) async {
+    debugPrint('[ChatProvider] _uploadAndSendImage called for tempId: $tempId');
     try {
       final result = await _chatService.uploadMedia(
         conversationId: conversationId,
         file: File(localFilePath),
       );
+      debugPrint('[ChatProvider] _uploadAndSendImage upload success: $result');
       await _trySendViaSignalR(
         tempId: tempId,
         conversationId: conversationId,
@@ -460,7 +496,89 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
           .map((m) => m.id == tempId ? m.copyWith(status: 'failed') : m)
           .toList();
       _errorMessage = e.toString();
-      debugPrint('[ChatProvider] sendImageMessage error: $e');
+      debugPrint('[ChatProvider] _uploadAndSendImage error: $e');
+      notifyListeners();
+    }
+  }
+
+  /// Gửi tin nhắn thoại: hiện preview local và duration NGAY, upload + gửi ở nền.
+  Future<void> sendAudioMessage(File audioFile, int durationSeconds) async {
+    debugPrint('[ChatProvider] sendAudioMessage called. Path: ${audioFile.path}, Duration: $durationSeconds s');
+    final conv = _activeConversation;
+    if (conv == null) {
+      debugPrint('[ChatProvider] sendAudioMessage error: No active conversation');
+      return;
+    }
+
+    // ① Optimistic UI: hiện audio local ngay lập tức
+    final tempId = '_pending_${DateTime.now().millisecondsSinceEpoch}';
+    final fileSize = await audioFile.length();
+    final optimistic = Message(
+      id: tempId,
+      conversationId: conv.id,
+      senderId: _currentUid ?? '',
+      senderName: 'Bạn',
+      senderAvatar: '',
+      type: 'audio',
+      content: 'Tin nhắn thoại',
+      localFilePath: audioFile.path,
+      fileSize: fileSize,
+      duration: durationSeconds,
+      isForwarded: false,
+      isDeleted: false,
+      isEdited: false,
+      status: 'sending',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      isMine: true,
+      totalReactions: 0,
+    );
+    _messages = [..._messages, optimistic];
+    notifyListeners();
+
+    // ② Upload + gửi ở nền
+    await _uploadAndSendAudio(
+      tempId: tempId,
+      conversationId: conv.id,
+      localFilePath: audioFile.path,
+      duration: durationSeconds,
+    );
+  }
+
+  Future<void> _uploadAndSendAudio({
+    required String tempId,
+    required String conversationId,
+    required String localFilePath,
+    required int duration,
+  }) async {
+    debugPrint('[ChatProvider] _uploadAndSendAudio called for tempId: $tempId');
+    try {
+      final file = File(localFilePath);
+      if (!await file.exists()) {
+        throw Exception('Không tìm thấy tệp ghi âm local tại đường dẫn: $localFilePath');
+      }
+      final result = await _chatService.uploadMedia(
+        conversationId: conversationId,
+        file: file,
+      );
+      debugPrint('[ChatProvider] _uploadAndSendAudio upload success: $result');
+      await _trySendViaSignalR(
+        tempId: tempId,
+        conversationId: conversationId,
+        type: 'audio',
+        content: 'Tin nhắn thoại',
+        mediaUrl: result['mediaUrl'],
+        fileName: result['fileName'],
+        fileSize: result['fileSize'],
+        duration: duration,
+      );
+    } catch (e) {
+      // Upload lỗi — đánh dấu failed giống lúc gửi text lỗi, giữ localFilePath và duration để retry
+      _messages = _messages
+          .map((m) => m.id == tempId ? m.copyWith(status: 'failed') : m)
+          .toList();
+      _errorMessage = e.toString();
+      debugPrint('[ChatProvider] _uploadAndSendAudio error: $e');
       notifyListeners();
     }
   }
