@@ -14,6 +14,10 @@ class Message {
   final int? fileSize;
   final int? duration;
 
+  /// Đường dẫn file local — chỉ dùng để hiện preview ngay khi đang upload,
+  /// không serialize lên/từ server.
+  final String? localFilePath;
+
   // Reply
   final String? replyToMessageId;
   final String? replyToContent;
@@ -40,6 +44,9 @@ class Message {
 
   final bool isMine;
 
+  /// ID tạm do client sinh ra khi gửi — server echo lại để khớp đúng optimistic message.
+  final String? clientTempId;
+
   Message({
     required this.id,
     required this.conversationId,
@@ -53,6 +60,7 @@ class Message {
     this.fileName,
     this.fileSize,
     this.duration,
+    this.localFilePath,
     this.replyToMessageId,
     this.replyToContent,
     this.replyToSenderName,
@@ -69,6 +77,7 @@ class Message {
     required this.createdAt,
     required this.updatedAt,
     this.isMine = false,
+    this.clientTempId,
   });
 
   factory Message.fromJson(Map<String, dynamic> json) {
@@ -128,6 +137,7 @@ class Message {
         json['updatedAt'] ?? json['updated_at'] ?? DateTime.now().toIso8601String(),
       ).toLocal(),
       isMine: json['isMine'] ?? json['is_mine'] ?? false,
+      clientTempId: json['clientTempId'] ?? json['client_temp_id'],
     );
   }
 
@@ -153,6 +163,7 @@ class Message {
       fileName: fileName,
       fileSize: fileSize,
       duration: duration,
+      localFilePath: localFilePath,
       replyToMessageId: replyToMessageId,
       replyToContent: replyToContent,
       replyToSenderName: replyToSenderName,
@@ -169,6 +180,7 @@ class Message {
       createdAt: createdAt,
       updatedAt: updatedAt,
       isMine: isMine ?? this.isMine,
+      clientTempId: clientTempId,
     );
   }
 

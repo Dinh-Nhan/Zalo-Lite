@@ -94,6 +94,59 @@ namespace backend.Services
             return (imageResult.SecureUrl.ToString(), imageResult.PublicId, mediaType);
         }
 
+        //---------------------Chat---------------------
+
+        /// <summary>
+        /// Upload ảnh/video gửi trong tin nhắn chat.
+        /// Trả về (Url, PublicId, MediaType).
+        /// </summary>
+        public async Task<(string Url, string PublicId, string MediaType)> UploadChatMediaAsync(
+            IFormFile file, string userId, string conversationId)
+        {
+            var cloudinary = GetClient();
+            await using var stream = file.OpenReadStream();
+            var isVideo = file.ContentType.StartsWith("video/");
+            var mediaType = isVideo ? "video" : "image";
+
+            // chat/{conversationId}/{userId}/
+            var folder = $"chat/{conversationId}/{userId}";
+
+            if (isVideo)
+            {
+                var result = await cloudinary.UploadAsync(new VideoUploadParams
+                {
+                    File = new FileDescription(file.FileName, stream),
+                    Folder = folder,
+                    Transformation = new Transformation().Quality("auto")
+                });
+
+                if (result.Error != null)
+                {
+                    _logger.LogError("[Cloudinary] Chat video upload failed: {Message}", result.Error.Message);
+                    throw new Exception($"Cloudinary video upload failed: {result.Error.Message}");
+                }
+
+                _logger.LogInformation("[Cloudinary] Uploaded chat video {PublicId}", result.PublicId);
+                return (result.SecureUrl.ToString(), result.PublicId, mediaType);
+            }
+
+            var imageResult = await cloudinary.UploadAsync(new ImageUploadParams
+            {
+                File = new FileDescription(file.FileName, stream),
+                Folder = folder,
+                Transformation = new Transformation().Quality("auto").FetchFormat("auto")
+            });
+
+            if (imageResult.Error != null)
+            {
+                _logger.LogError("[Cloudinary] Chat image upload failed: {Message}", imageResult.Error.Message);
+                throw new Exception($"Cloudinary image upload failed: {imageResult.Error.Message}");
+            }
+
+            _logger.LogInformation("[Cloudinary] Uploaded chat image {PublicId}", imageResult.PublicId);
+            return (imageResult.SecureUrl.ToString(), imageResult.PublicId, mediaType);
+        }
+
         public async Task DeleteFolderAsync(string userId, string feedId, string feedType)
         {
             var cloudinary = GetClient();

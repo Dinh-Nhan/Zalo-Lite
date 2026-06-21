@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:collection';
+import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -26,7 +26,6 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   ChatLoadingState _messagesState = ChatLoadingState.idle;
   Conversation? _activeConversation;
 
-  bool _isSending = false;
   bool _isOtherTyping = false;
   bool _chatVisible = false; // true chỉ khi ChatScreen đang hiển thị trực tiếp
   String? _typingUserId;
@@ -38,8 +37,6 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   // Online statuses realtime: userId → isOnline
   final Map<String, bool> _onlineStatuses = {};
 
-  // FIFO queue — track thứ tự pending messages để match đúng khi server confirm
-  final Queue<String> _pendingQueue = Queue<String>();
 
   // Chống double-save log cuộc gọi (cả _onCallEnded lẫn Agora onUserOffline đều có thể save)
   bool _callLogSaved = false;
@@ -67,7 +64,6 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   List<Message> get messages => List.unmodifiable(_messages);
   ChatLoadingState get conversationsState => _conversationsState;
   ChatLoadingState get messagesState => _messagesState;
-  bool get isSending => _isSending;
   bool get isOtherTyping => _isOtherTyping;
   String? get typingUserId => _typingUserId;
   String? get errorMessage => _errorMessage;
@@ -145,6 +141,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     signalR.onCallAccepted  = _onCallAccepted;
     signalR.onCallRejected  = _onCallRejected;
     signalR.onCallEnded     = _onCallEnded;
+    signalR.onError         = _onSignalRError;
 
     try {
       final token = await FirebaseAuth.instance.currentUser?.getIdToken(false);
@@ -226,7 +223,6 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     _messagesState = ChatLoadingState.idle;
     _isOtherTyping = false;
     _typingUserId = null;
-    _pendingQueue.clear();
     notifyListeners();
   }
 
@@ -260,6 +256,11 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> sendMessage({
     required String content,
     String? replyToMessageId,
+    String type = 'text',
+    String? mediaUrl,
+    String? thumbnailUrl,
+    String? fileName,
+    int? fileSize,
   }) async {
     final conv = _activeConversation;
     if (conv == null) return;
@@ -272,8 +273,12 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       senderId: _currentUid ?? '',
       senderName: 'Bạn',
       senderAvatar: '',
-      type: 'text',
+      type: type,
       content: content,
+      mediaUrl: mediaUrl,
+      thumbnailUrl: thumbnailUrl,
+      fileName: fileName,
+      fileSize: fileSize,
       replyToMessageId: replyToMessageId,
       isForwarded: false,
       isDeleted: false,
@@ -285,23 +290,161 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       totalReactions: 0,
     );
     _messages = [..._messages, optimistic];
-    _pendingQueue.add(tempId); // FIFO: đăng ký thứ tự gửi
     notifyListeners();
 
-    // ── Gửi qua SignalR ─────────────────────────────────────────
+    await _trySendViaSignalR(
+      tempId: tempId,
+      conversationId: conv.id,
+      type: type,
+      content: content,
+      mediaUrl: mediaUrl,
+      thumbnailUrl: thumbnailUrl,
+      fileName: fileName,
+      fileSize: fileSize,
+      replyToMessageId: replyToMessageId,
+    );
+  }
+
+  Future<void> _trySendViaSignalR({
+    required String tempId,
+    required String conversationId,
+    required String type,
+    required String content,
+    String? mediaUrl,
+    String? thumbnailUrl,
+    String? fileName,
+    int? fileSize,
+    String? replyToMessageId,
+  }) async {
     try {
       await _signalR?.sendMessage(
-        conversationId: conv.id,
-        type: 'text',
+        conversationId: conversationId,
+        type: type,
         content: content,
+        clientTempId: tempId,
+        mediaUrl: mediaUrl,
+        thumbnailUrl: thumbnailUrl,
+        fileName: fileName,
+        fileSize: fileSize,
         replyToMessageId: replyToMessageId,
       );
     } catch (e) {
-      // Xóa tin nhắn optimistic nếu lỗi
-      _pendingQueue.remove(tempId); // rollback khỏi queue
-      _messages = _messages.where((m) => m.id != tempId).toList();
+      // Giữ message trên UI, đánh dấu gửi lỗi để user có thể nhấn gửi lại
+      _messages = _messages
+          .map((m) => m.id == tempId ? m.copyWith(status: 'failed') : m)
+          .toList();
       _errorMessage = e.toString();
       debugPrint('[ChatProvider] sendMessage error: $e');
+      notifyListeners();
+    }
+  }
+
+  /// Gửi lại một tin nhắn đã ở trạng thái 'failed'.
+  Future<void> retrySendMessage(String tempId) async {
+    final msg = _messages.firstWhere((m) => m.id == tempId,
+        orElse: () => Message(
+              id: '',
+              conversationId: '',
+              senderId: '',
+              senderName: '',
+              senderAvatar: '',
+              type: 'text',
+              content: '',
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ));
+    if (msg.id.isEmpty || msg.status != 'failed') return;
+
+    _messages = _messages
+        .map((m) => m.id == tempId ? m.copyWith(status: 'sending') : m)
+        .toList();
+    notifyListeners();
+
+    // Ảnh chưa upload xong lần trước (lỗi ngay từ bước upload) → thử lại từ đầu
+    if (msg.mediaUrl == null && msg.localFilePath != null) {
+      await _uploadAndSendImage(
+        tempId: tempId,
+        conversationId: msg.conversationId,
+        localFilePath: msg.localFilePath!,
+      );
+      return;
+    }
+
+    await _trySendViaSignalR(
+      tempId: tempId,
+      conversationId: msg.conversationId,
+      type: msg.type,
+      content: msg.content,
+      mediaUrl: msg.mediaUrl,
+      thumbnailUrl: msg.thumbnailUrl,
+      fileName: msg.fileName,
+      fileSize: msg.fileSize,
+      replyToMessageId: msg.replyToMessageId,
+    );
+  }
+
+  /// Gửi ảnh: hiện preview local NGAY (① render trước), upload + gửi ở nền (② call API sau).
+  Future<void> sendImageMessage(File imageFile) async {
+    final conv = _activeConversation;
+    if (conv == null) return;
+
+    // ① Optimistic UI: hiện ảnh local ngay lập tức, chưa cần URL từ Cloudinary
+    final tempId = '_pending_${DateTime.now().millisecondsSinceEpoch}';
+    final optimistic = Message(
+      id: tempId,
+      conversationId: conv.id,
+      senderId: _currentUid ?? '',
+      senderName: 'Bạn',
+      senderAvatar: '',
+      type: 'image',
+      content: 'Hình ảnh',
+      localFilePath: imageFile.path,
+      isForwarded: false,
+      isDeleted: false,
+      isEdited: false,
+      status: 'sending',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      isMine: true,
+      totalReactions: 0,
+    );
+    _messages = [..._messages, optimistic];
+    notifyListeners();
+
+    // ② Upload + gửi ở nền
+    await _uploadAndSendImage(
+      tempId: tempId,
+      conversationId: conv.id,
+      localFilePath: imageFile.path,
+    );
+  }
+
+  Future<void> _uploadAndSendImage({
+    required String tempId,
+    required String conversationId,
+    required String localFilePath,
+  }) async {
+    try {
+      final result = await _chatService.uploadMedia(
+        conversationId: conversationId,
+        file: File(localFilePath),
+      );
+      await _trySendViaSignalR(
+        tempId: tempId,
+        conversationId: conversationId,
+        type: result['mediaType'] ?? 'image',
+        content: 'Hình ảnh',
+        mediaUrl: result['mediaUrl'],
+        fileName: result['fileName'],
+        fileSize: result['fileSize'],
+      );
+    } catch (e) {
+      // Upload lỗi — đánh dấu failed giống lúc gửi text lỗi, giữ localFilePath để retry
+      _messages = _messages
+          .map((m) => m.id == tempId ? m.copyWith(status: 'failed') : m)
+          .toList();
+      _errorMessage = e.toString();
+      debugPrint('[ChatProvider] sendImageMessage error: $e');
       notifyListeners();
     }
   }
@@ -316,24 +459,37 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     final conv = _activeConversation;
     if (conv == null) return;
 
+    final idx = _messages.indexWhere((m) => m.id == messageId);
+    if (idx == -1) return;
+    final original = _messages[idx];
+
     // Optimistic: đánh dấu thu hồi ngay
-    _messages = _messages
-        .map((m) => m.id == messageId
-            ? m.copyWith(isDeleted: true, content: 'Tin nhắn đã bị thu hồi')
-            : m)
-        .toList();
+    final updated = List<Message>.from(_messages);
+    updated[idx] = original.copyWith(
+        isDeleted: true, content: 'Tin nhắn đã bị thu hồi');
+    _messages = updated;
     // Nếu là tin cuối → update lastMessage trong conversation list
-    final deleted = _messages.firstWhere((m) => m.id == messageId,
-        orElse: () => _messages.last);
     if (_messages.isNotEmpty && _messages.last.id == messageId) {
-      _updateConversationLastMessage(deleted);
+      _updateConversationLastMessage(_messages.last);
     }
     notifyListeners();
 
     try {
       await _signalR?.deleteMessage(conv.id, messageId);
     } catch (e) {
+      // Rollback: khôi phục lại tin nhắn gốc
+      final rollbackIdx = _messages.indexWhere((m) => m.id == messageId);
+      if (rollbackIdx != -1) {
+        final rolledBack = List<Message>.from(_messages);
+        rolledBack[rollbackIdx] = original;
+        _messages = rolledBack;
+        if (_messages.isNotEmpty && _messages.last.id == messageId) {
+          _updateConversationLastMessage(original);
+        }
+      }
+      _errorMessage = e.toString();
       debugPrint('[ChatProvider] deleteMessage error: $e');
+      notifyListeners();
     }
   }
 
@@ -341,21 +497,58 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     final conv = _activeConversation;
     if (conv == null) return;
 
+    final idx = _messages.indexWhere((m) => m.id == messageId);
+    if (idx == -1) return;
+    final original = _messages[idx];
+
     // Ẩn ngay khỏi UI — không chờ API
-    _messages = _messages.where((m) => m.id != messageId).toList();
+    final updated = List<Message>.from(_messages)..removeAt(idx);
+    _messages = updated;
     notifyListeners();
 
     // Gọi API background để persist
     try {
       await _chatService.hideMessageForMe(conv.id, messageId);
     } catch (e) {
+      // Rollback: chèn lại đúng vị trí cũ
+      final restored = List<Message>.from(_messages);
+      restored.insert(idx.clamp(0, restored.length), original);
+      _messages = restored;
+      _errorMessage = e.toString();
       debugPrint('[ChatProvider] hideMessageForMe error: $e');
+      notifyListeners();
     }
   }
 
   Future<void> reactToMessage(String messageId, String emoji) async {
     final conv = _activeConversation;
-    if (conv == null) return;
+    final uid = _currentUid;
+    if (conv == null || uid == null) return;
+
+    final idx = _messages.indexWhere((m) => m.id == messageId);
+    if (idx == -1) return;
+    final original = _messages[idx];
+
+    // Optimistic toggle — mirror đúng logic server (ChatService.ReactToMessageAsync)
+    final reactions = original.reactions == null
+        ? <String, List<String>>{}
+        : original.reactions!.map((k, v) => MapEntry(k, List<String>.from(v)));
+    final reactors = reactions[emoji];
+    if (reactors != null) {
+      reactors.contains(uid) ? reactors.remove(uid) : reactors.add(uid);
+      if (reactors.isEmpty) reactions.remove(emoji);
+    } else {
+      reactions[emoji] = [uid];
+    }
+
+    final updated = List<Message>.from(_messages);
+    updated[idx] = original.copyWith(
+      reactions: reactions,
+      totalReactions: reactions.values.fold<int>(0, (sum, v) => sum + v.length),
+    );
+    _messages = updated;
+    notifyListeners();
+
     try {
       await _signalR?.reactToMessage(
         conversationId: conv.id,
@@ -363,25 +556,53 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
         emoji: emoji,
       );
     } catch (e) {
+      // Rollback về reactions gốc nếu gửi lỗi
+      final rollbackIdx = _messages.indexWhere((m) => m.id == messageId);
+      if (rollbackIdx != -1) {
+        final rolledBack = List<Message>.from(_messages);
+        rolledBack[rollbackIdx] = original;
+        _messages = rolledBack;
+      }
+      _errorMessage = e.toString();
       debugPrint('[ChatProvider] reactToMessage error: $e');
+      notifyListeners();
     }
   }
 
   Future<void> pinMessage(String messageId, String content) async {
     final conv = _activeConversation;
-    debugPrint('[pin] activeConversation=${conv?.id}');
     if (conv == null) return;
-    debugPrint('[pin] calling API: conversationId=${conv.id}, messageId=$messageId');
-    final updated = await _chatService.pinMessage(conv.id, messageId);
-    debugPrint('[pin] success: pinnedMessageId=${updated.pinnedMessageId}');
-    _applyConversationUpdate(updated);
+    final original = conv;
+
+    // Optimistic: hiện banner pin ngay, không chờ network
+    _applyConversationUpdate(
+      conv.copyWith(pinnedMessageId: messageId, pinnedMessageContent: content),
+    );
+
+    try {
+      final updated = await _chatService.pinMessage(conv.id, messageId);
+      _applyConversationUpdate(updated);
+    } catch (e) {
+      _applyConversationUpdate(original);
+      rethrow;
+    }
   }
 
   Future<void> unpinMessage() async {
     final conv = _activeConversation;
     if (conv == null) return;
-    final updated = await _chatService.unpinMessage(conv.id);
-    _applyConversationUpdate(updated);
+    final original = conv;
+
+    // Optimistic: ẩn banner pin ngay
+    _applyConversationUpdate(conv.copyWith(clearPinnedMessage: true));
+
+    try {
+      final updated = await _chatService.unpinMessage(conv.id);
+      _applyConversationUpdate(updated);
+    } catch (e) {
+      _applyConversationUpdate(original);
+      rethrow;
+    }
   }
 
   void _applyConversationUpdate(Conversation conv) {
@@ -407,22 +628,33 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   void _onMessageSent(Message message) {
     final m = message.withCurrentUser(_currentUid ?? '');
     if (m.conversationId == _activeConversation?.id) {
-      if (_pendingQueue.isNotEmpty) {
-        // Lấy đúng pending ID theo thứ tự gửi (FIFO)
-        final pendingId = _pendingQueue.removeFirst();
-        final idx = _messages.indexWhere((msg) => msg.id == pendingId);
-        if (idx != -1) {
-          final updated = List<Message>.from(_messages);
-          updated[idx] = m;
-          _messages = updated;
-        } else {
-          _messages = [..._messages, m];
-        }
+      // Khớp đúng optimistic message theo clientTempId do server echo lại
+      // (không còn dựa vào thứ tự gửi — tránh gán nhầm khi confirm không đúng thứ tự)
+      final idx = m.clientTempId != null
+          ? _messages.indexWhere((msg) => msg.id == m.clientTempId)
+          : -1;
+      if (idx != -1) {
+        final updated = List<Message>.from(_messages);
+        updated[idx] = m;
+        _messages = updated;
       } else {
         _messages = [..._messages, m];
       }
     }
     _updateConversationLastMessage(m);
+    notifyListeners();
+  }
+
+  /// Server từ chối/lỗi một thao tác (vd SendMessage) — đánh dấu optimistic
+  /// message tương ứng là 'failed' thay vì để kẹt mãi ở 'sending'.
+  void _onSignalRError(String message, String? clientTempId, String? context) {
+    debugPrint('[ChatProvider] SignalR error ($context): $message');
+    if (clientTempId == null) return;
+    final idx = _messages.indexWhere((m) => m.id == clientTempId);
+    if (idx == -1) return;
+    final updated = List<Message>.from(_messages);
+    updated[idx] = updated[idx].copyWith(status: 'failed');
+    _messages = updated;
     notifyListeners();
   }
 
