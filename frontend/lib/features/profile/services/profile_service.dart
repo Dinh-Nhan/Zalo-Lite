@@ -22,18 +22,19 @@ class UserProfileModel {
 
   factory UserProfileModel.fromJson(Map<String, dynamic> json) {
     DateTime? dob;
-    if (json['dateOfBirth'] != null && json['dateOfBirth'].toString().isNotEmpty) {
+    final dobStr = json['dateOfBirth'] ?? json['date_of_birth'];
+    if (dobStr != null && dobStr.toString().isNotEmpty) {
       try {
-        dob = DateTime.parse(json['dateOfBirth'].toString());
+        dob = DateTime.parse(dobStr.toString());
       } catch (_) {}
     }
     return UserProfileModel(
-      id: json['id'] as String? ?? '',
-      fullName: json['fullName'] as String? ?? '',
-      email: json['email'] as String? ?? '',
-      avatar: json['avatar'] as String? ?? '',
+      id: json['id'] ?? '',
+      fullName: json['fullName'] ?? json['full_name'] ?? '',
+      email: json['email'] ?? '',
+      avatar: json['avatar'] ?? '',
       dateOfBirth: dob,
-      bio: json['bio'] as String? ?? '',
+      bio: json['bio'] ?? '',
     );
   }
 
@@ -69,9 +70,10 @@ class ProfileService {
     }
   }
 
-  static Future<int> getFriendCount() async {
+  static Future<int> getFriendCount({String? userId}) async {
     try {
-      final response = await _dio.get('/api/friends');
+      final path = userId != null ? '/api/friends/user/$userId' : '/api/friends';
+      final response = await _dio.get(path);
 
       if (response.statusCode == 200) {
         final data = response.data as Map<String, dynamic>;
@@ -87,9 +89,10 @@ class ProfileService {
     }
   }
 
-  static Future<List<FriendSummaryModel>> getFriends() async {
+  static Future<List<FriendSummaryModel>> getFriends({String? userId}) async {
     try {
-      final response = await _dio.get('/api/friends');
+      final path = userId != null ? '/api/friends/user/$userId' : '/api/friends';
+      final response = await _dio.get(path);
 
       if (response.statusCode == 200) {
         final data = response.data as Map<String, dynamic>;

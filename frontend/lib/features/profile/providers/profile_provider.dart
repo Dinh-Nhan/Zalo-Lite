@@ -113,7 +113,7 @@ class ProfileProvider extends ChangeNotifier {
     try {
       final results = await Future.wait([
         ProfileService.getUserPosts(userId),
-        ProfileService.getFriends(),
+        ProfileService.getFriends(userId: userId),
         ProfileService.getCurrentUserProfile(),
       ]);
 
@@ -141,7 +141,7 @@ class ProfileProvider extends ChangeNotifier {
     try {
       final results = await Future.wait([
         ProfileService.getUserPosts(userId),
-        ProfileService.getFriends(),
+        ProfileService.getFriends(userId: userId),
       ]);
 
       _posts = results[0] as List<PostModel>;
