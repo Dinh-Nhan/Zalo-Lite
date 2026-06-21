@@ -242,7 +242,7 @@ class ConversationTile extends StatelessWidget {
         content = '😊 Sticker';
         break;
       case 'location':
-        content = '📍 Vị trí';
+        content = 'Vị trí';
         break;
       default:
         content = msg.content;

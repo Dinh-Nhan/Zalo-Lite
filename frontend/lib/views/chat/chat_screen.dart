@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../features/calling/screens/call_screen.dart';
@@ -205,11 +206,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void _insertEmoji(String emoji) {
     final text = _messageController.text;
     final selection = _messageController.selection;
-    
+
     if (selection.start >= 0) {
       final newText = text.replaceRange(selection.start, selection.end, emoji);
       final newPosition = selection.start + emoji.length;
-      
+
       _messageController.value = TextEditingValue(
         text: newText,
         selection: TextSelection.collapsed(offset: newPosition),
@@ -281,8 +282,12 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         appBar: _buildAppBar(),
         body: Column(
           children: [
-            if ((chat.activeConversation ?? widget.conversation).pinnedMessageId != null)
-              _buildPinnedMessage(chat.activeConversation ?? widget.conversation),
+            if ((chat.activeConversation ?? widget.conversation)
+                    .pinnedMessageId !=
+                null)
+              _buildPinnedMessage(
+                chat.activeConversation ?? widget.conversation,
+              ),
 
             Expanded(
               child: Stack(
@@ -332,9 +337,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             _buildInputArea(),
 
             if (_showEmojiKeyboard)
-              EmojiPickerWidget(
-                onEmojiSelected: _insertEmoji,
-              ),
+              EmojiPickerWidget(onEmojiSelected: _insertEmoji),
           ],
         ),
       ),
@@ -363,14 +366,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 children: [
                   CircleAvatar(
                     radius: 19,
-                    backgroundImage: widget.conversation.displayAvatar.isNotEmpty
+                    backgroundImage:
+                        widget.conversation.displayAvatar.isNotEmpty
                         ? NetworkImage(widget.conversation.displayAvatar)
                         : null,
                     backgroundColor: Colors.white.withValues(alpha: 0.3),
                     child: widget.conversation.displayAvatar.isEmpty
                         ? Text(
                             widget.conversation.displayName.isNotEmpty
-                                ? widget.conversation.displayName[0].toUpperCase()
+                                ? widget.conversation.displayName[0]
+                                      .toUpperCase()
                                 : '?',
                             style: const TextStyle(
                               color: Colors.white,
@@ -415,7 +420,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      isOnline ? 'Đang hoạt động' : widget.conversation.displayStatus,
+                      isOnline
+                          ? 'Đang hoạt động'
+                          : widget.conversation.displayStatus,
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.85),
                         fontSize: 11,
@@ -456,17 +463,31 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         children: [
           Container(width: 3, height: 40, color: const Color(0xFF0068FF)),
           const SizedBox(width: 10),
-          const Icon(Icons.push_pin_rounded, size: 13, color: Color(0xFF0068FF)),
+          const Icon(
+            Icons.push_pin_rounded,
+            size: 13,
+            color: Color(0xFF0068FF),
+          ),
           const SizedBox(width: 6),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Tin nhắn đã ghim', style: TextStyle(fontSize: 10, color: Color(0xFF0068FF), fontWeight: FontWeight.w600)),
+                const Text(
+                  'Tin nhắn đã ghim',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Color(0xFF0068FF),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 Text(
                   conv.pinnedMessageContent ?? '',
-                  style: const TextStyle(fontSize: 13, color: Color(0xFF333333)),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFF333333),
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -478,7 +499,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             onTap: _unpinMessage,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: const Icon(Icons.close, size: 16, color: Color(0xFFAAAAAA)),
+              child: const Icon(
+                Icons.close,
+                size: 16,
+                color: Color(0xFFAAAAAA),
+              ),
             ),
           ),
         ],
@@ -582,7 +607,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           onReact: (emoji) => _reactToMessage(message.id, emoji),
           onPin: () async {
             try {
-              await context.read<ChatProvider>().pinMessage(message.id, message.content);
+              await context.read<ChatProvider>().pinMessage(
+                message.id,
+                message.content,
+              );
             } catch (e) {
               debugPrint('[pin] error: $e');
               if (mounted) _showError('Pin lỗi: $e');
@@ -596,7 +624,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           onHideForMe: () =>
               context.read<ChatProvider>().hideMessageForMe(message.id),
           onInfo: () => _showMessageInfo(message),
-          onRetry: () => context.read<ChatProvider>().retrySendMessage(message.id),
+          onRetry: () =>
+              context.read<ChatProvider>().retrySendMessage(message.id),
         );
 
         final isNew = !_historyIds.contains(message.id);
@@ -683,12 +712,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 children: [
                   Text(
                     'Trả lời ${_replyToMessage!.senderName}',
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF0068FF)),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0068FF),
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     _replyToMessage!.content,
-                    style: const TextStyle(fontSize: 13, color: Color(0xFF666666)),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF666666),
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -729,7 +765,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(top: BorderSide(color: const Color(0xFFEEEEEE), width: 0.5)),
+        border: Border(
+          top: BorderSide(color: const Color(0xFFEEEEEE), width: 0.5),
+        ),
       ),
       child: SafeArea(
         top: false,
@@ -739,12 +777,19 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               // + button bên trái
-              iconBtn(Icons.add_circle_outline_rounded, _showAttachmentOptions, size: 26),
+              iconBtn(
+                Icons.add_circle_outline_rounded,
+                _showAttachmentOptions,
+                size: 26,
+              ),
 
               // Text field giữa
               Expanded(
                 child: Container(
-                  constraints: const BoxConstraints(minHeight: 38, maxHeight: 120),
+                  constraints: const BoxConstraints(
+                    minHeight: 38,
+                    maxHeight: 120,
+                  ),
                   margin: const EdgeInsets.symmetric(horizontal: 4),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF2F2F2),
@@ -757,12 +802,21 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                         child: TextField(
                           controller: _messageController,
                           focusNode: _focusNode,
-                          onChanged: (_) { _onTyping(); setState(() {}); },
+                          onChanged: (_) {
+                            _onTyping();
+                            setState(() {});
+                          },
                           decoration: const InputDecoration(
                             hintText: 'Aa',
-                            hintStyle: TextStyle(color: Color(0xFFBBBBBB), fontSize: 15),
+                            hintStyle: TextStyle(
+                              color: Color(0xFFBBBBBB),
+                              fontSize: 15,
+                            ),
                             border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 9,
+                            ),
                             isDense: true,
                           ),
                           style: const TextStyle(fontSize: 15, height: 1.4),
@@ -779,7 +833,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           child: const SizedBox(
                             width: 34,
                             height: 34,
-                            child: Icon(Icons.emoji_emotions_outlined, color: Color(0xFF999999), size: 21),
+                            child: Icon(
+                              Icons.emoji_emotions_outlined,
+                              color: Color(0xFF999999),
+                              size: 21,
+                            ),
                           ),
                         ),
                       ),
@@ -793,9 +851,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                 GestureDetector(
                   onTap: _sendMessage,
                   child: Container(
-                    width: 38, height: 38,
-                    decoration: const BoxDecoration(color: Color(0xFF0068FF), shape: BoxShape.circle),
-                    child: const Icon(Icons.send_rounded, color: Colors.white, size: 19),
+                    width: 38,
+                    height: 38,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF0068FF),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.send_rounded,
+                      color: Colors.white,
+                      size: 19,
+                    ),
                   ),
                 ),
               ] else ...[
@@ -936,8 +1002,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           Container(
             width: 56,
             height: 56,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: color, size: 28),
@@ -1056,23 +1122,33 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   void _pickImageFromGallery() async {
     final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
     if (image != null) _sendImage(File(image.path));
   }
 
   void _pickImageFromCamera() async {
     final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+    final image = await picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 85,
+    );
     if (image != null) _sendImage(File(image.path));
   }
 
   void _sendImage(File imageFile) {
     _showInfo('Đang gửi hình ảnh...');
-    context.read<ChatProvider>().sendImageMessage(imageFile).then((_) {
-      _scrollToBottom();
-    }).catchError((error) {
-      if (mounted) _showError('Không thể gửi hình ảnh');
-    });
+    context
+        .read<ChatProvider>()
+        .sendImageMessage(imageFile)
+        .then((_) {
+          _scrollToBottom();
+        })
+        .catchError((error) {
+          if (mounted) _showError('Không thể gửi hình ảnh');
+        });
   }
 
   void _pickVideo() async {
@@ -1098,8 +1174,69 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _showInfo('Tính năng ghi âm đang được phát triển');
   }
 
-  void _shareLocation() {
-    _showInfo('Tính năng chia sẻ vị trí đang được phát triển');
+  Future<void> _shareLocation() async {
+    // 1. Kiểm tra & xin quyền
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        if (mounted) _showError('Bạn chưa cấp quyền vị trí');
+        return;
+      }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      if (mounted)
+        _showError(
+          'Quyền vị trí bị từ chối vĩnh viễn. Vào cài đặt để bật lại.',
+        );
+      return;
+    }
+
+    // 2. Hiện loading
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 12),
+                Text('Đang lấy vị trí...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      // 3. Lấy GPS
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      if (!mounted) return;
+      Navigator.pop(context); // đóng loading dialog
+
+      // 4. Gửi message type = 'location'
+      await context.read<ChatProvider>().sendMessage(
+        content: 'Đã chia sẻ vị trí',
+        type: 'location',
+        latitude: pos.latitude,
+        longitude: pos.longitude,
+      );
+
+      _scrollToBottom();
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // đóng loading dialog
+      _showError('Không thể lấy vị trí: $e');
+    }
   }
 
   void _shareContact() {

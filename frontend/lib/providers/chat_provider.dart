@@ -37,7 +37,6 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   // Online statuses realtime: userId → isOnline
   final Map<String, bool> _onlineStatuses = {};
 
-
   // Chống double-save log cuộc gọi (cả _onCallEnded lẫn Agora onUserOffline đều có thể save)
   bool _callLogSaved = false;
   bool get callLogSaved => _callLogSaved;
@@ -113,9 +112,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     try {
       final user = await _chatService.getUserProfile(uid);
       final firstName = user['first_name'] as String? ?? '';
-      final lastName  = user['last_name']  as String? ?? '';
-      final fullName  = '$firstName $lastName'.trim();
-      _cachedSenderName   = fullName.isNotEmpty ? fullName : uid;
+      final lastName = user['last_name'] as String? ?? '';
+      final fullName = '$firstName $lastName'.trim();
+      _cachedSenderName = fullName.isNotEmpty ? fullName : uid;
       _cachedSenderAvatar = user['avatar'] as String? ?? '';
     } catch (_) {}
   }
@@ -137,11 +136,11 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     signalR.onParticipantRemoved = _onParticipantRemoved;
     signalR.onRemovedFromConversation = _onRemovedFromConversation;
     signalR.onUserStatusChanged = _onUserStatusChanged;
-    signalR.onIncomingCall  = _onIncomingCall;
-    signalR.onCallAccepted  = _onCallAccepted;
-    signalR.onCallRejected  = _onCallRejected;
-    signalR.onCallEnded     = _onCallEnded;
-    signalR.onError         = _onSignalRError;
+    signalR.onIncomingCall = _onIncomingCall;
+    signalR.onCallAccepted = _onCallAccepted;
+    signalR.onCallRejected = _onCallRejected;
+    signalR.onCallEnded = _onCallEnded;
+    signalR.onError = _onSignalRError;
 
     try {
       final token = await FirebaseAuth.instance.currentUser?.getIdToken(false);
@@ -261,6 +260,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     String? thumbnailUrl,
     String? fileName,
     int? fileSize,
+    double? latitude,
+    double? longitude,
+    String? address,
   }) async {
     final conv = _activeConversation;
     if (conv == null) return;
@@ -288,6 +290,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       updatedAt: DateTime.now(),
       isMine: true,
       totalReactions: 0,
+      latitude: latitude,
+      longitude: longitude,
+      address: address,
     );
     _messages = [..._messages, optimistic];
     notifyListeners();
@@ -302,6 +307,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       fileName: fileName,
       fileSize: fileSize,
       replyToMessageId: replyToMessageId,
+      latitude: latitude,
+      longitude: longitude,
+      address: address,
     );
   }
 
@@ -315,6 +323,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     String? fileName,
     int? fileSize,
     String? replyToMessageId,
+    double? latitude,
+    double? longitude,
+    String? address,
   }) async {
     try {
       await _signalR?.sendMessage(
@@ -327,6 +338,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
         fileName: fileName,
         fileSize: fileSize,
         replyToMessageId: replyToMessageId,
+        latitude: latitude, // thêm
+        longitude: longitude, // thêm
+        address: address,
       );
     } catch (e) {
       // Giữ message trên UI, đánh dấu gửi lỗi để user có thể nhấn gửi lại
@@ -341,18 +355,20 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Gửi lại một tin nhắn đã ở trạng thái 'failed'.
   Future<void> retrySendMessage(String tempId) async {
-    final msg = _messages.firstWhere((m) => m.id == tempId,
-        orElse: () => Message(
-              id: '',
-              conversationId: '',
-              senderId: '',
-              senderName: '',
-              senderAvatar: '',
-              type: 'text',
-              content: '',
-              createdAt: DateTime.now(),
-              updatedAt: DateTime.now(),
-            ));
+    final msg = _messages.firstWhere(
+      (m) => m.id == tempId,
+      orElse: () => Message(
+        id: '',
+        conversationId: '',
+        senderId: '',
+        senderName: '',
+        senderAvatar: '',
+        type: 'text',
+        content: '',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    );
     if (msg.id.isEmpty || msg.status != 'failed') return;
 
     _messages = _messages
@@ -466,7 +482,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     // Optimistic: đánh dấu thu hồi ngay
     final updated = List<Message>.from(_messages);
     updated[idx] = original.copyWith(
-        isDeleted: true, content: 'Tin nhắn đã bị thu hồi');
+      isDeleted: true,
+      content: 'Tin nhắn đã bị thu hồi',
+    );
     _messages = updated;
     // Nếu là tin cuối → update lastMessage trong conversation list
     if (_messages.isNotEmpty && _messages.last.id == messageId) {
@@ -606,7 +624,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _applyConversationUpdate(Conversation conv) {
-    _conversations = _conversations.map((c) => c.id == conv.id ? conv : c).toList();
+    _conversations = _conversations
+        .map((c) => c.id == conv.id ? conv : c)
+        .toList();
     if (_activeConversation?.id == conv.id) _activeConversation = conv;
     notifyListeners();
   }
@@ -669,9 +689,11 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   void _onMessageDeleted(String conversationId, String messageId) {
     if (conversationId == _activeConversation?.id) {
       _messages = _messages
-          .map((m) => m.id == messageId
-              ? m.copyWith(isDeleted: true, content: 'Tin nhắn đã bị thu hồi')
-              : m)
+          .map(
+            (m) => m.id == messageId
+                ? m.copyWith(isDeleted: true, content: 'Tin nhắn đã bị thu hồi')
+                : m,
+          )
           .toList();
       // Nếu là tin cuối → update lastMessage
       if (_messages.isNotEmpty && _messages.last.id == messageId) {
@@ -696,13 +718,17 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   ) {
     if (conversationId == _activeConversation?.id) {
       _messages = _messages
-          .map((m) => m.id == messageId
-              ? m.copyWith(
-                  reactions: reactions,
-                  totalReactions: reactions.values
-                      .fold<int>(0, (sum, v) => sum + v.length),
-                )
-              : m)
+          .map(
+            (m) => m.id == messageId
+                ? m.copyWith(
+                    reactions: reactions,
+                    totalReactions: reactions.values.fold<int>(
+                      0,
+                      (sum, v) => sum + v.length,
+                    ),
+                  )
+                : m,
+          )
           .toList();
       notifyListeners();
     }
@@ -716,14 +742,18 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _onGroupUpdated(Conversation conv) {
-    _conversations = _conversations.map((c) => c.id == conv.id ? conv : c).toList();
+    _conversations = _conversations
+        .map((c) => c.id == conv.id ? conv : c)
+        .toList();
     if (_activeConversation?.id == conv.id) _activeConversation = conv;
     notifyListeners();
   }
 
   void _onParticipantRemoved(String conversationId, String removedUserId) {
     if (removedUserId == _currentUid) {
-      _conversations = _conversations.where((c) => c.id != conversationId).toList();
+      _conversations = _conversations
+          .where((c) => c.id != conversationId)
+          .toList();
       if (_activeConversation?.id == conversationId) closeConversation();
     }
     notifyListeners();
@@ -744,7 +774,11 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  void _onMessageDelivered(String conversationId, String messageId, String deliveredTo) {
+  void _onMessageDelivered(
+    String conversationId,
+    String messageId,
+    String deliveredTo,
+  ) {
     if (conversationId != _activeConversation?.id) return;
     _messages = _messages.map((m) {
       if (m.isMine && m.id == messageId && m.status == 'sent') {
@@ -760,18 +794,27 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   SignalRService? get signalR => _signalR;
   String? get currentUid => _currentUid;
 
-  void _onIncomingCall(String conversationId, String callerId,
-      String callerName, String callerAvatar, String callType) {
+  void _onIncomingCall(
+    String conversationId,
+    String callerId,
+    String callerName,
+    String callerAvatar,
+    String callType,
+  ) {
     final callProvider = _context != null
         ? Provider.of<CallProvider>(_context!, listen: false)
         : null;
     if (callProvider == null) return;
 
     // Lấy tên caller từ conv.otherUserName — backend đã tính sẵn cho current user
-    final conv = _conversations.where((c) => c.id == conversationId).firstOrNull;
+    final conv = _conversations
+        .where((c) => c.id == conversationId)
+        .firstOrNull;
     final resolvedName = (conv?.otherUserName?.isNotEmpty == true)
         ? conv!.otherUserName!
-        : (callerName.isNotEmpty && callerName != callerId ? callerName : callerId);
+        : (callerName.isNotEmpty && callerName != callerId
+              ? callerName
+              : callerId);
     final resolvedAvatar = (conv?.otherUserAvatar?.isNotEmpty == true)
         ? conv!.otherUserAvatar!
         : callerAvatar;
@@ -868,7 +911,11 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     await _signalR?.acceptCall(conversationId, callerId);
   }
 
-  Future<void> rejectCall(String conversationId, String callerId, {String reason = 'rejected'}) async {
+  Future<void> rejectCall(
+    String conversationId,
+    String callerId, {
+    String reason = 'rejected',
+  }) async {
     await _signalR?.rejectCall(conversationId, callerId, reason: reason);
   }
 
@@ -891,9 +938,13 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
           ? 'Cuộc gọi video • ${m > 0 ? "${m}p " : ""}${s}s'
           : 'Cuộc gọi thoại • ${m > 0 ? "${m}p " : ""}${s}s';
     } else if (status == 'missed') {
-      content = callType == 'video' ? 'Cuộc gọi video nhỡ' : 'Cuộc gọi thoại nhỡ';
+      content = callType == 'video'
+          ? 'Cuộc gọi video nhỡ'
+          : 'Cuộc gọi thoại nhỡ';
     } else {
-      content = callType == 'video' ? 'Cuộc gọi video bị từ chối' : 'Cuộc gọi thoại bị từ chối';
+      content = callType == 'video'
+          ? 'Cuộc gọi video bị từ chối'
+          : 'Cuộc gọi thoại bị từ chối';
     }
 
     try {
@@ -920,13 +971,17 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _onRemovedFromConversation(String conversationId) {
-    _conversations = _conversations.where((c) => c.id != conversationId).toList();
+    _conversations = _conversations
+        .where((c) => c.id != conversationId)
+        .toList();
     if (_activeConversation?.id == conversationId) closeConversation();
     notifyListeners();
   }
 
   void _updateConversationLastMessage(Message message) {
-    final idx = _conversations.indexWhere((c) => c.id == message.conversationId);
+    final idx = _conversations.indexWhere(
+      (c) => c.id == message.conversationId,
+    );
     if (idx == -1) return;
     final conv = _conversations[idx];
 

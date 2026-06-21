@@ -255,8 +255,8 @@ public class ChatService
     public async Task<MessageResponse> SendMessageAsync(SendMessageRequest request, string senderId)
     {
         // ── 1. Parallel reads (cache-first) ───────────────────
-        var convTask        = GetConversationCachedAsync(request.ConversationId);
-        var senderUserTask  = GetUserCachedAsync(senderId);
+        var convTask = GetConversationCachedAsync(request.ConversationId);
+        var senderUserTask = GetUserCachedAsync(senderId);
 
         Task<DocumentSnapshot>? replyTask = request.ReplyToMessageId != null
             ? _db.Collection("conversations").Document(request.ConversationId)
@@ -268,37 +268,40 @@ public class ChatService
         await Task.WhenAll(waitList);
 
         var conversation = await convTask;
-        var participant  = RequireParticipant(conversation, senderId);
+        var participant = RequireParticipant(conversation, senderId);
 
         if (conversation.OnlyAdminCanSend && participant.Role != "admin")
             throw new AppException(ErrorCode.FORBIDDEN);
 
         // Luôn lấy tên từ Firestore user document — không tin client
-        var sender       = await senderUserTask;
-        var senderName   = ResolveDisplayName(sender);
+        var sender = await senderUserTask;
+        var senderName = ResolveDisplayName(sender);
         var senderAvatar = sender.Avatar;
 
         // ── 2. Build message ───────────────────────────────────
         var now = DateTime.UtcNow;
         var message = new Message
         {
-            ConversationId  = request.ConversationId,
-            SenderId        = senderId,
-            SenderName   = senderName,
+            ConversationId = request.ConversationId,
+            SenderId = senderId,
+            SenderName = senderName,
             SenderAvatar = senderAvatar,
-            Type            = request.Type,
-            Content         = request.Content,
-            MediaUrl        = request.MediaUrl,
-            ThumbnailUrl    = request.ThumbnailUrl,
-            FileName        = request.FileName,
-            FileSize        = request.FileSize,
-            Duration        = request.Duration,
+            Type = request.Type,
+            Content = request.Content,
+            MediaUrl = request.MediaUrl,
+            ThumbnailUrl = request.ThumbnailUrl,
+            FileName = request.FileName,
+            FileSize = request.FileSize,
+            Duration = request.Duration,
             ReplyToMessageId = request.ReplyToMessageId,
-            IsForwarded     = request.IsForwarded,
-            CreatedAt       = now,
-            UpdatedAt       = now,
-            DeliveredTo     = new Dictionary<string, DateTime>(),
-            ReadBy          = new Dictionary<string, DateTime>()
+            IsForwarded = request.IsForwarded,
+            CreatedAt = now,
+            UpdatedAt = now,
+            DeliveredTo = new Dictionary<string, DateTime>(),
+            ReadBy = new Dictionary<string, DateTime>(),
+            Latitude = request.Latitude,
+            Longitude = request.Longitude,
+            Address = request.Address,
         };
 
         if (conversation.Settings?.DisappearingMessagesDuration > 0)
@@ -307,7 +310,7 @@ public class ChatService
         if (replyTask != null && replyTask.Result.Exists)
         {
             var replyMsg = replyTask.Result.ConvertTo<Message>();
-            message.ReplyToContent    = replyMsg.Content;
+            message.ReplyToContent = replyMsg.Content;
             message.ReplyToSenderName = replyMsg.SenderName;
         }
 
@@ -1002,6 +1005,9 @@ public class ChatService
         response.Status = message.ReadBy?.Any() == true ? "read"
             : message.DeliveredTo?.Any() == true ? "delivered"
             : "sent";
+        response.Latitude = message.Latitude;
+        response.Longitude = message.Longitude;
+        response.Address = message.Address;
         return response;
     }
 

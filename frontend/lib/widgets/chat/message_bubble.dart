@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:frontend/widgets/location_message_bubble.dart';
 import 'package:intl/intl.dart';
 import '../../models/chat/message.dart';
 import 'fullscreen_image_viewer.dart';
@@ -13,7 +14,7 @@ class MessageBubble extends StatelessWidget {
   final bool isGroupMiddle;
   final bool isGroupBottom;
   final bool highlighted;
-  final bool replyToIsMine;        // true → hiện "Tôi" thay vì tên gửi
+  final bool replyToIsMine; // true → hiện "Tôi" thay vì tên gửi
   final VoidCallback? onReplyPreviewTap;
   final Function(String emoji)? onReact;
   final VoidCallback? onReply;
@@ -21,10 +22,10 @@ class MessageBubble extends StatelessWidget {
   final VoidCallback? onCopy;
   final VoidCallback? onEdit;
   final Future<void> Function()? onPin;
-  final VoidCallback? onDelete;       // Gỡ tin cho tất cả (sender only)
-  final VoidCallback? onHideForMe;    // Xóa ở phía mình (bất kỳ ai)
+  final VoidCallback? onDelete; // Gỡ tin cho tất cả (sender only)
+  final VoidCallback? onHideForMe; // Xóa ở phía mình (bất kỳ ai)
   final VoidCallback? onInfo;
-  final VoidCallback? onRetry;        // Gửi lại tin nhắn lỗi (status == 'failed')
+  final VoidCallback? onRetry; // Gửi lại tin nhắn lỗi (status == 'failed')
 
   const MessageBubble({
     super.key,
@@ -50,8 +51,8 @@ class MessageBubble extends StatelessWidget {
     this.onRetry,
   });
 
-  static const _zaloBlue       = Color(0xFF0068FF);
-  static const _receivedBg     = Color(0xFFFFFFFF);
+  static const _zaloBlue = Color(0xFF0068FF);
+  static const _receivedBg = Color(0xFFFFFFFF);
   static const _receivedBorder = Color(0xFFE5E5E5);
 
   @override
@@ -70,50 +71,51 @@ class MessageBubble extends StatelessWidget {
         onLongPress: () => _showMessageActions(context),
         child: Padding(
           padding: EdgeInsets.fromLTRB(10, topPad, 10, bottomPad),
-        child: Row(
-          mainAxisAlignment:
-              message.isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            if (!message.isMine) ...[
-              // Avatar chỉ hiện ở tin CUỐI nhóm
-              showAvatar ? _buildAvatar() : const SizedBox(width: 28),
-              const SizedBox(width: 6),
-            ],
-            Flexible(
-              child: Column(
-                crossAxisAlignment: message.isMine
-                    ? CrossAxisAlignment.end
-                    : CrossAxisAlignment.start,
-                children: [
-                  if (!message.isMine && showSenderName)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 4, bottom: 3),
-                      child: Text(
-                        message.senderName,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF666666),
-                          fontWeight: FontWeight.w600,
+          child: Row(
+            mainAxisAlignment: message.isMine
+                ? MainAxisAlignment.end
+                : MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (!message.isMine) ...[
+                // Avatar chỉ hiện ở tin CUỐI nhóm
+                showAvatar ? _buildAvatar() : const SizedBox(width: 28),
+                const SizedBox(width: 6),
+              ],
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: message.isMine
+                      ? CrossAxisAlignment.end
+                      : CrossAxisAlignment.start,
+                  children: [
+                    if (!message.isMine && showSenderName)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4, bottom: 3),
+                        child: Text(
+                          message.senderName,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF666666),
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    ),
-                  _buildBubble(),
-                  if (showMeta) ...[
-                    const SizedBox(height: 2),
-                    _buildMetaRow(),
+                    _buildBubble(),
+                    if (showMeta) ...[
+                      const SizedBox(height: 2),
+                      _buildMetaRow(),
+                    ],
+                    if (message.reactions != null &&
+                        message.reactions!.isNotEmpty)
+                      _buildReactions(),
                   ],
-                  if (message.reactions != null &&
-                      message.reactions!.isNotEmpty)
-                    _buildReactions(),
-                ],
+                ),
               ),
-            ),
-            if (message.isMine) const SizedBox(width: 4),
-          ],
+              if (message.isMine) const SizedBox(width: 4),
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 
@@ -130,9 +132,10 @@ class MessageBubble extends StatelessWidget {
                   ? message.senderName[0].toUpperCase()
                   : '?',
               style: const TextStyle(
-                  fontSize: 11,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold),
+                fontSize: 11,
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             )
           : null,
     );
@@ -170,8 +173,11 @@ class MessageBubble extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.remove_circle_outline,
-                size: 14, color: Colors.grey[500]),
+            Icon(
+              Icons.remove_circle_outline,
+              size: 14,
+              color: Colors.grey[500],
+            ),
             const SizedBox(width: 5),
             Text(
               'Tin nhắn đã được thu hồi',
@@ -183,6 +189,25 @@ class MessageBubble extends StatelessWidget {
             ),
           ],
         ),
+      );
+    }
+
+    if (message.type == 'location') {
+      return Column(
+        crossAxisAlignment: isMine
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (message.replyToMessageId != null) _buildReplyPreview(),
+          LocationMessageBubble(
+            latitude: message.latitude ?? 0,
+            longitude: message.longitude ?? 0,
+            address: message.address,
+            isMine: isMine,
+            senderName: isMine ? 'Bạn' : message.senderName,
+          ),
+        ],
       );
     }
 
@@ -198,7 +223,7 @@ class MessageBubble extends StatelessWidget {
                   color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 3,
                   offset: const Offset(0, 1),
-                )
+                ),
               ],
       ),
       child: Column(
@@ -265,7 +290,11 @@ class MessageBubble extends StatelessWidget {
       // Đang upload/gửi — hiện ảnh local ngay, chưa cần URL từ Cloudinary
       image = Stack(
         children: [
-          Image.file(File(message.localFilePath!), width: 220, fit: BoxFit.cover),
+          Image.file(
+            File(message.localFilePath!),
+            width: 220,
+            fit: BoxFit.cover,
+          ),
           if (message.status == 'sending')
             Positioned.fill(
               child: Container(
@@ -275,7 +304,9 @@ class MessageBubble extends StatelessWidget {
                     width: 26,
                     height: 26,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -298,12 +329,12 @@ class MessageBubble extends StatelessWidget {
           onTap: !hasRemote
               ? null
               : () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      fullscreenDialog: true,
-                      builder: (_) =>
-                          FullscreenImageViewer(imageUrl: message.mediaUrl!),
-                    ),
+                  MaterialPageRoute(
+                    fullscreenDialog: true,
+                    builder: (_) =>
+                        FullscreenImageViewer(imageUrl: message.mediaUrl!),
                   ),
+                ),
           child: image,
         ),
       ),
@@ -340,7 +371,7 @@ class MessageBubble extends StatelessWidget {
   Widget _buildAudioContent() {
     final iconColor = message.isMine ? Colors.white : _zaloBlue;
     final textColor = message.isMine ? Colors.white : Colors.black87;
-    final subColor  = message.isMine ? Colors.white70 : Colors.grey[600]!;
+    final subColor = message.isMine ? Colors.white70 : Colors.grey[600]!;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Row(
@@ -351,11 +382,19 @@ class MessageBubble extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Tin nhắn thoại',
-                  style: TextStyle(fontSize: 13, color: textColor, fontWeight: FontWeight.w500)),
+              Text(
+                'Tin nhắn thoại',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: textColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
               if (message.duration != null)
-                Text(_formatDuration(message.duration!),
-                    style: TextStyle(fontSize: 11, color: subColor)),
+                Text(
+                  _formatDuration(message.duration!),
+                  style: TextStyle(fontSize: 11, color: subColor),
+                ),
             ],
           ),
         ],
@@ -364,10 +403,12 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildFileContent() {
-    final iconBg    = message.isMine ? Colors.white.withValues(alpha: 0.2) : _zaloBlue.withValues(alpha: 0.1);
+    final iconBg = message.isMine
+        ? Colors.white.withValues(alpha: 0.2)
+        : _zaloBlue.withValues(alpha: 0.1);
     final iconColor = message.isMine ? Colors.white : _zaloBlue;
     final textColor = message.isMine ? Colors.white : Colors.black87;
-    final subColor  = message.isMine ? Colors.white70 : Colors.grey[600]!;
+    final subColor = message.isMine ? Colors.white70 : Colors.grey[600]!;
     return Padding(
       padding: const EdgeInsets.all(12),
       child: Row(
@@ -375,8 +416,15 @@ class MessageBubble extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(8)),
-            child: Icon(Icons.insert_drive_file_outlined, color: iconColor, size: 22),
+            decoration: BoxDecoration(
+              color: iconBg,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              Icons.insert_drive_file_outlined,
+              color: iconColor,
+              size: 22,
+            ),
           ),
           const SizedBox(width: 10),
           Flexible(
@@ -385,13 +433,19 @@ class MessageBubble extends StatelessWidget {
               children: [
                 Text(
                   message.fileName ?? 'Tệp đính kèm',
-                  style: TextStyle(fontSize: 13, color: textColor, fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: textColor,
+                    fontWeight: FontWeight.w500,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (message.fileSize != null)
-                  Text(_formatFileSize(message.fileSize!),
-                      style: TextStyle(fontSize: 11, color: subColor)),
+                  Text(
+                    _formatFileSize(message.fileSize!),
+                    style: TextStyle(fontSize: 11, color: subColor),
+                  ),
               ],
             ),
           ),
@@ -401,8 +455,9 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildCallContent() {
-    final isMissed = message.content.contains('nhỡ') || message.content.contains('từ chối');
-    final isVideo  = message.content.contains('video');
+    final isMissed =
+        message.content.contains('nhỡ') || message.content.contains('từ chối');
+    final isVideo = message.content.contains('video');
 
     // Sender (nền xanh): trắng cho tất cả — đỏ không đọc được trên nền xanh
     // Receiver (nền xám): đỏ cho nhỡ/từ chối, xanh cho bình thường
@@ -421,12 +476,17 @@ class MessageBubble extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(isVideo ? Icons.videocam_rounded : Icons.call_rounded,
-              color: iconColor, size: 20),
+          Icon(
+            isVideo ? Icons.videocam_rounded : Icons.call_rounded,
+            color: iconColor,
+            size: 20,
+          ),
           const SizedBox(width: 8),
           Flexible(
-            child: Text(message.content,
-                style: TextStyle(fontSize: 14, color: textColor)),
+            child: Text(
+              message.content,
+              style: TextStyle(fontSize: 14, color: textColor),
+            ),
           ),
         ],
       ),
@@ -441,8 +501,7 @@ class MessageBubble extends StatelessWidget {
         width: 100,
         height: 100,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) =>
-            const SizedBox(width: 100, height: 100),
+        errorBuilder: (_, __, ___) => const SizedBox(width: 100, height: 100),
       ),
     );
   }
@@ -457,10 +516,12 @@ class MessageBubble extends StatelessWidget {
   Widget _buildReplyPreviewContent() {
     // Sender (xanh): preview nền trắng mờ, viền trắng
     // Receiver (xám): preview nền trắng nhạt, viền xanh
-    final bgColor     = message.isMine ? Colors.white.withValues(alpha: 0.18) : const Color(0xFFF0F4FF);
+    final bgColor = message.isMine
+        ? Colors.white.withValues(alpha: 0.18)
+        : const Color(0xFFF0F4FF);
     final borderColor = message.isMine ? Colors.white60 : _zaloBlue;
-    final nameColor   = message.isMine ? Colors.white : _zaloBlue;
-    final bodyColor   = message.isMine ? Colors.white70 : Colors.grey[700]!;
+    final nameColor = message.isMine ? Colors.white : _zaloBlue;
+    final bodyColor = message.isMine ? Colors.white70 : Colors.grey[700]!;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(10, 8, 10, 0),
@@ -475,7 +536,11 @@ class MessageBubble extends StatelessWidget {
         children: [
           Text(
             replyToIsMine ? 'Tôi' : (message.replyToSenderName ?? ''),
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: nameColor),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: nameColor,
+            ),
           ),
           const SizedBox(height: 2),
           Text(
@@ -502,17 +567,17 @@ class MessageBubble extends StatelessWidget {
             DateFormat('HH:mm').format(message.createdAt),
             style: const TextStyle(fontSize: 10, color: Color(0xFFAAAAAA)),
           ),
-          if (message.isMine) ...[
-            const SizedBox(width: 3),
-            _buildStatusIcon(),
-          ],
+          if (message.isMine) ...[const SizedBox(width: 3), _buildStatusIcon()],
           if (message.isEdited) ...[
             const SizedBox(width: 4),
-            const Text('• đã sửa',
-                style: TextStyle(
-                    fontSize: 10,
-                    color: Color(0xFFAAAAAA),
-                    fontStyle: FontStyle.italic)),
+            const Text(
+              '• đã sửa',
+              style: TextStyle(
+                fontSize: 10,
+                color: Color(0xFFAAAAAA),
+                fontStyle: FontStyle.italic,
+              ),
+            ),
           ],
         ],
       ),
@@ -550,8 +615,7 @@ class MessageBubble extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE8E8E8)),
         boxShadow: const [
-          BoxShadow(
-              color: Colors.black12, blurRadius: 3, offset: Offset(0, 1)),
+          BoxShadow(color: Colors.black12, blurRadius: 3, offset: Offset(0, 1)),
         ],
       ),
       child: Row(
@@ -563,9 +627,13 @@ class MessageBubble extends StatelessWidget {
               children: [
                 Text(e.key, style: const TextStyle(fontSize: 13)),
                 if (e.value.length > 1)
-                  Text(' ${e.value.length}',
-                      style: const TextStyle(
-                          fontSize: 10, color: Color(0xFF888888))),
+                  Text(
+                    ' ${e.value.length}',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Color(0xFF888888),
+                    ),
+                  ),
               ],
             ),
           );
@@ -590,9 +658,13 @@ class MessageBubble extends StatelessWidget {
           children: [
             // Handle bar
             Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               margin: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
             // Quick reactions
             Container(
@@ -601,29 +673,67 @@ class MessageBubble extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: ['❤️', '👍', '😂', '😮', '😢', '😡'].map((e) {
                   return GestureDetector(
-                    onTap: () { Navigator.pop(context); onReact?.call(e); },
+                    onTap: () {
+                      Navigator.pop(context);
+                      onReact?.call(e);
+                    },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 150),
-                      width: 46, height: 46,
-                      decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFF5F5F5)),
-                      child: Center(child: Text(e, style: const TextStyle(fontSize: 24))),
+                      width: 46,
+                      height: 46,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0xFFF5F5F5),
+                      ),
+                      child: Center(
+                        child: Text(e, style: const TextStyle(fontSize: 24)),
+                      ),
                     ),
                   );
                 }).toList(),
               ),
             ),
             Divider(height: 1, color: Colors.grey[200]),
-            _actionTile(Icons.reply_rounded, 'Trả lời', () { Navigator.pop(context); onReply?.call(); }),
-            _actionTile(Icons.push_pin_outlined, 'Ghim tin nhắn', () async { Navigator.pop(context); await onPin?.call(); }),
-            _actionTile(Icons.copy_rounded, 'Sao chép', () { Navigator.pop(context); onCopy?.call(); }),
-            _actionTile(Icons.shortcut_rounded, 'Chuyển tiếp', () { Navigator.pop(context); onForward?.call(); }),
+            _actionTile(Icons.reply_rounded, 'Trả lời', () {
+              Navigator.pop(context);
+              onReply?.call();
+            }),
+            _actionTile(Icons.push_pin_outlined, 'Ghim tin nhắn', () async {
+              Navigator.pop(context);
+              await onPin?.call();
+            }),
+            _actionTile(Icons.copy_rounded, 'Sao chép', () {
+              Navigator.pop(context);
+              onCopy?.call();
+            }),
+            _actionTile(Icons.shortcut_rounded, 'Chuyển tiếp', () {
+              Navigator.pop(context);
+              onForward?.call();
+            }),
             if (message.isMine && message.type == 'text')
-              _actionTile(Icons.edit_rounded, 'Chỉnh sửa', () { Navigator.pop(context); onEdit?.call(); }),
-            _actionTile(Icons.info_outline_rounded, 'Thông tin', () { Navigator.pop(context); onInfo?.call(); }),
+              _actionTile(Icons.edit_rounded, 'Chỉnh sửa', () {
+                Navigator.pop(context);
+                onEdit?.call();
+              }),
+            _actionTile(Icons.info_outline_rounded, 'Thông tin', () {
+              Navigator.pop(context);
+              onInfo?.call();
+            }),
             Divider(height: 1, color: Colors.grey[200]),
-            _actionTile(Icons.delete_outline_rounded, 'Xóa ở phía bạn', () { Navigator.pop(context); onHideForMe?.call(); }, color: Colors.red),
+            _actionTile(Icons.delete_outline_rounded, 'Xóa ở phía bạn', () {
+              Navigator.pop(context);
+              onHideForMe?.call();
+            }, color: Colors.red),
             if (message.isMine && !message.isDeleted)
-              _actionTile(Icons.remove_circle_outline_rounded, 'Thu hồi tin nhắn', () { Navigator.pop(context); onDelete?.call(); }, color: Colors.red),
+              _actionTile(
+                Icons.remove_circle_outline_rounded,
+                'Thu hồi tin nhắn',
+                () {
+                  Navigator.pop(context);
+                  onDelete?.call();
+                },
+                color: Colors.red,
+              ),
             const SizedBox(height: 16),
           ],
         ),
@@ -631,8 +741,12 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _actionTile(IconData icon, String label, VoidCallback onTap,
-      {Color? color}) {
+  Widget _actionTile(
+    IconData icon,
+    String label,
+    VoidCallback onTap, {
+    Color? color,
+  }) {
     final c = color ?? const Color(0xFF333333);
     return InkWell(
       onTap: onTap,
@@ -642,9 +756,14 @@ class MessageBubble extends StatelessWidget {
           children: [
             Icon(icon, color: c, size: 22),
             const SizedBox(width: 16),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 15, color: c, fontWeight: FontWeight.w400)),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 15,
+                color: c,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
           ],
         ),
       ),

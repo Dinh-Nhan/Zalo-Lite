@@ -47,6 +47,9 @@ class Message {
   /// ID tạm do client sinh ra khi gửi — server echo lại để khớp đúng optimistic message.
   final String? clientTempId;
 
+  final double? latitude;
+  final double? longitude;
+  final String? address;
   Message({
     required this.id,
     required this.conversationId,
@@ -78,6 +81,9 @@ class Message {
     required this.updatedAt,
     this.isMine = false,
     this.clientTempId,
+    this.latitude,
+    this.longitude,
+    this.address,
   });
 
   factory Message.fromJson(Map<String, dynamic> json) {
@@ -96,7 +102,8 @@ class Message {
       duration: json['duration'],
       replyToMessageId: json['replyToMessageId'] ?? json['reply_to_message_id'],
       replyToContent: json['replyToContent'] ?? json['reply_to_content'],
-      replyToSenderName: json['replyToSenderName'] ?? json['reply_to_sender_name'],
+      replyToSenderName:
+          json['replyToSenderName'] ?? json['reply_to_sender_name'],
       isForwarded: json['isForwarded'] ?? json['is_forwarded'] ?? false,
       reactions: json['reactions'] != null
           ? Map<String, List<String>>.from(
@@ -131,13 +138,20 @@ class Message {
           : null,
       status: json['status'] ?? 'sent',
       createdAt: DateTime.parse(
-        json['createdAt'] ?? json['created_at'] ?? DateTime.now().toIso8601String(),
+        json['createdAt'] ??
+            json['created_at'] ??
+            DateTime.now().toIso8601String(),
       ).toLocal(),
       updatedAt: DateTime.parse(
-        json['updatedAt'] ?? json['updated_at'] ?? DateTime.now().toIso8601String(),
+        json['updatedAt'] ??
+            json['updated_at'] ??
+            DateTime.now().toIso8601String(),
       ).toLocal(),
       isMine: json['isMine'] ?? json['is_mine'] ?? false,
       clientTempId: json['clientTempId'] ?? json['client_temp_id'],
+      latitude: (json['latitude'] ?? json['Latitude'])?.toDouble(),
+      longitude: (json['longitude'] ?? json['Longitude'])?.toDouble(),
+      address: json['address'] ?? json['Address'],
     );
   }
 
@@ -181,6 +195,9 @@ class Message {
       updatedAt: updatedAt,
       isMine: isMine ?? this.isMine,
       clientTempId: clientTempId,
+      latitude: latitude ?? latitude,
+      longitude: longitude ?? longitude,
+      address: address ?? address,
     );
   }
 
@@ -216,6 +233,9 @@ class Message {
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'is_mine': isMine,
+      'latitude': latitude,
+      'longitude': longitude,
+      'address': address,
     };
   }
 }

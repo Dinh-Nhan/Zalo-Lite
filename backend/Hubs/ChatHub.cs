@@ -169,6 +169,7 @@ public class ChatHub : Hub
                     "audio"   => "Đã gửi một tin nhắn thoại",
                     "file"    => $"Đã gửi file: {message.FileName ?? "tệp đính kèm"}",
                     "sticker" => "Đã gửi nhãn dán",
+                    "location" => "Đã chia sẻ vị trí",
                     "call"    => message.Content,
                     _         => message.Content,
                 };

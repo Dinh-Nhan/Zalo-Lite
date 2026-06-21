@@ -33,4 +33,8 @@ public class SendMessageRequest
     /// Không lưu vào Firestore, chỉ pass-through qua response.
     /// </summary>
     public string? ClientTempId { get; set; }
+
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public string? Address { get; set; }
 }

@@ -35,8 +35,14 @@ class SignalRService {
   Function(String message, String? clientTempId, String? context)? onError;
 
   // Call callbacks
-  Function(String conversationId, String callerId, String callerName,
-      String callerAvatar, String callType)? onIncomingCall;
+  Function(
+    String conversationId,
+    String callerId,
+    String callerName,
+    String callerAvatar,
+    String callType,
+  )?
+  onIncomingCall;
   Function(String conversationId)? onCallAccepted;
   Function(String conversationId, String reason)? onCallRejected;
   Function(String conversationId)? onCallEnded;
@@ -135,6 +141,9 @@ class SignalRService {
     int? duration,
     String? replyToMessageId,
     bool isForwarded = false,
+    double? latitude, 
+    double? longitude, 
+    String? address,
   }) async {
     if (_hubConnection == null ||
         _hubConnection!.state != HubConnectionState.Connected) {
@@ -155,6 +164,9 @@ class SignalRService {
           'reply_to_message_id': replyToMessageId,
           'is_forwarded': isForwarded,
           'client_temp_id': clientTempId,
+          'latitude': ?latitude, 
+          'longitude': ?longitude, 
+          'address': ?address,
         },
         userId,
       ],
@@ -471,10 +483,7 @@ class SignalRService {
   void _handleCallRejected(List<Object?>? args) {
     if (args == null || args.isEmpty) return;
     final d = _toMap(args[0]);
-    onCallRejected?.call(
-      d['conversation_id'] ?? '',
-      d['reason'] ?? 'rejected',
-    );
+    onCallRejected?.call(d['conversation_id'] ?? '', d['reason'] ?? 'rejected');
   }
 
   void _handleCallEnded(List<Object?>? args) {
@@ -501,17 +510,32 @@ class SignalRService {
     required String callerName,
     required String callerAvatar,
   }) async {
-    await _hubConnection?.send('InitiateCall', args: [
-      conversationId, calleeId, callType, userId, callerName, callerAvatar,
-    ]);
+    await _hubConnection?.send(
+      'InitiateCall',
+      args: [
+        conversationId,
+        calleeId,
+        callType,
+        userId,
+        callerName,
+        callerAvatar,
+      ],
+    );
   }
 
   Future<void> acceptCall(String conversationId, String callerId) async {
     await _hubConnection?.send('AcceptCall', args: [conversationId, callerId]);
   }
 
-  Future<void> rejectCall(String conversationId, String callerId, {String reason = 'rejected'}) async {
-    await _hubConnection?.send('RejectCall', args: [conversationId, callerId, reason]);
+  Future<void> rejectCall(
+    String conversationId,
+    String callerId, {
+    String reason = 'rejected',
+  }) async {
+    await _hubConnection?.send(
+      'RejectCall',
+      args: [conversationId, callerId, reason],
+    );
   }
 
   Future<void> endCallSignal(String conversationId, String otherUserId) async {
