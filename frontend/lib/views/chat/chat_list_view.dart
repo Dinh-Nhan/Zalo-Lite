@@ -40,6 +40,7 @@ class ChatListViewState extends State<ChatListView> {
   bool? _wasWideScreen;
   bool _coldStartCallHandled = false;
   bool _callScreenOpened = false;
+  late CallProvider _callProvider;
 
   void switchTab(int index) {
     setState(() => _selectedNavIndex = index);
@@ -83,7 +84,8 @@ class ChatListViewState extends State<ChatListView> {
       MessageNotificationService.checkInitialMessage();
     });
 
-    context.read<CallProvider>().addListener(_onCallStateChanged);
+    _callProvider = context.read<CallProvider>();
+    _callProvider.addListener(_onCallStateChanged);
     CallNotificationService.acceptedCall.addListener(_onCallAcceptedNotifier);
     CallNotificationService.declinedCall.addListener(_onCallDeclinedNotifier);
     if (CallNotificationService.acceptedCall.value != null) {
@@ -94,7 +96,7 @@ class ChatListViewState extends State<ChatListView> {
   @override
   void dispose() {
     MessageNotificationService.onNotificationTap = null;
-    context.read<CallProvider>().removeListener(_onCallStateChanged);
+    _callProvider.removeListener(_onCallStateChanged);
     CallNotificationService.acceptedCall.removeListener(_onCallAcceptedNotifier);
     CallNotificationService.declinedCall.removeListener(_onCallDeclinedNotifier);
     super.dispose();
@@ -630,6 +632,7 @@ class ChatListViewState extends State<ChatListView> {
     final isGroup = conversation.type == 'group';
     final memberCount = conversation.participants.length;
     final isSelected = _selectedConversation?.id == conversation.id;
+    final otherUserId = conversation.otherUserId;
 
     return InkWell(
       onTap: () => _onConversationTap(conversation),
@@ -678,6 +681,28 @@ class ChatListViewState extends State<ChatListView> {
                         ),
                       ),
                     ),
+                  ),
+                if (!isGroup && otherUserId != null)
+                  Selector<ChatProvider, bool>(
+                    selector: (_, p) => p.isUserOnline(otherUserId),
+                    builder: (_, isOnline, __) => isOnline
+                        ? Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF4CAF50),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppColors.getSurface(isDark),
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
                   ),
               ],
             ),

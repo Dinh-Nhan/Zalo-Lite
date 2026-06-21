@@ -46,6 +46,8 @@ class SignalRService {
   Function(String conversationId)? onCallAccepted;
   Function(String conversationId, String reason)? onCallRejected;
   Function(String conversationId)? onCallEnded;
+  // Mất kết nối SignalR (mất mạng/app bị tạm dừng) — dùng để kết thúc cuộc gọi cục bộ nếu đang active
+  Function()? onConnectionLost;
 
   SignalRService({required this.baseUrl, required this.userId});
 
@@ -105,6 +107,7 @@ class SignalRService {
     _hubConnection!.on('CallAccepted', (args) => _handleCallAccepted(args));
     _hubConnection!.on('CallRejected', (args) => _handleCallRejected(args));
     _hubConnection!.on('CallEnded', (args) => _handleCallEnded(args));
+    _hubConnection!.onreconnecting(({error}) => onConnectionLost?.call());
 
     await _hubConnection!.start();
     debugPrint('SignalR Connected');

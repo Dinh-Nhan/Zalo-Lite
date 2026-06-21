@@ -126,9 +126,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void dispose() {
     debugPrint('[ChatScreen] dispose called');
     WidgetsBinding.instance.removeObserver(this);
-    _chatProvider
-      ..setConversationVisible(false)
-      ..closeConversation();
+    _chatProvider.setConversationVisible(false);
+    Future.microtask(() => _chatProvider.closeConversation());
     _messageController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();

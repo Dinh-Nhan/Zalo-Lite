@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:frontend/config/api_config.dart';
 import 'package:frontend/models/call_model.dart';
@@ -36,6 +35,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   // Online statuses realtime: userId → isOnline
   final Map<String, bool> _onlineStatuses = {};
+  // Mốc thời gian của lần cập nhật trạng thái online gần nhất đã áp dụng cho mỗi
+  // userId — dùng để loại event đến muộn/sai thứ tự (xem _onUserStatusChanged).
+  final Map<String, DateTime> _lastSeenAt = {};
 
   // Chống double-save log cuộc gọi (cả _onCallEnded lẫn Agora onUserOffline đều có thể save)
   bool _callLogSaved = false;
@@ -140,6 +142,7 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     signalR.onCallAccepted = _onCallAccepted;
     signalR.onCallRejected = _onCallRejected;
     signalR.onCallEnded = _onCallEnded;
+    signalR.onConnectionLost = _onConnectionLost;
     signalR.onError = _onSignalRError;
 
     try {
@@ -164,6 +167,16 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
     try {
       _conversations = await _chatService.getConversations();
       _conversationsState = ChatLoadingState.success;
+      // Seed trạng thái online ban đầu từ REST — SignalR UserStatusChanged
+      // sẽ cập nhật tiếp theo thời gian thực sau đó. Mốc thời gian seed cũng được
+      // ghi nhận để loại các event SignalR đến muộn từ trước thời điểm fetch này.
+      final seededAt = DateTime.now();
+      for (final c in _conversations) {
+        if (c.type == 'private' && c.otherUserId != null && c.otherUserOnline != null) {
+          _onlineStatuses[c.otherUserId!] = c.otherUserOnline!;
+          _lastSeenAt[c.otherUserId!] = seededAt;
+        }
+      }
     } catch (e) {
       _conversationsState = ChatLoadingState.error;
       _errorMessage = e.toString();
@@ -982,12 +995,39 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
         : null;
     if (callProvider == null) return;
 
-    // Lưu log trước khi onCallEnded() đổi status → ended
+    // Luôn ghi log qua phía caller (bất kể ai chủ động kết thúc). Đây là lớp
+    // dự phòng cho phía caller trong trường hợp sự kiện CallEnded (SignalR)
+    // tới trước khi CallScreen phát hiện remote rời qua Agora.
     final call = callProvider.currentCall;
-    if (call != null && call.status == CallStatus.active && !_callLogSaved) {
+    if (call != null &&
+        !call.isIncoming &&
+        call.status == CallStatus.active &&
+        !_callLogSaved) {
       _callLogSaved = true;
       saveCallMessage(
         conversationId: conversationId,
+        callType: call.isVideo ? 'video' : 'voice',
+        status: 'answered',
+        durationSeconds: callProvider.seconds,
+      );
+    }
+    callProvider.onCallEnded();
+  }
+
+  /// Mất kết nối SignalR giữa cuộc gọi (mất mạng) — backend cũng đã tự dọn phiên gọi
+  /// và báo phía đối phương khi phát hiện disconnect, nên kết thúc cục bộ ở đây luôn
+  /// để không bị treo ở trạng thái "active" cho tới khi reconnect xong.
+  void _onConnectionLost() {
+    final callProvider = _context != null
+        ? Provider.of<CallProvider>(_context!, listen: false)
+        : null;
+    final call = callProvider?.currentCall;
+    if (callProvider == null || call == null) return;
+
+    if (call.status == CallStatus.active && !_callLogSaved) {
+      _callLogSaved = true;
+      saveCallMessage(
+        conversationId: call.conversationId,
         callType: call.isVideo ? 'video' : 'voice',
         status: 'answered',
         durationSeconds: callProvider.seconds,
@@ -1059,6 +1099,14 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       content = callType == 'video'
           ? 'Cuộc gọi video nhỡ'
           : 'Cuộc gọi thoại nhỡ';
+    } else if (status == 'busy') {
+      content = callType == 'video'
+          ? 'Cuộc gọi video • Máy đang bận'
+          : 'Cuộc gọi thoại • Máy đang bận';
+    } else if (status == 'cancelled') {
+      content = callType == 'video'
+          ? 'Cuộc gọi video đã hủy'
+          : 'Cuộc gọi thoại đã hủy';
     } else {
       content = callType == 'video'
           ? 'Cuộc gọi video bị từ chối'
@@ -1084,6 +1132,14 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _onUserStatusChanged(String userId, bool isOnline, DateTime? lastSeen) {
+    // Disconnect/reconnect liên tiếp nhanh ở phía đối phương có thể khiến 2 event
+    // (offline rồi online) tới không đúng thứ tự do độ trễ Firestore phía backend
+    // khác nhau giữa 2 lần gọi — bỏ qua event cũ hơn event đã ghi nhận để tránh bị
+    // "kẹt" sai trạng thái.
+    final ts = lastSeen ?? DateTime.now();
+    final prev = _lastSeenAt[userId];
+    if (prev != null && ts.isBefore(prev)) return;
+    _lastSeenAt[userId] = ts;
     _onlineStatuses[userId] = isOnline;
     notifyListeners();
   }

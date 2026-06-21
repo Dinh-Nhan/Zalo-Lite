@@ -18,6 +18,16 @@ public class ChatHub : Hub
     private static readonly ConcurrentDictionary<string, HashSet<string>> _onlineUsers = new();
     private static readonly ConcurrentDictionary<string, string> _connections = new();
 
+    // uid -> phiên gọi hiện tại (chờ bắt máy hoặc đang active) — dùng để chặn busy-call và merge race gọi chéo
+    private static readonly ConcurrentDictionary<string, CallSession> _activeCalls = new();
+
+    private class CallSession
+    {
+        public string PeerUid { get; set; } = "";
+        public string ConversationId { get; set; } = "";
+        public bool IsActive { get; set; }
+    }
+
     public ChatHub(ChatService chatService, RedisService redis, ILogger<ChatHub> logger,
         IHubContext<ChatHub> hubContext, FcmService fcm, UserService userService)
     {
@@ -74,6 +84,17 @@ public class ChatHub : Hub
                     _onlineUsers.TryRemove(userId, out _);
                     await _redis.SetOfflineAsync(userId);
                     await NotifyUserStatusChange(userId, isOnline: false);
+
+                    // Mất mạng/app bị kill giữa cuộc gọi — báo cho đối phương để không bị treo ở trạng thái active
+                    if (_activeCalls.TryRemove(userId, out var callSession))
+                    {
+                        _activeCalls.TryRemove(callSession.PeerUid, out _);
+                        await _hubContext.Clients.Group($"user_{callSession.PeerUid}").SendAsync("CallEnded", new
+                        {
+                            conversation_id = callSession.ConversationId,
+                            reason = "peer_disconnected"
+                        });
+                    }
                 }
             }
 
@@ -105,6 +126,10 @@ public class ChatHub : Hub
 
     private async Task NotifyUserStatusChange(string userId, bool isOnline)
     {
+        // Capture trước khi await Firestore — disconnect/reconnect liên tiếp nhanh có thể
+        // khiến 2 lệnh gọi NotifyUserStatusChange hoàn thành không đúng thứ tự gửi đi;
+        // client dùng mốc thời gian này để loại bỏ event cũ đến muộn (out-of-order).
+        var changedAt = DateTime.UtcNow;
         try
         {
             var conversations = await _chatService.GetUserConversationsAsync(userId);
@@ -120,7 +145,7 @@ public class ChatHub : Hub
                         {
                             UserId = userId,
                             IsOnline = isOnline,
-                            LastSeen = DateTime.UtcNow
+                            LastSeen = changedAt
                         });
                     }
                 }
@@ -430,6 +455,34 @@ public class ChatHub : Hub
     public async Task InitiateCall(string conversationId, string calleeId,
         string callType, string callerId, string callerName, string callerAvatar)
     {
+        // Race: callee đang gọi mình cùng lúc (2 người bấm gọi nhau gần như đồng thời)
+        // → merge thành 1 cuộc gọi đã accept thay vì dựng 2 phiên song song.
+        if (_activeCalls.TryGetValue(calleeId, out var calleeSession) &&
+            calleeSession.PeerUid == callerId && !calleeSession.IsActive)
+        {
+            calleeSession.IsActive = true;
+            if (_activeCalls.TryGetValue(callerId, out var callerSession))
+                callerSession.IsActive = true;
+
+            await _hubContext.Clients.Group($"user_{calleeId}").SendAsync("CallAccepted", new { conversation_id = conversationId });
+            await _hubContext.Clients.Group($"user_{callerId}").SendAsync("CallAccepted", new { conversation_id = conversationId });
+            return;
+        }
+
+        // Callee đang bận cuộc gọi khác — báo busy cho caller, không đổ chuông
+        if (_activeCalls.ContainsKey(calleeId))
+        {
+            await _hubContext.Clients.Group($"user_{callerId}").SendAsync("CallRejected", new
+            {
+                conversation_id = conversationId,
+                reason = "busy"
+            });
+            return;
+        }
+
+        _activeCalls[callerId] = new CallSession { PeerUid = calleeId, ConversationId = conversationId };
+        _activeCalls[calleeId] = new CallSession { PeerUid = callerId, ConversationId = conversationId };
+
         // 1. SignalR cho app đang mở
         await _hubContext.Clients.Group($"user_{calleeId}").SendAsync("IncomingCall", new
         {
@@ -454,6 +507,12 @@ public class ChatHub : Hub
 
     public async Task AcceptCall(string conversationId, string callerId)
     {
+        var calleeId = GetCurrentUserId();
+        if (calleeId != null && _activeCalls.TryGetValue(calleeId, out var calleeSession))
+            calleeSession.IsActive = true;
+        if (_activeCalls.TryGetValue(callerId, out var callerSession))
+            callerSession.IsActive = true;
+
         await _hubContext.Clients.Group($"user_{callerId}").SendAsync("CallAccepted", new
         {
             conversation_id = conversationId
@@ -462,6 +521,10 @@ public class ChatHub : Hub
 
     public async Task RejectCall(string conversationId, string callerId, string reason = "rejected")
     {
+        var calleeId = GetCurrentUserId();
+        if (calleeId != null) _activeCalls.TryRemove(calleeId, out _);
+        _activeCalls.TryRemove(callerId, out _);
+
         await _hubContext.Clients.Group($"user_{callerId}").SendAsync("CallRejected", new
         {
             conversation_id = conversationId,
@@ -471,6 +534,10 @@ public class ChatHub : Hub
 
     public async Task EndCall(string conversationId, string otherUserId)
     {
+        var myId = GetCurrentUserId();
+        if (myId != null) _activeCalls.TryRemove(myId, out _);
+        _activeCalls.TryRemove(otherUserId, out _);
+
         await _hubContext.Clients.Group($"user_{otherUserId}").SendAsync("CallEnded", new
         {
             conversation_id = conversationId
@@ -492,6 +559,9 @@ public class ChatHub : Hub
 
     private bool IsUserOnline(string userId) =>
         _onlineUsers.TryGetValue(userId, out var conns) && conns.Count > 0;
+
+    private string? GetCurrentUserId() =>
+        _connections.TryGetValue(Context.ConnectionId, out var uid) ? uid : null;
 
     public Task<List<string>> GetOnlineUsers(List<string> userIds) =>
         Task.FromResult(userIds.Where(IsUserOnline).ToList());
