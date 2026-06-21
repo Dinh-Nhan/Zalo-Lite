@@ -100,20 +100,33 @@ class _CallScreenState extends State<CallScreen> {
     final chatProvider = context.read<ChatProvider>();
     final call = widget.call;
 
+    // Luôn ghi log qua phía người thực hiện cuộc gọi (caller), bất kể ai là
+    // người chủ động kết thúc — tránh cả 2 máy cùng lưu trùng 1 bản ghi.
+    if (!chatProvider.callLogSaved &&
+        call.status == CallStatus.active &&
+        !call.isIncoming) {
+      chatProvider.markCallLogSaved();
+      chatProvider.saveCallMessage(
+        conversationId: call.conversationId,
+        callType: call.isVideo ? 'video' : 'voice',
+        status: 'answered',
+        durationSeconds: callProvider.seconds,
+      );
+    } else if (!chatProvider.callLogSaved &&
+        call.status == CallStatus.dialing &&
+        !remoteLeft) {
+      // Caller chủ động hủy khi cuộc gọi còn đang đổ chuông (chưa ai bắt máy)
+      chatProvider.markCallLogSaved();
+      chatProvider.saveCallMessage(
+        conversationId: call.conversationId,
+        callType: call.isVideo ? 'video' : 'voice',
+        status: 'cancelled',
+        durationSeconds: 0,
+      );
+    }
+
     if (!remoteLeft) {
-      // Bên gác máy: chỉ gửi tín hiệu — bên nhận sẽ lưu log qua _onCallEnded
       chatProvider.endCallSignal(call.conversationId, call.remoteUserId);
-    } else {
-      // Agora onUserOffline fires trước SignalR → lưu log nếu chưa được lưu bởi _onCallEnded
-      if (!chatProvider.callLogSaved && call.status == CallStatus.active) {
-        chatProvider.markCallLogSaved();
-        chatProvider.saveCallMessage(
-          conversationId: call.conversationId,
-          callType: call.isVideo ? 'video' : 'voice',
-          status: 'answered',
-          durationSeconds: callProvider.seconds,
-        );
-      }
     }
 
     callProvider.endCall();

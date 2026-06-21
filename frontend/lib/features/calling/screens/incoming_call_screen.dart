@@ -21,11 +21,13 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   int _remainingSeconds = 30;
   Timer? _countdownTimer;
   bool _isClosing = false; // ngăn double-pop
+  late CallProvider _callProvider;
 
   @override
   void initState() {
     super.initState();
-    context.read<CallProvider>().addListener(_onCallChanged);
+    _callProvider = context.read<CallProvider>();
+    _callProvider.addListener(_onCallChanged);
     _startRingtone();
     _startTimeout();
   }
@@ -35,7 +37,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
     _timeoutTimer?.cancel();
     _countdownTimer?.cancel();
     FlutterRingtonePlayer().stop();
-    context.read<CallProvider>().removeListener(_onCallChanged);
+    _callProvider.removeListener(_onCallChanged);
     super.dispose();
   }
 

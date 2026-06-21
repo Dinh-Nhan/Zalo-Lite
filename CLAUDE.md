@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Zalo Lite is a Zalo-like chat application with 1-1 and group messaging, built with an ASP.NET Core 8 backend and a Flutter frontend. Real-time communication uses SignalR; data is stored in Firestore; media uploads go through Cloudinary; and Redis is used for caching. A separate `web_admin/` Flutter Web app provides an admin dashboard that reads/writes Firestore directly (no backend API involved).
+Zalo Lite is a Zalo-like chat application with 1-1 and group messaging, built with an ASP.NET Core 8 backend and a Flutter frontend. Real-time communication uses SignalR; data is stored in Firestore; media uploads go through Cloudinary; and Redis is used for caching. A separate `web_admin/` Flutter Web app provides an admin dashboard that reads/writes Firestore directly (no backend API involved). A small `functions/` Node.js Firebase Cloud Function dispatches FCM push notifications when the admin dashboard creates a notification document.
 
 ## Commands
 
@@ -114,6 +114,10 @@ Middleware/             → FirebaseAuthMiddleware, GlobalExceptionHandler
 **Firestore collection names** are centralized in `lib/core/constants/app_constants.dart` (`AppConstants.usersCollection`, etc.) — add new collection names there rather than inlining strings.
 
 This app reads/writes the *same* Firestore collections the backend and mobile app use (`users`, `feeds`, `friendships`), plus admin-only collections (`admin_notifications`, `feedbacks`, `hidden_posts`, `reports`, `admins`). Since there's no backend layer here, any business-rule validation the backend normally enforces (e.g. via `AppException`) is **not** applied to writes made from this app — be careful when adding mutations.
+
+### Cloud Functions (`functions/`)
+
+A single Firebase Cloud Function in `functions/index.js` (`onNotificationCreated`) triggers on creation of an `admin_notifications/{notifId}` document and dispatches the FCM push: to the `all_users` topic when `target_audience === 'all'`, or to the specific user's `fcm_token` (looked up from `users/{target_user_id}`) when `target_audience === 'specific'`. It only fires when the document's `status` field is `'sent'` — this is the actual delivery mechanism behind notifications created in `web_admin`'s `notifications` feature. Deploy with `firebase deploy --only functions` from the repo root (requires `cd functions && npm install` first).
 
 ## Call Flow
 
