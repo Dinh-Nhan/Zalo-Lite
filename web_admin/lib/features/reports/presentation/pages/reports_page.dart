@@ -52,22 +52,25 @@ class ReportsPage extends ConsumerWidget {
                 label: 'Pending',
                 isSelected: statusFilter == 'pending',
                 color: AppColors.warning,
-                onTap: () =>
-                    ref.read(reportStatusFilterProvider.notifier).state = 'pending',
+                onTap: () => ref
+                    .read(reportStatusFilterProvider.notifier)
+                    .state = 'pending',
               ),
               _Chip(
                 label: 'Resolved',
                 isSelected: statusFilter == 'resolved',
                 color: AppColors.success,
-                onTap: () =>
-                    ref.read(reportStatusFilterProvider.notifier).state = 'resolved',
+                onTap: () => ref
+                    .read(reportStatusFilterProvider.notifier)
+                    .state = 'resolved',
               ),
               _Chip(
                 label: 'Rejected',
                 isSelected: statusFilter == 'rejected',
                 color: AppColors.error,
-                onTap: () =>
-                    ref.read(reportStatusFilterProvider.notifier).state = 'rejected',
+                onTap: () => ref
+                    .read(reportStatusFilterProvider.notifier)
+                    .state = 'rejected',
               ),
               const VerticalDivider(width: 20),
               _Chip(
@@ -79,14 +82,16 @@ class ReportsPage extends ConsumerWidget {
               _Chip(
                 label: 'Users',
                 isSelected: targetFilter == 'user',
-                onTap: () =>
-                    ref.read(reportTargetFilterProvider.notifier).state = 'user',
+                onTap: () => ref
+                    .read(reportTargetFilterProvider.notifier)
+                    .state = 'user',
               ),
               _Chip(
                 label: 'Posts',
                 isSelected: targetFilter == 'post',
-                onTap: () =>
-                    ref.read(reportTargetFilterProvider.notifier).state = 'post',
+                onTap: () => ref
+                    .read(reportTargetFilterProvider.notifier)
+                    .state = 'post',
               ),
             ],
           ),
@@ -133,18 +138,17 @@ class _ReportTable extends ConsumerWidget {
       borderRadius: BorderRadius.circular(12),
       child: Table(
         columnWidths: const {
-          0: FixedColumnWidth(90),
-          1: FixedColumnWidth(90),
+          0: FixedColumnWidth(100),
+          1: FixedColumnWidth(120),
           2: FlexColumnWidth(2),
           3: FlexColumnWidth(1.5),
-          4: FixedColumnWidth(100),
-          5: FixedColumnWidth(120),
+          4: FixedColumnWidth(110),
+          5: FixedColumnWidth(200),
           6: FixedColumnWidth(120),
         },
         children: [
           TableRow(
-            decoration:
-                const BoxDecoration(color: AppColors.surfaceVariant),
+            decoration: const BoxDecoration(color: AppColors.surfaceVariant),
             children: [
               _th('Target'),
               _th('Type'),
@@ -186,14 +190,13 @@ class _ReportTable extends ConsumerWidget {
                   ),
                 )),
                 _td(Text(r.reason, style: AppTextStyles.bodySmall)),
-                _td(SelectableText(r.targetId,
-                    style: AppTextStyles.caption)),
+                _td(SelectableText(r.targetId, style: AppTextStyles.caption)),
                 _td(Text(r.description,
                     style: AppTextStyles.bodySmall,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis)),
                 _td(StatusBadge.fromString(r.status)),
-                _td(Text(r.createdAt.dateOnly,
+                _td(Text(r.createdAt.formattedWithTime,
                     style: AppTextStyles.caption)),
                 _td(Row(
                   mainAxisSize: MainAxisSize.min,
@@ -254,8 +257,7 @@ class _Chip extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color:
-              isSelected ? c.withOpacity(0.15) : AppColors.surfaceVariant,
+          color: isSelected ? c.withOpacity(0.15) : AppColors.surfaceVariant,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: isSelected ? c : AppColors.border),
         ),

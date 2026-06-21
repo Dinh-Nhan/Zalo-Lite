@@ -18,7 +18,6 @@ class FriendSearchPage extends StatefulWidget {
 class _FriendSearchPageState extends State<FriendSearchPage> {
   final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
-
   List<FriendSummaryModel> _filteredFriends = [];
   List<UserSearchModel> _results = [];
   bool _isSearching = false;
@@ -103,6 +102,8 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
     });
   }
 
+  // ================= USER TILE CORE =================
+
   Widget _buildUserTile({
     required String name,
     required String avatar,
@@ -169,12 +170,16 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
           if (!context.mounted) return;
           unawaited(chatProvider.openConversation(conversation));
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => ChatScreen(conversation: conversation)),
+            MaterialPageRoute(
+              builder: (_) => ChatScreen(conversation: conversation),
+            ),
           );
         },
       ),
     );
   }
+
+  // ================= SEARCH TILE =================
 
   Widget _searchTile(UserSearchModel user) {
     final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -200,7 +205,9 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
           if (!context.mounted) return;
           unawaited(chatProvider.openConversation(conversation));
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => ChatScreen(conversation: conversation)),
+            MaterialPageRoute(
+              builder: (_) => ChatScreen(conversation: conversation),
+            ),
           );
         },
       );
@@ -252,6 +259,8 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
       trailing: action,
     );
   }
+
+  // ================= BUILD =================
 
   @override
   Widget build(BuildContext context) {
@@ -313,18 +322,35 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
                 if (_filteredFriends.isNotEmpty) ...[
                   const Padding(
                     padding: EdgeInsets.fromLTRB(16, 12, 16, 6),
-                    child: Text('Bạn bè', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
+                    child: Text(
+                      'Bạn bè',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey,
+                      ),
+                    ),
                   ),
                   ..._filteredFriends.map(_friendTile),
                 ],
                 if (_results.isNotEmpty) ...[
                   const Padding(
                     padding: EdgeInsets.fromLTRB(16, 12, 16, 6),
-                    child: Text('Kết quả tìm kiếm', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
+                    child: Text(
+                      'Kết quả tìm kiếm',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey,
+                      ),
+                    ),
                   ),
                   ..._results.map(_searchTile),
                 ],
-                if (_hasSearched && _results.isEmpty && _filteredFriends.isEmpty && !_hasError)
+                if (_hasSearched &&
+                    _results.isEmpty &&
+                    _filteredFriends.isEmpty &&
+                    !_hasError)
                   const Padding(
                     padding: EdgeInsets.all(24),
                     child: Center(child: Text('Không tìm thấy kết quả')),

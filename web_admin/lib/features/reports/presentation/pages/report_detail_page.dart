@@ -84,10 +84,8 @@ class _ReportDetailPageState extends ConsumerState<ReportDetailPage> {
                     spacing: 24,
                     runSpacing: 16,
                     children: [
-                      _InfoItem(
-                          label: 'Report ID', value: report.id),
-                      _InfoItem(
-                          label: 'Reporter ID', value: report.reporterId),
+                      _InfoItem(label: 'Report ID', value: report.id),
+                      _InfoItem(label: 'Reporter ID', value: report.reporterId),
                       _InfoItem(
                           label: 'Target Type',
                           value: report.targetType.toUpperCase()),
@@ -106,6 +104,13 @@ class _ReportDetailPageState extends ConsumerState<ReportDetailPage> {
               ),
               const SizedBox(height: 16),
 
+              // // Reporter Details
+              // _UserProfileCard(
+              //   userId: report.reporterId,
+              //   title: 'Reporter Details (Thông tin người gửi báo cáo)',
+              // ),
+              // const SizedBox(height: 16),
+
               // Target Detail Card
               if (report.targetType == 'post') ...[
                 SectionCard(
@@ -116,13 +121,12 @@ class _ReportDetailPageState extends ConsumerState<ReportDetailPage> {
                   ),
                 ),
                 const SizedBox(height: 16),
+                _FeedAuthorCard(feedId: report.targetId),
+                const SizedBox(height: 16),
               ] else if (report.targetType == 'user') ...[
-                SectionCard(
-                  title: 'Reported User Details',
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: _ReportedUserContent(userId: report.targetId),
-                  ),
+                _UserProfileCard(
+                  userId: report.targetId,
+                  title: 'Reported User Details (Thông tin người bị báo cáo)',
                 ),
                 const SizedBox(height: 16),
               ],
@@ -150,8 +154,8 @@ class _ReportDetailPageState extends ConsumerState<ReportDetailPage> {
                     padding: const EdgeInsets.all(20),
                     child: Text(
                       report.adminNote,
-                      style: AppTextStyles.bodyMedium
-                          .copyWith(color: AppColors.textSecondary, height: 1.6),
+                      style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.textSecondary, height: 1.6),
                     ),
                   ),
                 ),
@@ -193,8 +197,7 @@ class _ReportDetailPageState extends ConsumerState<ReportDetailPage> {
                                 final ok = await ConfirmDialog.show(
                                   context,
                                   title: 'Resolve Report',
-                                  message:
-                                      'Mark this report as resolved?',
+                                  message: 'Mark this report as resolved?',
                                   confirmLabel: 'Resolve',
                                 );
                                 if (ok == true) {
@@ -226,8 +229,7 @@ class _ReportDetailPageState extends ConsumerState<ReportDetailPage> {
                                 final ok = await ConfirmDialog.show(
                                   context,
                                   title: 'Reject Report',
-                                  message:
-                                      'Mark this report as rejected?',
+                                  message: 'Mark this report as rejected?',
                                   confirmLabel: 'Reject',
                                   isDanger: true,
                                 );
@@ -350,70 +352,128 @@ class _ReportedFeedContent extends ConsumerWidget {
   }
 }
 
-class _ReportedUserContent extends ConsumerWidget {
+class _UserProfileCard extends ConsumerWidget {
   final String userId;
-  const _ReportedUserContent({required this.userId});
+  final String title;
+
+  const _UserProfileCard({required this.userId, required this.title});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final userAsync = ref.watch(userDetailStreamProvider(userId));
 
-    return userAsync.when(
-      loading: () => const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: CircularProgressIndicator(),
-        ),
-      ),
-      error: (e, _) => Text(
-        'Error loading user: $e',
-        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.error),
-      ),
-      data: (user) {
-        if (user == null) {
-          return Text(
-            'User not found.',
-            style: AppTextStyles.bodyMedium,
-          );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              radius: 32,
-              backgroundImage: user.avatar.isNotEmpty
-                  ? NetworkImage(user.avatar)
-                  : null,
-              child: user.avatar.isEmpty
-                  ? const Icon(Icons.person, size: 32)
-                  : null,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    user.displayName,
-                    style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    user.email,
-                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
-                  ),
-                  if (user.bio.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      user.bio,
-                      style: AppTextStyles.bodyMedium.copyWith(fontStyle: FontStyle.italic),
-                    ),
-                  ],
-                ],
+    return SectionCard(
+      title: title,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: userAsync.when(
+          loading: () => const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
               ),
             ),
-          ],
+          ),
+          error: (e, _) => Text(
+            'Error loading user info: $e',
+            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.error),
+          ),
+          data: (user) {
+            if (user == null) {
+              return Text(
+                'User not found (ID: $userId)',
+                style: AppTextStyles.bodyMedium
+                    .copyWith(color: AppColors.textSecondary),
+              );
+            }
+
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: AppColors.primaryContainer,
+                  backgroundImage:
+                      user.avatar.isNotEmpty ? NetworkImage(user.avatar) : null,
+                  child: user.avatar.isEmpty
+                      ? Text(
+                          user.displayName.isNotEmpty
+                              ? user.displayName[0].toUpperCase()
+                              : '?',
+                          style: AppTextStyles.bodyLarge.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.bold),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            user.displayName,
+                            style: AppTextStyles.bodyLarge
+                                .copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(width: 8),
+                          StatusBadge.fromString(
+                              user.isActive ? 'active' : 'banned'),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Email: ${user.email.isNotEmpty ? user.email : "N/A"}',
+                        style: AppTextStyles.bodySmall
+                            .copyWith(color: AppColors.textSecondary),
+                      ),
+                      const SizedBox(height: 2),
+                      SelectableText(
+                        'User ID: ${user.id}',
+                        style: AppTextStyles.caption
+                            .copyWith(color: AppColors.textMuted),
+                      ),
+                      if (user.bio.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Bio: ${user.bio}',
+                          style: AppTextStyles.bodyMedium
+                              .copyWith(fontStyle: FontStyle.italic),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _FeedAuthorCard extends ConsumerWidget {
+  final String feedId;
+  const _FeedAuthorCard({required this.feedId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final feedAsync = ref.watch(feedDetailStreamProvider(feedId));
+
+    return feedAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (feed) {
+        if (feed == null || feed.userId.isEmpty) return const SizedBox.shrink();
+        return _UserProfileCard(
+          userId: feed.userId,
+          title: 'Post Author Details (Thông tin người đăng bài)',
         );
       },
     );

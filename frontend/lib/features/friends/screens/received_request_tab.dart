@@ -40,7 +40,9 @@ class _ReceivedRequestsTabState extends State<ReceivedRequestsTab> {
     }
 
     if (requests.isEmpty) {
-      return const Center(child: Text('Không có lời mời kết bạn', style: TextStyle(fontSize: 16)));
+      return const Center(
+        child: Text('Không có lời mời kết bạn', style: TextStyle(fontSize: 16)),
+      );
     }
 
     final visibleRequests = requests.take(_visibleCount).toList();
@@ -52,13 +54,19 @@ class _ReceivedRequestsTabState extends State<ReceivedRequestsTab> {
           color: const Color(0xFFF4F5F7),
           child: Text(
             'Lời mời (${requests.length})',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black54),
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+              color: Colors.black54,
+            ),
           ),
         ),
         ...visibleRequests.map(
           (request) => RequestItemWidget(
             name: request.senderName ?? 'Người dùng',
-            message: request.status == 'accepted' ? 'Các bạn đã trở thành bạn bè' : 'Muốn kết bạn',
+            message: request.status == 'accepted'
+                ? 'Các bạn đã trở thành bạn bè'
+                : 'Muốn kết bạn',
             avatar: request.senderAvatar ?? '',
             isReceived: true,
             isAccepted: request.status == 'accepted',
@@ -77,7 +85,9 @@ class _ReceivedRequestsTabState extends State<ReceivedRequestsTab> {
               if (!context.mounted) return;
               unawaited(chatProvider.openConversation(conversation));
               Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => ChatScreen(conversation: conversation)),
+                MaterialPageRoute(
+                  builder: (_) => ChatScreen(conversation: conversation),
+                ),
               );
             },
           ),

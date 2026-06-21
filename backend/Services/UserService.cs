@@ -47,7 +47,7 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, Cloudinary
             Email = req.Email,
             FirstName = req.FirstName,
             LastName = req.LastName,
-            DateOfBirth = req.DateOfBirth,
+            DateOfBirth = DateOnly.TryParse(req.DateOfBirth, out var dob) ? dob : DateOnly.MinValue,
             Bio = req.Bio
         };
 

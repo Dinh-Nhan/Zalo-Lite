@@ -41,6 +41,12 @@ namespace backend.Services
             return _cloudinary;
         }
 
+        //---------------------Feeds---------------------
+
+        /// <summary>
+        /// Upload một file lên Cloudinary.
+        /// Trả về (url, publicId, MediaType).
+        /// </summary>
         public async Task<(string Url, string PublicId, string MediaType)> UploadAsync(
             IFormFile file, string userId, string feedId, string feedType)
         {
@@ -48,6 +54,8 @@ namespace backend.Services
             await using var stream = file.OpenReadStream();
             var isVideo = file.ContentType.StartsWith("video/");
             var mediaType = isVideo ? "video" : "image";
+
+            // feeds/{userId}/{posts|stories}/{feedId}/
             var folder = $"feeds/{userId}/{feedType}s/{feedId}";
 
             if (isVideo)
@@ -114,6 +122,12 @@ namespace backend.Services
             }
         }
 
+        //---------------------Users---------------------
+
+        /// <summary>
+        /// Upload avatar cho user.
+        /// Trả về (Url, PublicId).
+        /// </summary>
         public async Task<(string Url, string PublicId)> UploadAvatarAsync(IFormFile file, string userId)
         {
             var cloudinary = GetClient();
@@ -135,6 +149,9 @@ namespace backend.Services
             return (result.SecureUrl.ToString(), result.PublicId);
         }
 
+        /// <summary>
+        /// Xóa avatar cũ theo publicId.
+        /// </summary>
         public async Task DeleteAvatarAsync(string publicId)
         {
             if (string.IsNullOrEmpty(publicId)) return;
@@ -146,6 +163,9 @@ namespace backend.Services
             _logger.LogInformation("[Cloudinary] Deleted avatar {PublicId}", publicId);
         }
 
+        /// <summary>
+        /// Xóa toàn bộ folder avatar của user.
+        /// </summary>
         public async Task DeleteUserFolderAsync(string userId)
         {
             var cloudinary = GetClient();

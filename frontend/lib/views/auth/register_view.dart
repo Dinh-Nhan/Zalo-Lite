@@ -588,6 +588,7 @@ class _RegisterViewState extends State<RegisterView>
         if (v.length < 8) return 'Mật khẩu phải có ít nhất 8 ký tự';
         if (!RegExp(r'[a-z]').hasMatch(v)) return 'Mật khẩu phải có ít nhất 1 chữ thường';
         if (!RegExp(r'[A-Z]').hasMatch(v)) return 'Mật khẩu phải có ít nhất 1 chữ hoa';
+        if (!RegExp(r'[0-9]').hasMatch(v)) return 'Mật khẩu phải có ít nhất 1 chữ số (0-9)';
         return null;
       },
       decoration:
