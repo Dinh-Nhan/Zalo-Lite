@@ -1,9 +1,6 @@
 .vs/
-<<<<<<< HEAD
+.vscode/
+.env
 
 # Firebase credentials
 backend/config/
-=======
-.vscode/
-.env
->>>>>>> origin/dev

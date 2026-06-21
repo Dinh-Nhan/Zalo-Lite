@@ -100,10 +100,7 @@ class _ReceivedRequestsTabState extends State<ReceivedRequestsTab> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    'XEM THÊM ',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
+                  Text('XEM THÊM ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   Icon(Icons.keyboard_arrow_down, size: 20),
                 ],
               ),

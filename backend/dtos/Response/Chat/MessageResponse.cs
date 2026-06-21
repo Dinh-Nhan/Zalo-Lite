@@ -45,6 +45,9 @@ public class MessageResponse
 
     public bool IsMine { get; set; }
 
+    /// <summary>Echo lại ID tạm client gửi lên — dùng để khớp optimistic message, không persist.</summary>
+    public string? ClientTempId { get; set; }
+
     // Internal: dùng trong Hub để broadcast, không serialize ra client
     [System.Text.Json.Serialization.JsonIgnore]
     public List<string>? ParticipantIds { get; set; }

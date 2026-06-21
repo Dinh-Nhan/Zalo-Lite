@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:frontend/services/dio_client.dart';
 import '../../models/chat/conversation.dart';
@@ -61,6 +62,20 @@ class ChatService {
       },
     );
     return Message.fromJson(response.data['result']);
+  }
+
+  /// Upload ảnh/video cho tin nhắn chat lên Cloudinary (qua backend).
+  /// Trả về { media_url, media_type, file_name, file_size }.
+  Future<Map<String, dynamic>> uploadMedia({
+    required String conversationId,
+    required File file,
+  }) async {
+    final formData = FormData.fromMap({
+      'conversationId': conversationId,
+      'file': await MultipartFile.fromFile(file.path),
+    });
+    final response = await _dio.post('/api/chat/upload', data: formData);
+    return response.data['result'] as Map<String, dynamic>;
   }
 
   Future<Conversation> createConversation({

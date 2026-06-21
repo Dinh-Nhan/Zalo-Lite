@@ -32,7 +32,7 @@ class SignalRService {
   onParticipantsAdded;
   Function(String conversationId, String removedUserId)? onParticipantRemoved;
   Function(String conversationId)? onRemovedFromConversation;
-  Function(String message)? onError;
+  Function(String message, String? clientTempId, String? context)? onError;
 
   // Call callbacks
   Function(String conversationId, String callerId, String callerName,
@@ -127,6 +127,7 @@ class SignalRService {
     required String conversationId,
     required String type,
     required String content,
+    required String clientTempId,
     String? mediaUrl,
     String? thumbnailUrl,
     String? fileName,
@@ -135,7 +136,11 @@ class SignalRService {
     String? replyToMessageId,
     bool isForwarded = false,
   }) async {
-    await _hubConnection?.send(
+    if (_hubConnection == null ||
+        _hubConnection!.state != HubConnectionState.Connected) {
+      throw Exception('not_connected');
+    }
+    await _hubConnection!.send(
       'SendMessage',
       args: [
         {
@@ -149,6 +154,7 @@ class SignalRService {
           'duration': duration,
           'reply_to_message_id': replyToMessageId,
           'is_forwarded': isForwarded,
+          'client_temp_id': clientTempId,
         },
         userId,
       ],
@@ -285,9 +291,9 @@ class SignalRService {
       args: [
         {
           'conversation_id': conversationId,
-          'group_name': ?groupName,
-          'group_avatar_url': ?groupAvatarUrl,
-          'group_description': ?groupDescription,
+          if (groupName != null) 'group_name': groupName,
+          if (groupAvatarUrl != null) 'group_avatar_url': groupAvatarUrl,
+          if (groupDescription != null) 'group_description': groupDescription,
         },
         userId,
       ],
@@ -435,8 +441,10 @@ class SignalRService {
     if (args != null && args.isNotEmpty) {
       final error = _toMap(args[0]);
       final message = error['message'] ?? error['Message'] ?? 'Unknown error';
+      final clientTempId = error['clientTempId'] ?? error['ClientTempId'];
+      final context = error['context'] ?? error['Context'];
       print('SignalR Error: $message');
-      onError?.call(message);
+      onError?.call(message, clientTempId, context);
     }
   }
 

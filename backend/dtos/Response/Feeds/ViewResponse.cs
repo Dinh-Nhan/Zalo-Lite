@@ -1,4 +1,4 @@
-namespace backend.dtos.Response.Feeds
+namespace backend.dtos.Response
 {
     public class ViewResponse
     {

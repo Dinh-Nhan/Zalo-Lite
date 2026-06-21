@@ -17,7 +17,7 @@ using Microsoft.Extensions.Logging;
 namespace backend.Services
 {
     [ScopedService]
-    public class FeedService(FirestoreDb db, IMapper mapper, ILogger<FeedService> logger, CloudinaryService cloudinaryService)
+    public class FeedService(FirestoreDb db, IMapper mapper, ILogger<FeedService> logger, CloudinaryService cloudinaryService, GroqModerationService groqModerationService)
     {
         // get story bar
         public async Task<List<FeedResponse>> GetStoriesAsync(string userId)
@@ -81,6 +81,7 @@ namespace backend.Services
                     .WhereEqualTo("type", "post")
                     .WhereIn("user_id", batch)
                     .WhereNotEqualTo("privacy", "only_me")
+                    .WhereEqualTo("is_enable", true)
                     .OrderByDescending("create_at"));
 
             var filtered = posts
@@ -143,39 +144,33 @@ namespace backend.Services
         // create feed (story or post)
         public async Task<FeedResponse> CreateFeedAsync(string userId, CreateFeedRequest request)
         {
-            logger.LogInformation("[FeedService] CreateFeedAsync | Type={Type} MediaCount={Count}",
-                request.Type, request.Content?.Media?.Count ?? -1);
             var now = Timestamp.FromDateTime(DateTime.UtcNow);
             var docRef = db.Collection("feeds").Document();
             var feedId = docRef.Id;
 
             var mediaList = new List<Dictionary<String, Object>>();
 
-            if (request.Content?.Media?.Any() == true)
+            foreach (var media in request.Content.Media)
             {
-                foreach (var media in request.Content.Media.Where(m => m.File != null))
-                {
-                var (url, publicId, MediaType) = await cloudinaryService.UploadAsync(media.File!, userId, feedId, request.Type);
+                var (url, publicId, MediaType) = await cloudinaryService.UploadAsync(media.File, userId, feedId, request.Type);
                 mediaList.Add(new Dictionary<string, object>
                 {
                     ["url"] = url,
                     ["type"] = MediaType,
                     ["public_id"] = publicId
                 });
-                }
             }
 
             var data = new Dictionary<string, object?>
             {
                 ["user_id"] = userId,
                 ["type"] = request.Type,
-                ["content"] = new Dictionary<string, object?>
+                ["content"] = new Dictionary<string, object>
                 {
-                    ["caption"] = request.Content?.Caption,
+                    ["caption"] = request.Content.Caption,
                     ["media"] = mediaList
                 },
                 ["privacy"] = request.Privacy,
-                ["allowed_user_ids"] = request.AllowedUserIds ?? new List<string>(),
                 ["settings"] = new Dictionary<string, object?>
                 {
                     ["is_expired"] = false,
@@ -189,14 +184,30 @@ namespace backend.Services
                     ["likes"] = new List<string>()
                 },
                 ["create_at"] = now,
-                ["deleted_at"] = null,
                 ["is_enable"] = true,
-                ["moderation_status"] = "approved"
+                ["moderation_status"] = "unchecked"
             };
 
             logger.LogInformation("[FeedService] Creating {Type} for user {UserId}", request.Type, userId);
 
             await docRef.SetAsync(data);
+
+            // Run AI moderation in the background
+            var imageUrls = mediaList
+                .Where(m => m.ContainsKey("url") && m["url"] is string)
+                .Select(m => (string)m["url"])
+                .ToList();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await groqModerationService.ModerateFeedAsync(feedId, request.Content.Caption, imageUrls);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "[FeedService] Background AI moderation failed for feed {FeedId}", feedId);
+                }
+            });
             var snap = await docRef.GetSnapshotAsync();
 
             if (!snap.Exists)

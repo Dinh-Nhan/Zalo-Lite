@@ -96,27 +96,28 @@ class _CallScreenState extends State<CallScreen> {
     if (_hasPopped) return; // đã đóng rồi
     _hasPopped = true;
 
-    // Capture trước khi pop
     final callProvider = context.read<CallProvider>();
     final chatProvider = context.read<ChatProvider>();
     final call = widget.call;
-    final durationSeconds = callProvider.seconds;
-    final callStatus = call.status == CallStatus.active ? 'answered' : 'missed';
 
-    // 1. Báo bên kia + lưu lịch sử (dùng provider đã capture, an toàn sau pop)
     if (!remoteLeft) {
+      // Bên gác máy: chỉ gửi tín hiệu — bên nhận sẽ lưu log qua _onCallEnded
       chatProvider.endCallSignal(call.conversationId, call.remoteUserId);
+    } else {
+      // Agora onUserOffline fires trước SignalR → lưu log nếu chưa được lưu bởi _onCallEnded
+      if (!chatProvider.callLogSaved && call.status == CallStatus.active) {
+        chatProvider.markCallLogSaved();
+        chatProvider.saveCallMessage(
+          conversationId: call.conversationId,
+          callType: call.isVideo ? 'video' : 'voice',
+          status: 'answered',
+          durationSeconds: callProvider.seconds,
+        );
+      }
     }
-    chatProvider.saveCallMessage(
-      conversationId: call.conversationId,
-      callType: call.isVideo ? 'video' : 'voice',
-      status: callStatus,
-      durationSeconds: durationSeconds,
-    );
 
-    // 2. Cleanup + đóng màn hình
     callProvider.endCall();
-    await CallKeep.instance.endAllCalls(); // clear active calls khỏi CallKeep
+    await CallKeep.instance.endAllCalls();
     await _engine.leaveChannel();
     await _engine.release();
     if (mounted) Navigator.of(context, rootNavigator: true).pop();

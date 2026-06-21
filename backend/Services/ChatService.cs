@@ -344,6 +344,7 @@ public class ChatService
         _convCache[request.ConversationId] = (conversation, DateTime.UtcNow);
 
         var response = MapMessageToResponse(message, senderId);
+        response.ClientTempId = request.ClientTempId;
         response.ParticipantIds = conversation.Participants.Select(p => p.UserId).ToList();
         response.IsGroupConversation = conversation.Type == "group";
         response.NotificationTitle = response.IsGroupConversation

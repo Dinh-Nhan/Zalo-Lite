@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -32,7 +33,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   List<Message> _messages = [];
   bool _isLoading = true;
-  final bool _isSending = false;
   final bool _showEmojiKeyboard = false;
 
   // Typing indicator
@@ -147,7 +147,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   void _sendMessage() async {
     final content = _messageController.text.trim();
-    if (content.isEmpty || _isSending) return;
+    if (content.isEmpty) return;
 
     _messageController.clear();
     final replyId = _replyToMessage?.id;
@@ -596,6 +596,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           onHideForMe: () =>
               context.read<ChatProvider>().hideMessageForMe(message.id),
           onInfo: () => _showMessageInfo(message),
+          onRetry: () => context.read<ChatProvider>().retrySendMessage(message.id),
         );
 
         final isNew = !_historyIds.contains(message.id);
@@ -791,16 +792,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
               if (hasText) ...[
                 GestureDetector(
                   onTap: _sendMessage,
-                  child: _isSending
-                      ? const SizedBox(
-                          width: 38, height: 38,
-                          child: Padding(padding: EdgeInsets.all(9), child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0068FF))),
-                        )
-                      : Container(
-                          width: 38, height: 38,
-                          decoration: const BoxDecoration(color: Color(0xFF0068FF), shape: BoxShape.circle),
-                          child: const Icon(Icons.send_rounded, color: Colors.white, size: 19),
-                        ),
+                  child: Container(
+                    width: 38, height: 38,
+                    decoration: const BoxDecoration(color: Color(0xFF0068FF), shape: BoxShape.circle),
+                    child: const Icon(Icons.send_rounded, color: Colors.white, size: 19),
+                  ),
                 ),
               ] else ...[
                 iconBtn(Icons.image_outlined, _pickImageFromGallery, size: 23),
@@ -1060,20 +1056,23 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   void _pickImageFromGallery() async {
     final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      // TODO: Upload and send
-      _showInfo('Đang gửi hình ảnh...');
-    }
+    final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (image != null) _sendImage(File(image.path));
   }
 
   void _pickImageFromCamera() async {
     final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.camera);
-    if (image != null) {
-      // TODO: Upload and send
-      _showInfo('Đang gửi hình ảnh...');
-    }
+    final image = await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+    if (image != null) _sendImage(File(image.path));
+  }
+
+  void _sendImage(File imageFile) {
+    _showInfo('Đang gửi hình ảnh...');
+    context.read<ChatProvider>().sendImageMessage(imageFile).then((_) {
+      _scrollToBottom();
+    }).catchError((error) {
+      if (mounted) _showError('Không thể gửi hình ảnh');
+    });
   }
 
   void _pickVideo() async {
