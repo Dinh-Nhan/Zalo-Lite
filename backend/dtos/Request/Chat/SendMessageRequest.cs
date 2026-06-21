@@ -27,4 +27,10 @@ public class SendMessageRequest
     public string? ReplyToMessageId { get; set; }
 
     public bool IsForwarded { get; set; } = false;
+
+    /// <summary>
+    /// ID tạm do client sinh ra để khớp optimistic message với message thật khi server confirm.
+    /// Không lưu vào Firestore, chỉ pass-through qua response.
+    /// </summary>
+    public string? ClientTempId { get; set; }
 }

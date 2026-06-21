@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/chat/message.dart';
+import 'fullscreen_image_viewer.dart';
 
 class MessageBubble extends StatelessWidget {
   final Message message;
@@ -22,6 +24,7 @@ class MessageBubble extends StatelessWidget {
   final VoidCallback? onDelete;       // Gỡ tin cho tất cả (sender only)
   final VoidCallback? onHideForMe;    // Xóa ở phía mình (bất kỳ ai)
   final VoidCallback? onInfo;
+  final VoidCallback? onRetry;        // Gửi lại tin nhắn lỗi (status == 'failed')
 
   const MessageBubble({
     super.key,
@@ -44,6 +47,7 @@ class MessageBubble extends StatelessWidget {
     this.onDelete,
     this.onHideForMe,
     this.onInfo,
+    this.onRetry,
   });
 
   static const _zaloBlue       = Color(0xFF0068FF);
@@ -241,10 +245,13 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildImageContent() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: Image.network(
-        message.mediaUrl ?? '',
+    final hasRemote = message.mediaUrl != null && message.mediaUrl!.isNotEmpty;
+    final hasLocal = message.localFilePath != null;
+
+    Widget image;
+    if (hasRemote) {
+      image = Image.network(
+        message.mediaUrl!,
         width: 220,
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => Container(
@@ -252,6 +259,52 @@ class MessageBubble extends StatelessWidget {
           height: 180,
           color: Colors.grey[200],
           child: const Icon(Icons.broken_image, color: Colors.grey),
+        ),
+      );
+    } else if (hasLocal) {
+      // Đang upload/gửi — hiện ảnh local ngay, chưa cần URL từ Cloudinary
+      image = Stack(
+        children: [
+          Image.file(File(message.localFilePath!), width: 220, fit: BoxFit.cover),
+          if (message.status == 'sending')
+            Positioned.fill(
+              child: Container(
+                color: Colors.black26,
+                child: const Center(
+                  child: SizedBox(
+                    width: 26,
+                    height: 26,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    } else {
+      image = Container(
+        width: 220,
+        height: 180,
+        color: Colors.grey[200],
+        child: const Icon(Icons.broken_image, color: Colors.grey),
+      );
+    }
+
+    return Builder(
+      builder: (context) => ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: GestureDetector(
+          onTap: !hasRemote
+              ? null
+              : () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      fullscreenDialog: true,
+                      builder: (_) =>
+                          FullscreenImageViewer(imageUrl: message.mediaUrl!),
+                    ),
+                  ),
+          child: image,
         ),
       ),
     );
@@ -472,6 +525,13 @@ class MessageBubble extends StatelessWidget {
         return const Icon(Icons.done_all, size: 13, color: _zaloBlue);
       case 'delivered':
         return Icon(Icons.done_all, size: 13, color: Colors.grey[400]);
+      case 'sending':
+        return Icon(Icons.access_time, size: 12, color: Colors.grey[400]);
+      case 'failed':
+        return GestureDetector(
+          onTap: onRetry,
+          child: const Icon(Icons.error_outline, size: 13, color: Colors.red),
+        );
       default:
         return Icon(Icons.done, size: 13, color: Colors.grey[400]);
     }

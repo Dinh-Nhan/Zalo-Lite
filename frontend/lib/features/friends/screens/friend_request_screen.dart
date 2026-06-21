@@ -3,7 +3,6 @@ import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/features/friends/screens/received_request_tab.dart';
 import 'package:frontend/features/friends/screens/sent_request_tab.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 class FriendRequestScreen extends StatelessWidget {
@@ -20,9 +19,11 @@ class FriendRequestScreen extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: AppColors.primaryBlue,
           elevation: 0,
+          leadingWidth: 50,
           leading: IconButton(
+            padding: EdgeInsets.zero,
             icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => GoRouter.of(context).pop(),
+            onPressed: () => Navigator.pop(context),
           ),
           titleSpacing: 8,
           title: const Text(
@@ -56,7 +57,7 @@ class FriendRequestScreen extends StatelessWidget {
                 ),
                 indicatorSize: TabBarIndicatorSize.label,
                 labelColor: AppColors.primaryBlue,
-                unselectedLabelColor: Colors.grey[500],
+                unselectedLabelColor: Colors.grey,
                 labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                 unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
                 tabs: [
@@ -90,7 +91,7 @@ class FriendRequestScreen extends StatelessWidget {
                               '${provider.pendingSent.length}',
                               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
                             ),
-                            backgroundColor: Colors.grey[600],
+                            backgroundColor: Colors.grey,
                             padding: const EdgeInsets.symmetric(horizontal: 6),
                           ),
                       ],

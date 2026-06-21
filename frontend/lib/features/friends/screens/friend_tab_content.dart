@@ -63,7 +63,6 @@ class _FriendTabViewState extends State<FriendTabView> {
           ),
         ),
         const Divider(thickness: 1, color: Color(0xFFEEEEEE), height: 1),
-
         if (_selectedFilterIndex == 0) ...[
           if (provider.friendsState == LoadingState.loading)
             const Center(
@@ -77,7 +76,7 @@ class _FriendTabViewState extends State<FriendTabView> {
               padding: EdgeInsets.all(24),
               child: Center(child: Text('Chưa có bạn bè')),
             )
-          else if (_selectedFilterIndex == 0) ...[
+          else ...[
             ...provider.friends.map((friend) => _buildContactItem(friend)),
           ],
         ],

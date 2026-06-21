@@ -103,6 +103,9 @@ class Conversation {
     Message? lastMessage,
     int? unreadCount,
     DateTime? updatedAt,
+    String? pinnedMessageId,
+    String? pinnedMessageContent,
+    bool clearPinnedMessage = false,
   }) {
     return Conversation(
       id: id,
@@ -126,8 +129,9 @@ class Conversation {
       isPinned: isPinned,
       unreadCount: unreadCount ?? this.unreadCount,
       isArchived: isArchived,
-      pinnedMessageId: pinnedMessageId,
-      pinnedMessageContent: pinnedMessageContent,
+      pinnedMessageId: clearPinnedMessage ? null : (pinnedMessageId ?? this.pinnedMessageId),
+      pinnedMessageContent:
+          clearPinnedMessage ? null : (pinnedMessageContent ?? this.pinnedMessageContent),
     );
   }
 

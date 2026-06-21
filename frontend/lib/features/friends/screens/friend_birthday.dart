@@ -626,10 +626,7 @@ class _FriendBirthdayScreenState extends State<FriendBirthdayScreen> {
         image: DecorationImage(
           image: NetworkImage(imageUrl),
           fit: BoxFit.cover,
-          colorFilter: ColorFilter.mode(
-            Colors.black.withValues(alpha: 0.35),
-            BlendMode.darken,
-          ),
+          colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.35), BlendMode.darken),
         ),
       ),
       alignment: Alignment.bottomLeft,

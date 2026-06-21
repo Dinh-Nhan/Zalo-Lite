@@ -190,7 +190,12 @@ public class ChatHub : Hub
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error sending message");
-            await Clients.Caller.SendAsync("Error", new { Message = ex.Message });
+            await Clients.Caller.SendAsync("Error", new
+            {
+                Message = ex.Message,
+                ClientTempId = request.ClientTempId,
+                Context = "SendMessage"
+            });
         }
     }
 

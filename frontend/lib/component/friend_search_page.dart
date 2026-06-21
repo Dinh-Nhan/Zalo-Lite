@@ -6,7 +6,6 @@ import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/providers/chat_provider.dart';
 import 'package:frontend/services/chat/chat_service.dart';
 import 'package:frontend/views/chat/chat_screen.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 class FriendSearchPage extends StatefulWidget {
@@ -53,7 +52,7 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
       }).toList();
       final results = await FriendService.searchUsers(query);
 
-      if (!mounted) return;
+      if (!context.mounted) return;
 
       setState(() {
         _filteredFriends = localFriends;
@@ -62,7 +61,7 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
         _hasSearched = true;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!context.mounted) return;
       setState(() {
         _results = [];
         _isSearching = false;
@@ -88,10 +87,7 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
       return;
     }
 
-    _debounce = Timer(
-      const Duration(milliseconds: 500),
-      () => _performSearch(keyword),
-    );
+    _debounce = Timer(const Duration(milliseconds: 500), () => _performSearch(keyword));
   }
 
   void _clear() {
@@ -124,13 +120,8 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
           children: [
             CircleAvatar(
               radius: 24,
-              backgroundImage:
-                  avatar.isNotEmpty ? NetworkImage(avatar) : null,
-              child: avatar.isEmpty
-                  ? Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : '?',
-                    )
-                  : null,
+              backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
+              child: avatar.isEmpty ? Text(name.isNotEmpty ? name[0].toUpperCase() : '?') : null,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -141,10 +132,7 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
                     name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                   ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 3),
@@ -152,23 +140,14 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
                       subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                     ),
                   ],
                 ],
               ),
             ),
             const SizedBox(width: 8),
-            SizedBox(
-              width: 120,
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: trailing,
-              ),
-            ),
+            SizedBox(width: 120, child: Align(alignment: Alignment.centerRight, child: trailing)),
           ],
         ),
       ),
@@ -188,7 +167,7 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
             type: 'private',
             participantIds: [f.friendId],
           );
-          if (!mounted) return;
+          if (!context.mounted) return;
           unawaited(chatProvider.openConversation(conversation));
           Navigator.of(context).push(
             MaterialPageRoute(
@@ -216,17 +195,14 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
       action = const SizedBox.shrink();
     } else if (isFriend) {
       action = IconButton(
-        icon: const Icon(
-          Icons.chat_bubble_outline,
-          color: AppColors.primaryBlue,
-        ),
+        icon: const Icon(Icons.chat_bubble_outline, color: AppColors.primaryBlue),
         onPressed: () async {
           final chatProvider = context.read<ChatProvider>();
           final conversation = await ChatService().createConversation(
             type: 'private',
             participantIds: [user.id],
           );
-          if (!mounted) return;
+          if (!context.mounted) return;
           unawaited(chatProvider.openConversation(conversation));
           Navigator.of(context).push(
             MaterialPageRoute(
@@ -260,27 +236,18 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
           onPressed: () {
             provider.cancelFriendRequest(user.id);
           },
-          child: const Text(
-            'Thu hồi',
-            style: TextStyle(fontSize: 12),
-          ),
+          child: const Text('Thu hồi', style: TextStyle(fontSize: 12)),
         ),
       );
     } else {
       action = SizedBox(
         height: 32,
         child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primaryBlue,
-            elevation: 0,
-          ),
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryBlue, elevation: 0),
           onPressed: () {
             provider.sendFriendRequest(user.id);
           },
-          child: const Text(
-            'Kết bạn',
-            style: TextStyle(color: Colors.white, fontSize: 12),
-          ),
+          child: const Text('Kết bạn', style: TextStyle(color: Colors.white, fontSize: 12)),
         ),
       );
     }
@@ -317,29 +284,15 @@ class _FriendSearchPageState extends State<FriendSearchPage> {
             cursorColor: Colors.white,
             decoration: InputDecoration(
               hintText: 'Tìm bạn bè, email...',
-              hintStyle: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
-                fontSize: 14,
-              ),
+              hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 14),
               border: InputBorder.none,
-              prefixIcon: Icon(
-                Icons.search,
-                color: Colors.white.withValues(alpha: 0.8),
-                size: 20,
-              ),
+              prefixIcon: Icon(Icons.search, color: Colors.white.withValues(alpha: 0.8), size: 20),
               suffixIcon: _controller.text.isNotEmpty
                   ? IconButton(
                       onPressed: _clear,
-                      icon: const Icon(
-                        Icons.close,
-                        size: 14,
-                        color: Colors.white70,
-                      ),
+                      icon: const Icon(Icons.close, size: 14, color: Colors.white70),
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 28,
-                        minHeight: 28,
-                      ),
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                     )
                   : null,
             ),

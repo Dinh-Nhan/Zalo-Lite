@@ -1,5 +1,8 @@
 using backend.common;
 using backend.dtos.Request.Chat;
+using backend.dtos.Response.Chat;
+using backend.Enums;
+using backend.Exceptions;
 using backend.Extensions;
 using backend.Hubs;
 using backend.Services;
@@ -19,15 +22,27 @@ public class ChatController : ControllerBase
     private readonly IHubContext<ChatHub> _hubContext;
     private readonly FcmService _fcm;
     private readonly UserService _userService;
+    private readonly CloudinaryService _cloudinaryService;
+
+    private static readonly string[] AllowedMediaMimeTypes =
+    [
+        "image/jpeg", "image/png", "image/gif", "image/webp",
+        "video/mp4", "video/quicktime", "video/x-msvideo", "video/webm", "video/x-matroska"
+    ];
+
+    private const long MaxImageSize = 10 * 1024 * 1024; // 10 MB
+    private const long MaxVideoSize = 100 * 1024 * 1024; // 100 MB
 
     public ChatController(ChatService chatService, ILogger<ChatController> logger,
-        IHubContext<ChatHub> hubContext, FcmService fcm, UserService userService)
+        IHubContext<ChatHub> hubContext, FcmService fcm, UserService userService,
+        CloudinaryService cloudinaryService)
     {
         _chatService = chatService;
         _logger = logger;
         _hubContext = hubContext;
         _fcm = fcm;
         _userService = userService;
+        _cloudinaryService = cloudinaryService;
     }
 
     #region Conversations
@@ -213,6 +228,39 @@ public class ChatController : ControllerBase
     {
         var messages = await _chatService.GetMessagesAsync(conversationId, User.GetUid(), limit, beforeMessageId);
         return Ok(ApiResponse<object>.SuccessResponse(messages, "Messages retrieved successfully"));
+    }
+
+    /// <summary>Upload an image/video for a chat message (returns the Cloudinary URL)</summary>
+    [HttpPost("upload")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadMedia([FromForm] string conversationId, [FromForm] IFormFile file)
+    {
+        var userId = User.GetUid();
+
+        // Ensure the caller is a participant of the conversation before accepting the upload
+        await _chatService.GetConversationByIdAsync(conversationId, userId);
+
+        if (file.Length == 0)
+            throw new AppException(ErrorCode.VALIDATION_ERROR);
+
+        if (!AllowedMediaMimeTypes.Contains(file.ContentType))
+            throw new AppException(ErrorCode.VALIDATION_ERROR);
+
+        var isVideo = file.ContentType.StartsWith("video/");
+        var maxSize = isVideo ? MaxVideoSize : MaxImageSize;
+        if (file.Length > maxSize)
+            throw new AppException(ErrorCode.VALIDATION_ERROR);
+
+        var (url, _, mediaType) = await _cloudinaryService.UploadChatMediaAsync(file, userId, conversationId);
+
+        var response = new MediaUploadResponse
+        {
+            MediaUrl = url,
+            MediaType = mediaType,
+            FileName = file.FileName,
+            FileSize = file.Length,
+        };
+        return Ok(ApiResponse<MediaUploadResponse>.SuccessResponse(response, "Media uploaded successfully"));
     }
 
     /// <summary>Send a message</summary>

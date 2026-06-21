@@ -395,8 +395,6 @@ class FriendProvider extends ChangeNotifier {
     _hub.dispose();
   }
 
-
-
   void clear() {
     _friends = [];
     _pendingReceived = [];
