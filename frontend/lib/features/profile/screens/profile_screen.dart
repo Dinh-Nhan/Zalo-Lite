@@ -44,6 +44,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   bool _isLoadingRelationship = false;
   String _relationshipStatus = '';
   String? _friendshipId;
+  String? _relationshipSenderId;
 
   late TabController _tabController;
   final ImagePicker _imagePicker = ImagePicker();
@@ -52,13 +53,38 @@ class _ProfileScreenState extends State<ProfileScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
     _loadCurrentUser();
     _setupTargetUser();
+    _tabController = TabController(
+      length: _isOwnProfile ? 4 : 3,
+      vsync: this,
+      initialIndex: 0,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _loadInitialProfile();
     });
+  }
+
+  @override
+  void didUpdateWidget(ProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.targetUserId != widget.targetUserId) {
+      _setupTargetUser();
+      final newLength = _isOwnProfile ? 4 : 3;
+      if (_tabController.length != newLength) {
+        _tabController.dispose();
+        _tabController = TabController(
+          length: newLength,
+          vsync: this,
+          initialIndex: 0,
+        );
+      }
+      if (mounted) {
+        setState(() {});
+        _loadInitialProfile();
+      }
+    }
   }
 
   void _loadInitialProfile() {
@@ -134,6 +160,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         _targetUserAvatar = userProfile.avatar;
         _relationshipStatus = relationship?.status ?? '';
         _friendshipId = relationship?.id;
+        _relationshipSenderId = relationship?.senderId;
         _isLoadingRelationship = false;
       });
     } catch (e) {
@@ -335,48 +362,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       if (!mounted) return;
       setState(() {
         _relationshipStatus = 'pending';
-        _isLoadingRelationship = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoadingRelationship = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi: $e')),
-      );
-    }
-  }
-
-  Future<void> _unfriend() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Hủy kết bạn'),
-        content: Text('Bạn có chắc muốn hủy kết bạn với $_targetUserName không?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Hủy kết bạn'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true || _targetUserId == null) return;
-
-    setState(() => _isLoadingRelationship = true);
-    try {
-      await FriendService.unfriend(_targetUserId!);
-      if (!mounted) return;
-      await context.read<FriendProvider>().loadFriends();
-      if (!mounted) return;
-      setState(() {
-        _relationshipStatus = '';
-        _friendshipId = null;
+        _relationshipSenderId = _currentUserId;
         _isLoadingRelationship = false;
       });
     } catch (e) {
@@ -419,6 +405,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       setState(() {
         _relationshipStatus = '';
         _friendshipId = null;
+        _relationshipSenderId = null;
         _isLoadingRelationship = false;
       });
     } catch (e) {
@@ -429,6 +416,170 @@ class _ProfileScreenState extends State<ProfileScreen>
         );
       }
     }
+  }
+
+  Future<void> _unfriend() async {
+    if (_friendshipId == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hủy kết bạn'),
+        content: Text('Hủy kết bạn với $_targetUserName?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Hủy kết bạn'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || _friendshipId == null) return;
+
+    setState(() => _isLoadingRelationship = true);
+    try {
+      await FriendService.unfriend(_friendshipId!);
+      if (!mounted) return;
+      setState(() {
+        _relationshipStatus = '';
+        _friendshipId = null;
+        _relationshipSenderId = null;
+        _isLoadingRelationship = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingRelationship = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _respondToFriendRequest(bool accept) async {
+    if (_friendshipId == null) return;
+
+    setState(() => _isLoadingRelationship = true);
+    try {
+      await FriendService.respondRequest(
+        friendshipId: _friendshipId!,
+        accept: accept,
+      );
+      if (!mounted) return;
+      if (accept) {
+        await context.read<FriendProvider>().loadFriends();
+        if (!mounted) return;
+        setState(() {
+          _relationshipStatus = 'accepted';
+          _relationshipSenderId = null;
+          _isLoadingRelationship = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Đã chấp nhận lời mời kết bạn từ $_targetUserName'),
+              backgroundColor: AppColors.primaryBlue,
+            ),
+          );
+        }
+      } else {
+        setState(() {
+          _relationshipStatus = '';
+          _friendshipId = null;
+          _relationshipSenderId = null;
+          _isLoadingRelationship = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Đã từ chối lời mời kết bạn')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingRelationship = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showRespondDialog() async {
+    final action = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Lời mời kết bạn từ $_targetUserName'),
+        content: const Text('Bạn muốn chấp nhận hay từ chối lời mời này?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Từ chối'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.primaryBlue),
+            child: const Text('Chấp nhận'),
+          ),
+        ],
+      ),
+    );
+    if (action == null) return;
+    await _respondToFriendRequest(action);
+  }
+
+  Future<void> _showRespondDialogForFriend(String senderId) async {
+    final senderName = _resolveFriendDisplayName(senderId);
+    if (!mounted) return;
+    final action = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Lời mời kết bạn từ $senderName'),
+        content: const Text('Bạn muốn chấp nhận hay từ chối lời mời này?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Từ chối'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.primaryBlue),
+            child: const Text('Chấp nhận'),
+          ),
+        ],
+      ),
+    );
+    if (action == null) return;
+    if (!mounted) return;
+    if (action) {
+      await context.read<FriendProvider>().acceptFriendRequest(senderId);
+    } else {
+      await context.read<FriendProvider>().declineFriendRequest(senderId);
+    }
+  }
+
+  String _resolveFriendDisplayName(String friendId) {
+    final prov = context.read<ProfileProvider>();
+    final external =
+        prov.externalFriends.where((f) => f.friendId == friendId).toList();
+    if (external.isNotEmpty) {
+      final f = external.first;
+      return f.fullName.isNotEmpty ? f.fullName : 'Người dùng';
+    }
+    final friendProv = context.read<FriendProvider>();
+    final received = friendProv.getReceivedRequest(friendId);
+    if (received != null && received.senderName != null) {
+      return received.senderName!;
+    }
+    return 'Người dùng';
   }
 
   Future<void> _openChat() async {
@@ -511,18 +662,25 @@ class _ProfileScreenState extends State<ProfileScreen>
                   pinned: true,
                   delegate: _TabBarDelegate(
                     tabController: _tabController,
+                    isOwnProfile: _isOwnProfile,
                   ),
                 ),
               ];
             },
             body: TabBarView(
               controller: _tabController,
-              children: [
-                _PostsTab(targetUserId: _targetUserId ?? ''),
-                _InfoTab(isOwnProfile: _isOwnProfile),
-                _ImagesTab(),
-                const _SettingsTab(),
-              ],
+              children: _isOwnProfile
+                  ? [
+                      _PostsTab(targetUserId: _targetUserId ?? ''),
+                      _InfoTab(isOwnProfile: _isOwnProfile),
+                      _ImagesTab(),
+                      const _SettingsTab(),
+                    ]
+                  : [
+                      _PostsTab(targetUserId: _targetUserId ?? ''),
+                      _InfoTab(isOwnProfile: _isOwnProfile),
+                      _ImagesTab(),
+                    ],
             ),
           ),
         ),
@@ -711,8 +869,12 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
     }
 
-    final isPending = _relationshipStatus == 'pending';
     final isAccepted = _relationshipStatus == 'accepted';
+    final isPending = _relationshipStatus == 'pending';
+    final isPendingSentByMe =
+        isPending && _relationshipSenderId == _currentUserId;
+    final isPendingReceivedByMe =
+        isPending && _relationshipSenderId != _currentUserId;
     final isNotFriend = _relationshipStatus.isEmpty;
 
     return Row(
@@ -720,25 +882,34 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (isNotFriend)
           Expanded(
             child: _buildActionButton(
-              icon: Icons.person_add,
+              icon: Icons.person_add_alt_1,
               label: 'Kết bạn',
               filled: true,
               onTap: _sendFriendRequest,
             ),
           )
-        else if (isPending)
+        else if (isPendingSentByMe)
           Expanded(
             child: _buildActionButton(
-              icon: Icons.person_remove,
+              icon: Icons.undo,
               label: 'Thu hồi',
               filled: true,
               onTap: _cancelRequest,
             ),
           )
+        else if (isPendingReceivedByMe)
+          Expanded(
+            child: _buildActionButton(
+              icon: Icons.reply,
+              label: 'Trả lời',
+              filled: true,
+              onTap: _showRespondDialog,
+            ),
+          )
         else if (isAccepted)
           Expanded(
             child: _buildActionButton(
-              icon: Icons.person,
+              icon: Icons.person_remove,
               label: 'Hủy kết bạn',
               filled: true,
               onTap: _unfriend,
@@ -749,7 +920,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           icon: Icons.chat_bubble_outline,
           label: '',
           filled: false,
-          onTap: () => _openChat(),
+          onTap: _openChat,
         ),
         const SizedBox(width: 16),
       ],
@@ -767,11 +938,13 @@ class _ProfileScreenState extends State<ProfileScreen>
         onTap: onTap,
         child: Container(
           height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
             color: AppColors.primaryBlue,
             borderRadius: BorderRadius.circular(6),
           ),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, color: Colors.white, size: 16),
@@ -999,6 +1172,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                   ),
                                 );
                               },
+                              onRespondFriend: _showRespondDialogForFriend,
                             );
                           },
                         );
@@ -1021,6 +1195,7 @@ class _FriendRowItem extends StatelessWidget {
   final Color avatarColor;
   final String currentUid;
   final VoidCallback onTap;
+  final ValueChanged<String> onRespondFriend;
 
   const _FriendRowItem({
     required this.friend,
@@ -1028,6 +1203,7 @@ class _FriendRowItem extends StatelessWidget {
     required this.avatarColor,
     required this.currentUid,
     required this.onTap,
+    required this.onRespondFriend,
   });
 
   @override
@@ -1084,10 +1260,17 @@ class _FriendRowItem extends StatelessWidget {
               const SizedBox(width: 8),
               Consumer<FriendProvider>(
                 builder: (context, friendProvider, _) {
+                  if (friend.friendId == currentUid) {
+                    return const SizedBox.shrink();
+                  }
+
                   final isFriend = friendProvider.isFriend(friend.friendId);
-                  final sentRequest = friendProvider.getSentRequest(friend.friendId);
-                  final receivedRequest = friendProvider.getReceivedRequest(friend.friendId);
-                  final isLoading = friendProvider.isActionLoading(friend.friendId);
+                  final sentRequest =
+                      friendProvider.getSentRequest(friend.friendId);
+                  final receivedRequest =
+                      friendProvider.getReceivedRequest(friend.friendId);
+                  final isLoading =
+                      friendProvider.isActionLoading(friend.friendId);
 
                   if (isLoading) {
                     return const SizedBox(
@@ -1103,28 +1286,28 @@ class _FriendRowItem extends StatelessWidget {
                     );
                   }
 
-                  if (sentRequest != null || receivedRequest != null) {
-                    return Container(
-                      width: 80,
-                      height: 34,
-                      alignment: Alignment.center,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text(
-                        'Đã gửi',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
+                  if (receivedRequest != null) {
+                    return _buildFriendRowAction(
+                      icon: Icons.reply,
+                      filled: false,
+                      onTap: () => onRespondFriend(friend.friendId),
+                    );
+                  }
+
+                  if (sentRequest != null) {
+                    return _buildFriendRowAction(
+                      icon: Icons.undo,
+                      filled: false,
+                      onTap: () async {
+                        await friendProvider.cancelFriendRequest(friend.friendId);
+                      },
                     );
                   }
 
                   if (isFriend) {
-                    return GestureDetector(
+                    return _buildFriendRowAction(
+                      icon: Icons.chat_bubble,
+                      filled: true,
                       onTap: () async {
                         final conversation = await ChatService().createConversation(
                           type: 'private',
@@ -1139,52 +1322,44 @@ class _FriendRowItem extends StatelessWidget {
                           ),
                         );
                       },
-                      child: Container(
-                        width: 80,
-                        height: 34,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryBlue,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          'Nhắn tin',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
                     );
                   }
 
-                  return GestureDetector(
+                  return _buildFriendRowAction(
+                    icon: Icons.person_add_alt_1,
+                    filled: true,
                     onTap: () async {
                       await friendProvider.sendFriendRequest(friend.friendId);
                     },
-                    child: Container(
-                      width: 80,
-                      height: 34,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryBlue,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text(
-                        'Kết bạn',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
                   );
                 },
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFriendRowAction({
+    required IconData icon,
+    required bool filled,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 34,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: filled ? AppColors.primaryBlue : Colors.grey.shade300,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: filled ? Colors.white : AppColors.textSecondary,
         ),
       ),
     );
@@ -1195,8 +1370,9 @@ class _FriendRowItem extends StatelessWidget {
 
 class _TabBarDelegate extends SliverPersistentHeaderDelegate {
   final TabController tabController;
+  final bool isOwnProfile;
 
-  _TabBarDelegate({required this.tabController});
+  _TabBarDelegate({required this.tabController, required this.isOwnProfile});
 
   @override
   Widget build(
@@ -1223,12 +1399,18 @@ class _TabBarDelegate extends SliverPersistentHeaderDelegate {
               fontWeight: FontWeight.normal,
               fontSize: 14,
             ),
-            tabs: const [
-              Tab(text: 'Bài viết'),
-              Tab(text: 'Thông tin'),
-              Tab(text: 'Ảnh'),
-              Tab(text: 'Cài đặt'),
-            ],
+            tabs: isOwnProfile
+                ? const [
+                    Tab(text: 'Bài viết'),
+                    Tab(text: 'Thông tin'),
+                    Tab(text: 'Ảnh'),
+                    Tab(text: 'Cài đặt'),
+                  ]
+                : const [
+                    Tab(text: 'Bài viết'),
+                    Tab(text: 'Thông tin'),
+                    Tab(text: 'Ảnh'),
+                  ],
           ),
         ],
       ),
@@ -1242,7 +1424,9 @@ class _TabBarDelegate extends SliverPersistentHeaderDelegate {
   double get minExtent => 92;
 
   @override
-  bool shouldRebuild(covariant _TabBarDelegate oldDelegate) => true;
+  bool shouldRebuild(covariant _TabBarDelegate oldDelegate) =>
+      oldDelegate.tabController != tabController ||
+      oldDelegate.isOwnProfile != isOwnProfile;
 }
 
 // ============================================================
