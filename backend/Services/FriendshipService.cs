@@ -129,19 +129,10 @@ public class FriendshipService(
             senderId, addresseeId, friendship.Id);
 
         // ── SignalR: notify người nhận có lời mời mới ─────────────
-        var enriched = new FriendshipResponse
-        {
-            Id          = friendship.Id,
-            SenderId    = friendship.SenderId,
-            AddresseeId = friendship.AddresseeId,
-            Status      = friendship.Status,
-            SourceType  = friendship.SourceType,
-            CreatedAt   = friendship.CreatedAt,
-            UpdatedAt   = friendship.UpdatedAt,
-            SenderName   = senderName,
-            SenderAvatar = senderAvatar,
-            AddresseeName = addresseeName
-        };
+        var enriched = friendship.Adapt<FriendshipResponse>();
+        enriched.SenderName = senderName;
+        enriched.SenderAvatar = senderAvatar;
+        enriched.AddresseeName = addresseeName;
 
         await hubContext.Clients
             .Group(FriendHub.GroupName(addresseeId))
@@ -436,19 +427,11 @@ public class FriendshipService(
                 addresseeName = $"{u.FirstName} {u.LastName}".Trim();
             }
 
-            result.Add(new FriendshipResponse
-            {
-                Id           = f.Id,
-                SenderId     = f.SenderId,
-                AddresseeId  = f.AddresseeId,
-                Status       = f.Status,
-                SourceType   = f.SourceType,
-                CreatedAt    = f.CreatedAt,
-                UpdatedAt    = f.UpdatedAt,
-                SenderName   = senderName,
-                SenderAvatar = senderAvatar,
-                AddresseeName = addresseeName
-            });
+            var resp = f.Adapt<FriendshipResponse>();
+            resp.SenderName = senderName;
+            resp.SenderAvatar = senderAvatar;
+            resp.AddresseeName = addresseeName;
+            result.Add(resp);
         }
 
         return result;
@@ -488,17 +471,9 @@ public class FriendshipService(
                 addresseeName = $"{u.FirstName} {u.LastName}".Trim();
             }
 
-            result.Add(new FriendshipResponse
-            {
-                Id           = f.Id,
-                SenderId     = f.SenderId,
-                AddresseeId  = f.AddresseeId,
-                Status       = f.Status,
-                SourceType   = f.SourceType,
-                CreatedAt    = f.CreatedAt,
-                UpdatedAt    = f.UpdatedAt,
-                AddresseeName = addresseeName
-            });
+            var resp = f.Adapt<FriendshipResponse>();
+            resp.AddresseeName = addresseeName;
+            result.Add(resp);
         }
 
         return result;
@@ -538,17 +513,9 @@ public class FriendshipService(
                 addresseeName = $"{u.FirstName} {u.LastName}".Trim();
             }
 
-            result.Add(new FriendshipResponse
-            {
-                Id           = f.Id,
-                SenderId     = f.SenderId,
-                AddresseeId  = f.AddresseeId,
-                Status       = f.Status,
-                SourceType   = f.SourceType,
-                CreatedAt    = f.CreatedAt,
-                UpdatedAt    = f.UpdatedAt,
-                AddresseeName = addresseeName
-            });
+            var resp = f.Adapt<FriendshipResponse>();
+            resp.AddresseeName = addresseeName;
+            result.Add(resp);
         }
 
         return result;
@@ -569,17 +536,9 @@ public class FriendshipService(
             addresseeName = $"{u.FirstName} {u.LastName}".Trim();
         }
 
-        return new FriendshipResponse
-        {
-            Id = rel.Id,
-            SenderId = rel.SenderId,
-            AddresseeId = rel.AddresseeId,
-            Status = rel.Status,
-            SourceType = rel.SourceType,
-            CreatedAt = rel.CreatedAt,
-            UpdatedAt = rel.UpdatedAt,
-            AddresseeName = addresseeName
-        };
+        var resp = rel.Adapt<FriendshipResponse>();
+        resp.AddresseeName = addresseeName;
+        return resp;
     }
 
     // ─────────────────────────────────────────────────────────────

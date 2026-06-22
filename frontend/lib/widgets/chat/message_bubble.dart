@@ -2,7 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:frontend/widgets/location_message_bubble.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../models/chat/message.dart';
+import '../../providers/chat_provider.dart';
 import 'fullscreen_image_viewer.dart';
 import 'audio_message_player.dart';
 
@@ -212,20 +214,28 @@ class MessageBubble extends StatelessWidget {
       );
     }
 
+    final isMediaOrSticker = message.type == 'image' || message.type == 'video' || message.type == 'sticker';
+
     return Container(
       decoration: BoxDecoration(
-        color: isMine ? _zaloBlue : _receivedBg,
+        color: isMediaOrSticker
+            ? Colors.transparent
+            : (isMine ? _zaloBlue : _receivedBg),
         borderRadius: radius,
-        border: isMine ? null : Border.all(color: _receivedBorder, width: 0.5),
-        boxShadow: isMine
+        border: isMediaOrSticker
             ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 3,
-                  offset: const Offset(0, 1),
-                ),
-              ],
+            : (isMine ? null : Border.all(color: _receivedBorder, width: 0.5)),
+        boxShadow: isMediaOrSticker
+            ? null
+            : (isMine
+                ? null
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 3,
+                      offset: const Offset(0, 1),
+                    ),
+                  ]),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -329,13 +339,32 @@ class MessageBubble extends StatelessWidget {
         child: GestureDetector(
           onTap: !hasRemote
               ? null
-              : () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    fullscreenDialog: true,
-                    builder: (_) =>
-                        FullscreenImageViewer(imageUrl: message.mediaUrl!),
-                  ),
-                ),
+              : () {
+                  final chatProvider = context.read<ChatProvider>();
+                  final imageMessages = chatProvider.messages
+                      .where((m) =>
+                          m.type == 'image' &&
+                          m.mediaUrl != null &&
+                          m.mediaUrl!.isNotEmpty)
+                      .toList();
+                  
+                  final imageUrls = imageMessages.map((m) => m.mediaUrl!).toList();
+                  int initialIndex = imageMessages.indexWhere((m) => m.id == message.id);
+                  if (initialIndex == -1) {
+                    imageUrls.insert(0, message.mediaUrl!);
+                    initialIndex = 0;
+                  }
+
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      fullscreenDialog: true,
+                      builder: (_) => FullscreenImageViewer(
+                        imageUrls: imageUrls,
+                        initialIndex: initialIndex,
+                      ),
+                    ),
+                  );
+                },
           child: image,
         ),
       ),

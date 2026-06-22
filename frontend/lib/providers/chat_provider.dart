@@ -497,11 +497,11 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
       await _trySendViaSignalR(
         tempId: tempId,
         conversationId: conversationId,
-        type: result['mediaType'] ?? 'image',
+        type: result['media_type'] ?? result['mediaType'] ?? 'image',
         content: 'Hình ảnh',
-        mediaUrl: result['mediaUrl'],
-        fileName: result['fileName'],
-        fileSize: result['fileSize'],
+        mediaUrl: result['media_url'] ?? result['mediaUrl'],
+        fileName: result['file_name'] ?? result['fileName'],
+        fileSize: result['file_size'] ?? result['fileSize'],
       );
     } catch (e) {
       // Upload lỗi — đánh dấu failed giống lúc gửi text lỗi, giữ localFilePath để retry
@@ -580,9 +580,9 @@ class ChatProvider extends ChangeNotifier with WidgetsBindingObserver {
         conversationId: conversationId,
         type: 'audio',
         content: 'Tin nhắn thoại',
-        mediaUrl: result['mediaUrl'],
-        fileName: result['fileName'],
-        fileSize: result['fileSize'],
+        mediaUrl: result['media_url'] ?? result['mediaUrl'],
+        fileName: result['file_name'] ?? result['fileName'],
+        fileSize: result['file_size'] ?? result['fileSize'],
         duration: duration,
       );
     } catch (e) {

@@ -7,81 +7,135 @@ using backend.Extensions;
 using backend.Hubs;
 using backend.Services;
 using backend.Utils;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace backend.Controllers;
 
+/// <summary>
+/// Controller quản lý tất cả hoạt động chat, trò chuyện, nhắn tin và quản lý nhóm.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 [FirebaseAuthorize]
-public class ChatController : ControllerBase
+public class ChatController(ChatService _chatService, ILogger<ChatController> _logger,
+                            IHubContext<ChatHub> _hubContext, FcmService _fcm,
+                             UserService _userService, CloudinaryService _cloudinaryService) : ControllerBase
 {
-    private readonly ChatService _chatService;
-    private readonly ILogger<ChatController> _logger;
-    private readonly IHubContext<ChatHub> _hubContext;
-    private readonly FcmService _fcm;
-    private readonly UserService _userService;
-    private readonly CloudinaryService _cloudinaryService;
-
-
-
-    public ChatController(ChatService chatService, ILogger<ChatController> logger,
-        IHubContext<ChatHub> hubContext, FcmService fcm, UserService userService,
-        CloudinaryService cloudinaryService)
-    {
-        _chatService = chatService;
-        _logger = logger;
-        _hubContext = hubContext;
-        _fcm = fcm;
-        _userService = userService;
-        _cloudinaryService = cloudinaryService;
-    }
-
     #region Conversations
 
-    /// <summary>Get all conversations for current user</summary>
+    /// <summary>
+    /// Lấy danh sách toàn bộ các cuộc hội thoại (private và nhóm) của người dùng hiện tại.
+    /// </summary>
+    /// <returns>Danh sách cuộc hội thoại</returns>
+    /// <response code="200">Lấy danh sách thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
     [HttpGet("conversations")]
+    [ProducesResponseType(typeof(ApiResponse<List<ConversationResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetConversations()
     {
         var conversations = await _chatService.GetUserConversationsAsync(User.GetUid());
         return Ok(ApiResponse<object>.SuccessResponse(conversations, "Conversations retrieved successfully"));
     }
 
-    /// <summary>Get conversation by ID</summary>
+    /// <summary>
+    /// Lấy thông tin chi tiết của một cuộc hội thoại cụ thể theo ID.
+    /// </summary>
+    /// <param name="conversationId">ID cuộc hội thoại</param>
+    /// <returns>Hồ sơ chi tiết cuộc hội thoại</returns>
+    /// <response code="200">Lấy thông tin thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
+    /// <response code="403">Người dùng không phải thành viên cuộc hội thoại này</response>
+    /// <response code="404">Không tìm thấy cuộc hội thoại</response>
     [HttpGet("conversations/{conversationId}")]
+    [ProducesResponseType(typeof(ApiResponse<ConversationResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetConversation(string conversationId)
     {
         var conversation = await _chatService.GetConversationByIdAsync(conversationId, User.GetUid());
         return Ok(ApiResponse<object>.SuccessResponse(conversation, "Conversation retrieved successfully"));
     }
 
-    /// <summary>Create new conversation (private or group)</summary>
+    /// <summary>
+    /// Tạo mới một cuộc hội thoại (Private 1-1 hoặc Chat Nhóm).
+    /// </summary>
+    /// <param name="request">Thông tin yêu cầu tạo hội thoại</param>
+    /// <returns>Thông tin chi tiết cuộc hội thoại vừa tạo</returns>
+    /// <response code="200">Tạo cuộc hội thoại thành công</response>
+    /// <response code="400">Yêu cầu không hợp lệ (nhóm thiếu thành viên, chat với chính mình...)</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
     [HttpPost("conversations")]
+    [ProducesResponseType(typeof(ApiResponse<ConversationResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> CreateConversation([FromBody] CreateConversationRequest request)
     {
         var conversation = await _chatService.CreateConversationAsync(request, User.GetUid());
         return Ok(ApiResponse<object>.SuccessResponse(conversation, "Conversation created successfully"));
     }
 
-    /// <summary>Update group information (name, avatar, description)</summary>
+    /// <summary>
+    /// Cập nhật thông tin cơ bản của nhóm chat (Tên nhóm, ảnh đại diện, mô tả).
+    /// </summary>
+    /// <param name="request">Thông tin nhóm cập nhật</param>
+    /// <returns>Hồ sơ nhóm chat sau khi cập nhật</returns>
+    /// <response code="200">Cập nhật nhóm thành công</response>
+    /// <response code="400">Không phải nhóm hoặc thông tin sai định dạng</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
+    /// <response code="403">Người dùng không có quyền quản trị/sửa đổi</response>
     [HttpPut("conversations/group")]
+    [ProducesResponseType(typeof(ApiResponse<ConversationResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> UpdateGroup([FromBody] UpdateGroupRequest request)
     {
         var conversation = await _chatService.UpdateGroupAsync(request, User.GetUid());
         return Ok(ApiResponse<object>.SuccessResponse(conversation, "Group updated successfully"));
     }
 
-    /// <summary>Add participants to group</summary>
+    /// <summary>
+    /// Thêm các thành viên mới vào nhóm chat hiện tại.
+    /// </summary>
+    /// <param name="request">Danh sách thành viên cần thêm</param>
+    /// <returns>Hồ sơ nhóm chat sau khi thêm thành viên</returns>
+    /// <response code="200">Thêm thành viên thành công</response>
+    /// <response code="400">Không phải nhóm chat hoặc trùng lặp thành viên</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
+    /// <response code="403">Không có quyền thêm thành viên</response>
     [HttpPost("conversations/participants")]
+    [ProducesResponseType(typeof(ApiResponse<ConversationResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> AddParticipants([FromBody] AddParticipantsRequest request)
     {
         var conversation = await _chatService.AddParticipantsAsync(request, User.GetUid());
         return Ok(ApiResponse<object>.SuccessResponse(conversation, "Participants added successfully"));
     }
 
-    /// <summary>Remove participant from group (or leave if removing self)</summary>
+    /// <summary>
+    /// Xóa một thành viên khỏi nhóm chat (hoặc rời nhóm nếu tự xóa bản thân).
+    /// </summary>
+    /// <param name="conversationId">ID nhóm chat</param>
+    /// <param name="userIdToRemove">UID của thành viên cần xóa</param>
+    /// <returns>Kết quả xóa thành viên thành công</returns>
+    /// <response code="200">Xóa thành viên khỏi nhóm thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
+    /// <response code="403">Không có quyền xóa thành viên</response>
+    /// <response code="404">Không tìm thấy nhóm hoặc thành viên</response>
     [HttpDelete("conversations/{conversationId}/participants/{userIdToRemove}")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RemoveParticipant(string conversationId, string userIdToRemove)
     {
         var userId = User.GetUid();
@@ -90,8 +144,18 @@ public class ChatController : ControllerBase
         return Ok(ApiResponse<object>.SuccessResponse(default(object), "Participant removed successfully"));
     }
 
-    /// <summary>Leave / delete conversation</summary>
+    /// <summary>
+    /// Rời khỏi hoặc xóa hoàn toàn cuộc hội thoại ở phía người dùng hiện tại.
+    /// </summary>
+    /// <param name="conversationId">ID cuộc hội thoại</param>
+    /// <returns>Kết quả thực hiện thành công</returns>
+    /// <response code="200">Xóa cuộc hội thoại thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
+    /// <response code="404">Không tìm thấy hội thoại</response>
     [HttpDelete("conversations/{conversationId}")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteConversation(string conversationId)
     {
         var userId = User.GetUid();
@@ -104,16 +168,37 @@ public class ChatController : ControllerBase
 
     #region Pin Message
 
-    /// <summary>Pin a message in a conversation</summary>
+    /// <summary>
+    /// Ghim (Pin) một tin nhắn trong cuộc hội thoại để hiển thị nổi bật.
+    /// </summary>
+    /// <param name="conversationId">ID cuộc hội thoại</param>
+    /// <param name="messageId">ID tin nhắn cần ghim</param>
+    /// <returns>Hồ sơ cuộc hội thoại sau khi ghim tin nhắn</returns>
+    /// <response code="200">Ghim tin nhắn thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
+    /// <response code="404">Không tìm thấy tin nhắn hoặc hội thoại</response>
     [HttpPost("conversations/{conversationId}/pin/{messageId}")]
+    [ProducesResponseType(typeof(ApiResponse<ConversationResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> PinMessage(string conversationId, string messageId)
     {
         var conversation = await _chatService.PinMessageAsync(conversationId, messageId, User.GetUid());
         return Ok(ApiResponse<object>.SuccessResponse(conversation, "Message pinned successfully"));
     }
 
-    /// <summary>Unpin the current pinned message</summary>
+    /// <summary>
+    /// Bỏ ghim (Unpin) tin nhắn đang được ghim trong cuộc hội thoại.
+    /// </summary>
+    /// <param name="conversationId">ID cuộc hội thoại</param>
+    /// <returns>Hồ sơ cuộc hội thoại sau khi bỏ ghim</returns>
+    /// <response code="200">Bỏ ghim thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
+    /// <response code="404">Không tìm thấy tin nhắn ghim nào</response>
     [HttpDelete("conversations/{conversationId}/pin")]
+    [ProducesResponseType(typeof(ApiResponse<ConversationResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UnpinMessage(string conversationId)
     {
         var conversation = await _chatService.UnpinMessageAsync(conversationId, User.GetUid());
@@ -124,16 +209,33 @@ public class ChatController : ControllerBase
 
     #region Conversation Settings
 
-    /// <summary>Get conversation settings (theme, background, emoji set, auto-download, disappearing)</summary>
+    /// <summary>
+    /// Lấy cấu hình cá nhân của cuộc hội thoại (chủ đề, hình nền, emoji, tự tải, tự hủy...).
+    /// </summary>
+    /// <param name="conversationId">ID cuộc hội thoại</param>
+    /// <returns>Cấu hình chi tiết cuộc hội thoại</returns>
+    /// <response code="200">Lấy cấu hình thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
     [HttpGet("conversations/{conversationId}/settings")]
+    [ProducesResponseType(typeof(ApiResponse<ConversationSettingsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetConversationSettings(string conversationId)
     {
         var settings = await _chatService.GetConversationSettingsAsync(conversationId, User.GetUid());
         return Ok(ApiResponse<object>.SuccessResponse(settings, "Settings retrieved successfully"));
     }
 
-    /// <summary>Update conversation settings (theme, background, emoji set, auto-download)</summary>
+    /// <summary>
+    /// Cập nhật cấu hình cuộc hội thoại (theme, ảnh nền, emoji mặc định, tự động tải...).
+    /// </summary>
+    /// <param name="conversationId">ID cuộc hội thoại</param>
+    /// <param name="request">Nội dung cấu hình thay đổi</param>
+    /// <returns>Cấu hình cuộc hội thoại sau cập nhật</returns>
+    /// <response code="200">Cập nhật thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
     [HttpPut("conversations/{conversationId}/settings")]
+    [ProducesResponseType(typeof(ApiResponse<ConversationSettingsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> UpdateConversationSettings(
         string conversationId, [FromBody] ConversationSettingsRequest request)
     {
@@ -141,8 +243,17 @@ public class ChatController : ControllerBase
         return Ok(ApiResponse<object>.SuccessResponse(settings, "Settings updated successfully"));
     }
 
-    /// <summary>Set disappearing messages duration (0 = disabled, >0 = seconds)</summary>
+    /// <summary>
+    /// Thiết lập thời gian tự động xóa/tự hủy tin nhắn (Disappearing Messages).
+    /// </summary>
+    /// <param name="conversationId">ID cuộc hội thoại</param>
+    /// <param name="request">Thời gian đếm ngược (0 = tắt, >0 = giây)</param>
+    /// <returns>Cấu hình cuộc hội thoại sau cập nhật</returns>
+    /// <response code="200">Thiết lập thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
     [HttpPut("conversations/{conversationId}/settings/disappearing")]
+    [ProducesResponseType(typeof(ApiResponse<ConversationSettingsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> SetDisappearingDuration(
         string conversationId, [FromBody] DisappearingSettingRequest request)
     {
@@ -154,8 +265,18 @@ public class ChatController : ControllerBase
 
     #region Nickname
 
-    /// <summary>Set or clear a participant's nickname in the conversation</summary>
+    /// <summary>
+    /// Đặt biệt danh (Nickname) cho một thành viên trong cuộc hội thoại.
+    /// </summary>
+    /// <param name="conversationId">ID cuộc hội thoại</param>
+    /// <param name="userId">UID của thành viên cần đặt biệt danh</param>
+    /// <param name="request">Nội dung biệt danh mới</param>
+    /// <returns>Thông tin thành viên sau cập nhật biệt danh</returns>
+    /// <response code="200">Đặt biệt danh thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
     [HttpPut("conversations/{conversationId}/members/{userId}/nickname")]
+    [ProducesResponseType(typeof(ApiResponse<ParticipantResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> SetNickname(
         string conversationId, string userId, [FromBody] SetNicknameRequest request)
     {
@@ -167,8 +288,19 @@ public class ChatController : ControllerBase
 
     #region Group Settings
 
-    /// <summary>Update group permission settings (admin only)</summary>
+    /// <summary>
+    /// Cập nhật quyền kiểm duyệt nhóm chat (chỉ quản trị viên mới được thực hiện).
+    /// </summary>
+    /// <param name="conversationId">ID nhóm chat</param>
+    /// <param name="request">Cấu hình quyền hạn mới của nhóm</param>
+    /// <returns>Hồ sơ cuộc hội thoại nhóm</returns>
+    /// <response code="200">Cập nhật quyền thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
+    /// <response code="403">Người dùng không phải quản trị viên nhóm</response>
     [HttpPut("conversations/{conversationId}/group-settings")]
+    [ProducesResponseType(typeof(ApiResponse<ConversationResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> UpdateGroupSettings(
         string conversationId, [FromBody] GroupSettingsRequest request)
     {
@@ -176,32 +308,74 @@ public class ChatController : ControllerBase
         return Ok(ApiResponse<object>.SuccessResponse(conversation, "Group settings updated successfully"));
     }
 
-    /// <summary>Request to join a conversation that requires approval</summary>
+    /// <summary>
+    /// Gửi yêu cầu xin tham gia vào nhóm chat (khi nhóm yêu cầu phê duyệt thành viên).
+    /// </summary>
+    /// <param name="conversationId">ID nhóm chat</param>
+    /// <returns>Thông tin yêu cầu tham gia vừa tạo</returns>
+    /// <response code="200">Gửi yêu cầu thành công</response>
+    /// <response code="400">Yêu cầu đã tồn tại hoặc đã là thành viên</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
     [HttpPost("conversations/{conversationId}/join-requests")]
+    [ProducesResponseType(typeof(ApiResponse<JoinRequestResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> CreateJoinRequest(string conversationId)
     {
         var joinRequest = await _chatService.CreateJoinRequestAsync(conversationId, User.GetUid());
         return Ok(ApiResponse<object>.SuccessResponse(joinRequest, "Join request submitted successfully"));
     }
 
-    /// <summary>List pending join requests (admin only)</summary>
+    /// <summary>
+    /// Lấy danh sách các yêu cầu đang chờ phê duyệt tham gia nhóm (chỉ dành cho quản trị viên).
+    /// </summary>
+    /// <param name="conversationId">ID nhóm chat</param>
+    /// <returns>Danh sách yêu cầu phê duyệt</returns>
+    /// <response code="200">Lấy danh sách thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
+    /// <response code="403">Người dùng không phải quản trị viên nhóm</response>
     [HttpGet("conversations/{conversationId}/join-requests")]
+    [ProducesResponseType(typeof(ApiResponse<List<JoinRequestResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetJoinRequests(string conversationId)
     {
         var requests = await _chatService.GetJoinRequestsAsync(conversationId, User.GetUid());
         return Ok(ApiResponse<object>.SuccessResponse(requests, "Join requests retrieved successfully"));
     }
 
-    /// <summary>Approve a join request (admin only)</summary>
+    /// <summary>
+    /// Phê duyệt (Approve) đồng ý cho một thành viên vào nhóm.
+    /// </summary>
+    /// <param name="conversationId">ID nhóm chat</param>
+    /// <param name="userId">UID của người xin gia nhập</param>
+    /// <returns>Không có dữ liệu trả về</returns>
+    /// <response code="200">Phê duyệt đồng ý thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
+    /// <response code="403">Người dùng không phải quản trị viên nhóm</response>
     [HttpPost("conversations/{conversationId}/join-requests/{userId}/approve")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> ApproveJoinRequest(string conversationId, string userId)
     {
         await _chatService.ReviewJoinRequestAsync(conversationId, userId, approve: true, User.GetUid());
         return Ok(ApiResponse<object>.SuccessResponse(null, "Join request approved"));
     }
 
-    /// <summary>Reject a join request (admin only)</summary>
+    /// <summary>
+    /// Từ chối (Reject) không cho người dùng gia nhập nhóm chat.
+    /// </summary>
+    /// <param name="conversationId">ID nhóm chat</param>
+    /// <param name="userId">UID của người xin gia nhập</param>
+    /// <returns>Không có dữ liệu trả về</returns>
+    /// <response code="200">Từ chối thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
+    /// <response code="403">Người dùng không phải quản trị viên nhóm</response>
     [HttpPost("conversations/{conversationId}/join-requests/{userId}/reject")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> RejectJoinRequest(string conversationId, string userId)
     {
         await _chatService.ReviewJoinRequestAsync(conversationId, userId, approve: false, User.GetUid());
@@ -212,8 +386,18 @@ public class ChatController : ControllerBase
 
     #region Messages
 
-    /// <summary>Get messages in a conversation (cursor pagination via beforeMessageId)</summary>
+    /// <summary>
+    /// Lấy danh sách tin nhắn cũ trong cuộc hội thoại (hỗ trợ phân trang ngược bằng Cursor pagination).
+    /// </summary>
+    /// <param name="conversationId">ID cuộc hội thoại</param>
+    /// <param name="limit">Số lượng tin nhắn cần lấy (Mặc định 50)</param>
+    /// <param name="beforeMessageId">ID tin nhắn làm mốc để lấy các tin nhắn cũ hơn nó</param>
+    /// <returns>Danh sách tin nhắn (MessageResponse)</returns>
+    /// <response code="200">Lấy tin nhắn thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
     [HttpGet("conversations/{conversationId}/messages")]
+    [ProducesResponseType(typeof(ApiResponse<List<MessageResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetMessages(
         string conversationId,
         [FromQuery] int limit = 50,
@@ -223,9 +407,19 @@ public class ChatController : ControllerBase
         return Ok(ApiResponse<object>.SuccessResponse(messages, "Messages retrieved successfully"));
     }
 
-    /// <summary>Upload an image/video for a chat message (returns the Cloudinary URL)</summary>
+    /// <summary>
+    /// Tải lên một tệp đa phương tiện (Ảnh/Video/Audio) phục vụ gửi tin nhắn.
+    /// </summary>
+    /// <param name="request">File đính kèm và ID cuộc hội thoại tương ứng</param>
+    /// <returns>URL lưu trữ CDN trên Cloudinary và định dạng tài nguyên</returns>
+    /// <response code="200">Tải lên tệp thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
+    /// <response code="422">File tải lên quá giới hạn kích thước hoặc sai định dạng MIME</response>
     [HttpPost("upload")]
     [Consumes("multipart/form-data")]
+    [ProducesResponseType(typeof(ApiResponse<MediaUploadResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> UploadMedia([FromForm] UploadMediaRequest request)
     {
         var userId = User.GetUid();
@@ -247,8 +441,18 @@ public class ChatController : ControllerBase
         return Ok(ApiResponse<MediaUploadResponse>.SuccessResponse(response, "Media uploaded successfully"));
     }
 
-    /// <summary>Send a message</summary>
+    /// <summary>
+    /// Gửi một tin nhắn mới trong cuộc hội thoại (Real-time qua SignalR + Notification FCM).
+    /// </summary>
+    /// <param name="request">Nội dung tin nhắn và cấu hình đính kèm</param>
+    /// <returns>Chi tiết tin nhắn vừa gửi thành công</returns>
+    /// <response code="200">Gửi tin nhắn thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
+    /// <response code="422">Nội dung tin nhắn không hợp lệ</response>
     [HttpPost("messages")]
+    [ProducesResponseType(typeof(ApiResponse<MessageResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> SendMessage([FromBody] SendMessageRequest request)
     {
         var userId = User.GetUid();
@@ -285,16 +489,37 @@ public class ChatController : ControllerBase
         return Ok(ApiResponse<object>.SuccessResponse(message, "Message sent successfully"));
     }
 
-    /// <summary>Edit a message (sender only)</summary>
+    /// <summary>
+    /// Sửa đổi nội dung tin nhắn (chỉ người gửi mới có quyền thực hiện).
+    /// </summary>
+    /// <param name="request">Nội dung cập nhật tin nhắn</param>
+    /// <returns>Chi tiết tin nhắn sau cập nhật</returns>
+    /// <response code="200">Cập nhật tin nhắn thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
+    /// <response code="403">Không có quyền sửa tin nhắn này</response>
     [HttpPut("messages")]
+    [ProducesResponseType(typeof(ApiResponse<MessageResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> UpdateMessage([FromBody] UpdateMessageRequest request)
     {
         var message = await _chatService.UpdateMessageAsync(request, User.GetUid());
         return Ok(ApiResponse<object>.SuccessResponse(message, "Message updated successfully"));
     }
 
-    /// <summary>Gỡ tin nhắn cho tất cả (sender only) — hiện "Tin nhắn đã bị gỡ"</summary>
+    /// <summary>
+    /// Thu hồi tin nhắn đối với tất cả thành viên trong phòng chat (chỉ người gửi mới thực hiện được).
+    /// </summary>
+    /// <param name="conversationId">ID cuộc hội thoại</param>
+    /// <param name="messageId">ID tin nhắn cần thu hồi</param>
+    /// <returns>Kết quả thực hiện thành công</returns>
+    /// <response code="200">Thu hồi tin nhắn thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
+    /// <response code="403">Không phải người gửi tin nhắn này</response>
     [HttpDelete("conversations/{conversationId}/messages/{messageId}")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> DeleteMessage(string conversationId, string messageId)
     {
         var userId = User.GetUid();
@@ -303,24 +528,50 @@ public class ChatController : ControllerBase
         return Ok(ApiResponse<object>.SuccessResponse(default(object), "Message deleted successfully"));
     }
 
-    /// <summary>Ẩn tin nhắn chỉ ở phía mình — người kia vẫn thấy bình thường</summary>
+    /// <summary>
+    /// Ẩn tin nhắn chỉ ở phía hiển thị của bản thân (phía người kia vẫn thấy bình thường).
+    /// </summary>
+    /// <param name="conversationId">ID cuộc hội thoại</param>
+    /// <param name="messageId">ID tin nhắn cần ẩn</param>
+    /// <returns>Không có dữ liệu trả về</returns>
+    /// <response code="200">Ẩn tin nhắn thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
     [HttpPost("conversations/{conversationId}/messages/{messageId}/hide")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> HideMessageForMe(string conversationId, string messageId)
     {
         await _chatService.HideMessageForMeAsync(conversationId, messageId, User.GetUid());
         return Ok(ApiResponse<object>.SuccessResponse(null, "Message hidden"));
     }
 
-    /// <summary>React / un-react to a message (toggle)</summary>
+    /// <summary>
+    /// Thêm hoặc hủy bày tỏ cảm xúc (React emoji) đối với một tin nhắn (Toggle react).
+    /// </summary>
+    /// <param name="request">Loại cảm xúc emoji và ID tin nhắn</param>
+    /// <returns>Chi tiết tin nhắn kèm danh sách cảm xúc cập nhật</returns>
+    /// <response code="200">Bày tỏ cảm xúc thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
     [HttpPost("messages/react")]
+    [ProducesResponseType(typeof(ApiResponse<MessageResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> ReactToMessage([FromBody] ReactToMessageRequest request)
     {
         var message = await _chatService.ReactToMessageAsync(request, User.GetUid());
         return Ok(ApiResponse<object>.SuccessResponse(message, "Reaction updated successfully"));
     }
 
-    /// <summary>Mark message as read</summary>
+    /// <summary>
+    /// Đánh dấu tin nhắn là ĐÃ ĐỌC (Read) bởi người dùng hiện tại.
+    /// </summary>
+    /// <param name="conversationId">ID cuộc hội thoại</param>
+    /// <param name="messageId">ID tin nhắn</param>
+    /// <returns>Kết quả cập nhật thành công</returns>
+    /// <response code="200">Cập nhật thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
     [HttpPost("conversations/{conversationId}/messages/{messageId}/read")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> MarkAsRead(string conversationId, string messageId)
     {
         var userId = User.GetUid();
@@ -329,8 +580,17 @@ public class ChatController : ControllerBase
         return Ok(ApiResponse<object>.SuccessResponse(default(object), "Message marked as read"));
     }
 
-    /// <summary>Mark message as delivered</summary>
+    /// <summary>
+    /// Đánh dấu tin nhắn là ĐÃ NHẬN (Delivered) bởi thiết bị người dùng.
+    /// </summary>
+    /// <param name="conversationId">ID cuộc hội thoại</param>
+    /// <param name="messageId">ID tin nhắn</param>
+    /// <returns>Kết quả cập nhật thành công</returns>
+    /// <response code="200">Cập nhật thành công</response>
+    /// <response code="401">Người dùng chưa xác thực</response>
     [HttpPost("conversations/{conversationId}/messages/{messageId}/delivered")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> MarkAsDelivered(string conversationId, string messageId)
     {
         var userId = User.GetUid();

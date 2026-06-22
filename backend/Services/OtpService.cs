@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 using StackExchange.Redis;
 using backend.Attributes;
@@ -34,41 +34,20 @@ namespace backend.Services
             return otp;
         }
 
-        public async Task<bool> VerifyOtpAsync(string email, string otp)
+        public async Task VerifyOtpAsync(string email, string otp)
         {
             var key = $"otp:{email}";
             var storedHash = await _redis.StringGetAsync(key);
 
             if (storedHash.IsNullOrEmpty)
-                return false;
+                throw new backend.Exceptions.AppException(backend.Enums.ErrorCode.INVALID_TOKEN);
 
             var inputHash = HashOtp(otp);
 
-            if(storedHash == inputHash)
-            {
-                await _redis.KeyDeleteAsync(key); 
-                return true;
-            }
+            if (storedHash != inputHash)
+                throw new backend.Exceptions.AppException(backend.Enums.ErrorCode.INVALID_TOKEN);
 
-            return false;
-        }
-
-        public async Task<string> MessageVerifyOtpAsync(string email, string otp)
-        {
-            var key = $"otp:{email}";
-            var storedHash = await _redis.StringGetAsync(key);
-
-            if (storedHash.IsNullOrEmpty)
-                return "OTP not found";
-
-            var inputHash = HashOtp(otp);
-
-            if(inputHash != storedHash)
-            {
-                return "Your OTP is not match";
-            }
-            
-            return "Your OTP is valid";
+            await _redis.KeyDeleteAsync(key);
         }
 
         private string HashOtp(string otp)

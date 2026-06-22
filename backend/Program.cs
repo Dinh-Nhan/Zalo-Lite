@@ -62,7 +62,6 @@ builder.Services.AddSingleton<FirebaseService>();
 builder.Services.AddSingleton(sp =>
     sp.GetRequiredService<FirebaseService>().FirestoreDb);
 
-builder.Services.AddScoped<UserService>();
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
