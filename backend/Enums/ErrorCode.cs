@@ -87,6 +87,8 @@ namespace backend.Enums
 
         [ErrorMeta(6004, "You have been blocked by this user", HttpStatusCode.Forbidden)]
         BLOCKED_BY_USER,
+
+        [ErrorMeta(2004, "User already exists", HttpStatusCode.Conflict)]
         USER_ALREADY_EXISTS,
         [ErrorMeta(6005, "You have blocked this user", HttpStatusCode.Forbidden)]
         YOU_BLOCKED_USER,
