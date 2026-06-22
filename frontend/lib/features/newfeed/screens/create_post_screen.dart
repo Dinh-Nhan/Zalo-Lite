@@ -46,6 +46,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   List<String> _selectedFriendIds = [];
   bool _isLoading = false;
   bool _isPickingImages = false;
+  bool _isAvatarUploading = false;
 
   @override
   void initState() {
@@ -213,6 +214,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
     setState(() => _isLoading = true);
 
+    // Nếu cần cập nhật avatar (từ luồng "Cả hai"),
+    // hiện overlay loading che toàn bộ màn hình
+    if (widget.shouldUpdateAvatarOnSubmit) {
+      setState(() => _isAvatarUploading = true);
+    }
+
     try {
       if (widget.shouldUpdateAvatarOnSubmit) {
         final avatarPath = widget.avatarImagePath;
@@ -220,6 +227,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           throw Exception('Thiếu ảnh để cập nhật avatar');
         }
         await AuthService.updateAvatar(XFile(avatarPath));
+      }
+
+      // Đóng avatar loading overlay sau khi upload avatar xong (nếu có)
+      if (_isAvatarUploading) {
+        setState(() => _isAvatarUploading = false);
       }
 
       final provider = context.read<FeedProvider>();
@@ -261,7 +273,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _isAvatarUploading = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Lỗi: $e'),
@@ -277,34 +292,74 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     final mediaQuery = MediaQuery.of(context);
     final bottomPadding = mediaQuery.viewInsets.bottom;
 
-    return Material(
-      color: Colors.white,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildHandle(),
-          _buildHeader(),
-          Divider(height: 1, color: Colors.grey.shade200),
-          Flexible(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.only(bottom: bottomPadding + 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildUserRow(),
-                  if (widget.shouldUpdateAvatarOnSubmit)
-                    _buildAvatarUpdateHint(),
-                  _buildVisibilityRow(),
-                  _buildContentArea(),
-                  if (_selectedImages.isNotEmpty) _buildImagePreview(),
-                  _buildPhotoButton(),
-                ],
+    return Stack(
+      children: [
+        Material(
+          color: Colors.white,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildHandle(),
+              _buildHeader(),
+              Divider(height: 1, color: Colors.grey.shade200),
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.only(bottom: bottomPadding + 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildUserRow(),
+                      if (widget.shouldUpdateAvatarOnSubmit)
+                        _buildAvatarUpdateHint(),
+                      _buildVisibilityRow(),
+                      _buildContentArea(),
+                      if (_selectedImages.isNotEmpty) _buildImagePreview(),
+                      _buildPhotoButton(),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_isAvatarUploading)
+          Positioned.fill(
+            child: Container(
+              color: Colors.black54,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          color: AppColors.primaryBlue,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'Hệ thống đang xử lý...',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -583,8 +638,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: TextField(
         controller: _contentController,
-        maxLines: 8,
-        minLines: 4,
+        maxLines: null,
+        minLines: 1,
         autofocus: true,
         decoration: const InputDecoration(
           hintText: 'Bạn đang nghĩ gì?',
@@ -606,106 +661,105 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Column(
         children: [
-          if (_selectedImages.length == 1)
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(
-                    _selectedImages.first.bytes,
-                    width: double.infinity,
-                    height: 200,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: double.infinity,
-                      height: 200,
-                      color: Colors.grey.shade200,
-                      child: Icon(
-                        Icons.broken_image,
-                        color: Colors.grey.shade400,
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: GestureDetector(
-                    onTap: () => _removeImage(0),
-                    child: Container(
-                      width: 26,
-                      height: 26,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.5),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.close,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            )
-          else
-            SizedBox(
-              height: 110,
-              child: GridView.builder(
-                scrollDirection: Axis.horizontal,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 1,
-                  mainAxisSpacing: 6,
-                  crossAxisSpacing: 6,
-                ),
-                itemCount: _selectedImages.length,
-                itemBuilder: (context, index) {
-                  return Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.memory(
-                          _selectedImages[index].bytes,
-                          width: 110,
-                          height: 110,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            width: 110,
-                            height: 110,
-                            color: Colors.grey.shade300,
-                            child: Icon(
-                              Icons.broken_image,
-                              color: Colors.grey.shade400,
-                            ),
+          _selectedImages.length == 1
+              ? Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.memory(
+                        _selectedImages.first.bytes,
+                        width: double.infinity,
+                        height: 200,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: double.infinity,
+                          height: 200,
+                          color: Colors.grey.shade200,
+                          child: Icon(
+                            Icons.broken_image,
+                            color: Colors.grey.shade400,
                           ),
                         ),
                       ),
-                      Positioned(
-                        top: 4,
-                        right: 4,
-                        child: GestureDetector(
-                          onTap: () => _removeImage(index),
-                          child: Container(
-                            width: 22,
-                            height: 22,
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.5),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.close,
-                              color: Colors.white,
-                              size: 14,
-                            ),
+                    ),
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: GestureDetector(
+                        onTap: () => _removeImage(0),
+                        child: Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.5),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 16,
                           ),
                         ),
                       ),
-                    ],
-                  );
-                },
-              ),
-            ),
+                    ),
+                  ],
+                )
+              : SizedBox(
+                  height: 110,
+                  child: GridView.builder(
+                    scrollDirection: Axis.horizontal,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 1,
+                      mainAxisSpacing: 6,
+                      crossAxisSpacing: 6,
+                    ),
+                    itemCount: _selectedImages.length,
+                    itemBuilder: (context, index) {
+                      return Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.memory(
+                              _selectedImages[index].bytes,
+                              width: 110,
+                              height: 110,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 110,
+                                height: 110,
+                                color: Colors.grey.shade300,
+                                child: Icon(
+                                  Icons.broken_image,
+                                  color: Colors.grey.shade400,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 4,
+                            right: 4,
+                            child: GestureDetector(
+                              onTap: () => _removeImage(index),
+                              child: Container(
+                                width: 22,
+                                height: 22,
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.5),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  size: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
         ],
       ),
     );
@@ -713,7 +767,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
   Widget _buildPhotoButton() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: Row(
         children: [
           Expanded(

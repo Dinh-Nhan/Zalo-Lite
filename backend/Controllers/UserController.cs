@@ -49,6 +49,18 @@ public class UserController(UserService userService, ChatService chatService) : 
     }
 
     /// <summary>
+    /// Tim kiem user theo keyword (query param)
+    /// GET /api/user/search?q=...
+    /// </summary>
+    [HttpGet("search")]
+    public async Task<IActionResult> SearchUser([FromQuery] string q)
+    {
+        var currentUserId = GetUserIdFromToken();
+        var users = await userService.SearchUser(q ?? "", currentUserId);
+        return Ok(new ApiResponse<List<UserRequestDto>> { Code = 200, Result = users });
+    }
+
+    /// <summary>
     /// Lấy thông tin user theo ID (public hoặc friend)
     /// GET /api/user/{id}
     /// </summary>
@@ -84,12 +96,6 @@ public class UserController(UserService userService, ChatService chatService) : 
     [AllowAnonymous]  // ← Cho phép register không cần token (vì chưa có account)
     public async Task<IActionResult> Create([FromBody] CreateUserRequest request)
     {
-        // Nếu có token → dùng uid từ token
-        // Nếu không có token → dùng uid từ request body (cho register flow)
-        // var firebaseToken = HttpContext.Items["User"] as FirebaseToken;
-        // var uid = firebaseToken?.Uid ?? request.Id;
-
-        // Lấy UID an toàn: ưu tiên token (user đã login), fallback về request.Id (register flow)
         var firebaseToken = HttpContext.Items["User"] as FirebaseToken;
         var uid = firebaseToken?.Uid ?? request.Id;
 
@@ -115,7 +121,7 @@ public class UserController(UserService userService, ChatService chatService) : 
     public async Task<IActionResult> UpdateMe([FromBody] UpdateUserRequest request)
     {
         var uid = GetUserIdFromToken();
-        if(uid == null)
+        if (uid == null)
         {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
@@ -184,18 +190,6 @@ public class UserController(UserService userService, ChatService chatService) : 
     {
         await userService.SetEnableAsync(id, false);
         return Ok(new ApiResponse<object> { Code = 200, Message = "User disabled" });
-    }
-
-    /// <summary>
-    /// Tìm kiếm user theo email
-    /// GET /api/user/search/{email}
-    /// </summary>
-    [HttpGet("search/{email}")]
-    public async Task<IActionResult> SearchUser(string email)
-    {
-        var currentUserId = GetUserIdFromToken();
-        var users = await userService.SearchUser(email, currentUserId);
-        return Ok(new ApiResponse<List<UserRequestDto>> { Code = 200, Result = users });
     }
 
     [HttpPatch("avatar")]

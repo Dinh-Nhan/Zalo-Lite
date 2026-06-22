@@ -1,10 +1,8 @@
-import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend/features/friends/friends.dart';
 import 'package:frontend/features/friends/widgets/demo_bio.dart';
 import 'package:frontend/features/friends/widgets/my_profile.dart';
-import 'package:frontend/features/newfeed/screens/create_post_screen.dart';
 import 'package:frontend/features/newfeed/screens/create_story_screen.dart';
 import 'package:frontend/features/newfeed/screens/newfeed_screen.dart';
 import 'package:frontend/features/newfeed/screens/story_viewer_screen.dart';
@@ -148,24 +146,6 @@ GoRouter createRouter() {
         builder: (context, state) {
           final userId = state.extra as String?;
           return ProfileScreen(targetUserId: userId);
-        },
-      ),
-      GoRoute(
-        path: '/create-post-avatar',
-        builder: (context, state) {
-          final data = state.extra as Map<String, dynamic>?;
-          return CreatePostScreen(
-            currentUserName:
-                FirebaseAuth.instance.currentUser?.displayName ?? 'User',
-            currentUserAvatar:
-                data?['currentUserAvatar'] as String? ??
-                FirebaseAuth.instance.currentUser?.photoURL ?? '',
-            preSelectedBytes: data?['imageBytes'] as Uint8List?,
-            preSelectedPath: data?['imagePath'] as String?,
-            shouldUpdateAvatarOnSubmit:
-                data?['shouldUpdateAvatarOnSubmit'] as bool? ?? false,
-            avatarImagePath: data?['avatarImagePath'] as String?,
-          );
         },
       ),
       GoRoute(

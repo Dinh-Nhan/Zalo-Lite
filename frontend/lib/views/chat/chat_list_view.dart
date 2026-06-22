@@ -6,6 +6,7 @@ import 'package:flutter_callkeep/flutter_callkeep.dart';
 import 'package:frontend/apps/app_locale.dart';
 import 'package:frontend/config/app_colors.dart';
 import 'package:frontend/config/dark_mode_config.dart';
+import 'package:frontend/component/friend_search_page.dart';
 import 'package:frontend/features/calling/screens/call_screen.dart';
 import 'package:frontend/features/calling/screens/incoming_call_screen.dart';
 import 'package:frontend/features/feedback/screens/feedback_screen.dart';
@@ -23,7 +24,6 @@ import 'package:frontend/utils/app_localizations.dart';
 import 'package:frontend/views/chat/chat_screen.dart';
 import 'package:frontend/views/chat/new_conversation_screen.dart';
 import 'package:frontend/views/contacts/contacts_view.dart';
-import 'package:frontend/widgets/search_overlay_screen.dart';
 import 'package:provider/provider.dart';
 
 class ChatListView extends StatefulWidget {
@@ -495,9 +495,7 @@ class ChatListViewState extends State<ChatListView> {
   void _openSearchOverlay(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => SearchOverlayScreen(
-          onBack: () => Navigator.of(context).pop(),
-        ),
+        builder: (_) => const FriendSearchPage(),
       ),
     );
   }

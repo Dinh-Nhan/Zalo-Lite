@@ -11,6 +11,7 @@ import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/features/newfeed/models/post_model.dart';
 import 'package:frontend/features/newfeed/providers/feed_provider.dart';
 import 'package:frontend/features/newfeed/widgets/comment_sheet.dart';
+import 'package:frontend/features/newfeed/screens/create_post_screen.dart';
 import 'package:frontend/features/friends/services/friend_service.dart';
 import 'package:frontend/features/friends/providers/friend_provider.dart';
 import 'package:frontend/services/dio_client.dart';
@@ -173,56 +174,154 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     if (!mounted) return;
 
-    final choice = await showModalBottomSheet<String>(
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (ctx) => _AvatarChoiceSheet(imageBytes: bytes),
+      builder: (ctx) => _AvatarChoiceSheet(
+        imageBytes: bytes,
+        onAvatarOnly: () async {
+          Navigator.pop(ctx);
+          await _updateAvatarOnly(image, bytes);
+        },
+        onPostOnly: () {
+          Navigator.pop(ctx);
+          _openCreatePost(
+            currentUserName: currentUser?.displayName ?? 'User',
+            currentUserAvatar: currentUser?.photoURL ?? '',
+            imageBytes: bytes,
+            imagePath: image.path,
+          );
+        },
+        onBoth: () {
+          Navigator.pop(ctx);
+          _openCreatePost(
+            currentUserName: currentUser?.displayName ?? 'User',
+            currentUserAvatar: currentUser?.photoURL ?? '',
+            imageBytes: bytes,
+            imagePath: image.path,
+            shouldUpdateAvatarOnSubmit: true,
+            avatarImagePath: image.path,
+          );
+        },
+      ),
+    );
+  }
+
+  void _openCreatePost({
+    required String currentUserName,
+    required String currentUserAvatar,
+    Uint8List? imageBytes,
+    String? imagePath,
+    bool shouldUpdateAvatarOnSubmit = false,
+    String? avatarImagePath,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => FractionallySizedBox(
+        alignment: Alignment.bottomCenter,
+        heightFactor: 0.55,
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          child: CreatePostScreen(
+            currentUserName: currentUserName,
+            currentUserAvatar: currentUserAvatar,
+            preSelectedBytes: imageBytes,
+            preSelectedPath: imagePath,
+            shouldUpdateAvatarOnSubmit: shouldUpdateAvatarOnSubmit,
+            avatarImagePath: avatarImagePath,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateAvatarOnly(XFile image, Uint8List bytes) async {
+    // Hiện loading overlay để che toàn bộ màn hình
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black54,
+      builder: (ctx) => PopScope(
+        canPop: false,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: AppColors.primaryBlue,
+                  ),
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'Hệ thống đang xử lý...',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
 
-    if (choice == null || !mounted) return;
+    try {
+      final newAvatarUrl = await AuthService.updateAvatar(image);
 
-    if (choice == 'avatar_only' || choice == 'both') {
-      setState(() => _selectedAvatarBytes = bytes);
+      if (!mounted) return;
+      Navigator.of(context).pop(); // Đóng loading overlay
 
-      try {
-        final newAvatarUrl = await AuthService.updateAvatar(image);
-
-        setState(() {
-          _currentUserAvatar = newAvatarUrl;
-          _selectedAvatarBytes = null;
-        });
-
-        await FirebaseAuth.instance.currentUser?.reload();
-
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đổi ảnh đại diện thành công!'),
-            backgroundColor: AppColors.primaryBlue,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      } catch (e) {
-        if (!mounted) return;
-        setState(() => _selectedAvatarBytes = null);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi đổi avatar: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-    }
-
-    if (choice == 'post_only' || choice == 'both') {
-      context.push('/create-post-avatar', extra: {
-        'imageBytes': bytes,
-        'imagePath': image.path,
+      setState(() {
+        _currentUserAvatar = newAvatarUrl;
       });
+      await FirebaseAuth.instance.currentUser?.reload();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đổi ảnh đại diện thành công!'),
+          backgroundColor: AppColors.primaryBlue,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop(); // Đóng loading overlay
+
+      setState(() {
+        _currentUserAvatar = _currentUserAvatar;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi đổi avatar: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -2654,8 +2753,16 @@ class _ProfilePostCardState extends State<_ProfilePostCard> {
 // ============================================================
 class _AvatarChoiceSheet extends StatelessWidget {
   final Uint8List imageBytes;
+  final VoidCallback onAvatarOnly;
+  final VoidCallback onPostOnly;
+  final VoidCallback onBoth;
 
-  const _AvatarChoiceSheet({required this.imageBytes});
+  const _AvatarChoiceSheet({
+    required this.imageBytes,
+    required this.onAvatarOnly,
+    required this.onPostOnly,
+    required this.onBoth,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2701,7 +2808,7 @@ class _AvatarChoiceSheet extends StatelessWidget {
             iconColor: AppColors.primaryBlue,
             title: 'Đổi ảnh đại diện',
             subtitle: 'Cập nhật avatar trên hồ sơ của bạn',
-            value: 'avatar_only',
+            onTap: onAvatarOnly,
           ),
           _buildChoiceTile(
             context,
@@ -2709,7 +2816,7 @@ class _AvatarChoiceSheet extends StatelessWidget {
             iconColor: Colors.green,
             title: 'Đăng bài viết mới',
             subtitle: 'Chia sẻ ảnh này lên trang cá nhân',
-            value: 'post_only',
+            onTap: onPostOnly,
           ),
           _buildChoiceTile(
             context,
@@ -2717,7 +2824,7 @@ class _AvatarChoiceSheet extends StatelessWidget {
             iconColor: Colors.orange,
             title: 'Cả hai',
             subtitle: 'Đổi avatar và đăng bài viết',
-            value: 'both',
+            onTap: onBoth,
           ),
           const SizedBox(height: 8),
           Padding(
@@ -2744,10 +2851,10 @@ class _AvatarChoiceSheet extends StatelessWidget {
     required Color iconColor,
     required String title,
     required String subtitle,
-    required String value,
+    required VoidCallback onTap,
   }) {
     return InkWell(
-      onTap: () => Navigator.pop(context, value),
+      onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(

@@ -97,11 +97,26 @@ class _NewfeedScreenState extends State<NewfeedScreen> with WidgetsBindingObserv
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => CreatePostScreen(
-        currentUserName: _currentUserName,
-        currentUserAvatar: _currentUserAvatar,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
+      builder: (context) {
+        return FractionallySizedBox(
+          alignment: Alignment.bottomCenter,
+          heightFactor: 0.55,
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            child: CreatePostScreen(
+              currentUserName: _currentUserName,
+              currentUserAvatar: _currentUserAvatar,
+            ),
+          ),
+        );
+      },
     );
   }
 

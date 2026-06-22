@@ -9,6 +9,7 @@ class CommentModel {
   final int likeCount;
   final bool isLiked;
   final DateTime createdAt;
+  final int commentCount;
 
   CommentModel({
     required this.id,
@@ -21,6 +22,7 @@ class CommentModel {
     required this.likeCount,
     required this.isLiked,
     required this.createdAt,
+    this.commentCount = 0,
   });
 
   factory CommentModel.fromJson(Map<String, dynamic> json) {
@@ -37,6 +39,7 @@ class CommentModel {
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
+      commentCount: json['commentCount'] ?? 0,
     );
   }
 
@@ -51,6 +54,7 @@ class CommentModel {
     int? likeCount,
     bool? isLiked,
     DateTime? createdAt,
+    int? commentCount,
   }) {
     return CommentModel(
       id: id ?? this.id,
@@ -63,6 +67,7 @@ class CommentModel {
       likeCount: likeCount ?? this.likeCount,
       isLiked: isLiked ?? this.isLiked,
       createdAt: createdAt ?? this.createdAt,
+      commentCount: commentCount ?? this.commentCount,
     );
   }
 }

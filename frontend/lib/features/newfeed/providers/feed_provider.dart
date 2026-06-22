@@ -58,7 +58,7 @@ class FeedProvider extends ChangeNotifier {
       final index = _allPosts.indexWhere((p) => p.id == postId);
       if (index != -1 && index < _displayedCount) {
         final post = _allPosts[index];
-        _allPosts[index] = post.copyWith(commentCount: post.commentCount + 1);
+        _allPosts[index] = post.copyWith(commentCount: comment.commentCount);
       }
 
       notifyListeners();

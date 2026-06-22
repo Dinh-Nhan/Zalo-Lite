@@ -129,7 +129,7 @@ class FeedService {
         response = await _dio.post(
           '/api/feed/$feedId/comments',
           data: {
-            'content': content,
+            'Content': content,
           },
         );
       } else {

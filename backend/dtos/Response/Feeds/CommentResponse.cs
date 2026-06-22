@@ -14,5 +14,6 @@ namespace backend.dtos.Response
         public int LikeCount { get; set; }
         public bool IsLiked { get; set; }
         public DateTime CreatedAt { get; set; }
+        public int CommentCount { get; set; }
     }
 }

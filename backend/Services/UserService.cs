@@ -148,7 +148,8 @@ public class UserService(FirestoreDb db, ILogger<UserService> logger, Cloudinary
                 Id = u.Id,
                 Email = u.Email,
                 FullName = $"{u.FirstName} {u.LastName}".Trim(),
-                Avatar = u.Avatar
+                Avatar = u.Avatar,
+                Status = u.Status
             })
             .Take(20)
             .ToList();

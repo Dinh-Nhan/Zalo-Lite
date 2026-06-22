@@ -40,11 +40,11 @@ namespace backend.Services
             var stories = await QueryFeedsByBatchAsync(db, allStoryAuthors, "story",
                 (col, batch) => col
                     .WhereEqualTo("type", "story")
-                    .WhereIn("user_id", batch)
-                    .WhereEqualTo("deleted_at", null));
+                    .WhereIn("user_id", batch));
 
             var utcNow = DateTime.UtcNow;
             var activeStories = stories
+                .Where(s => s.IsEnable)
                 .Where(s => s.Settings == null || (!s.Settings.IsExpired && (!s.Settings.ExpiresAt.HasValue || s.Settings.ExpiresAt.Value > utcNow)))
                 .OrderByDescending(s => s.CreatedAt)
                 .ToList();
@@ -181,7 +181,8 @@ namespace backend.Services
                 ["stats"] = new Dictionary<string, object>
                 {
                     ["views"] = new List<string>(),
-                    ["likes"] = new List<string>()
+                    ["likes"] = new List<string>(),
+                    ["comment_count"] = 0
                 },
                 ["create_at"] = now,
                 ["is_enable"] = true,
@@ -256,7 +257,7 @@ namespace backend.Services
             var docRef = db.Collection("feeds").Document(feedId);
             var snap = await docRef.GetSnapshotAsync();
 
-            if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
+            if (!snap.Exists || (snap.ContainsField("deleted_at") && snap.GetValue<object?>("deleted_at") != null))
                 throw new AppException(ErrorCode.FEED_NOT_FOUND);
 
             var feed = snap.ConvertTo<Feeds>();
@@ -329,7 +330,7 @@ namespace backend.Services
             var docRef = db.Collection("feeds").Document(feedId);
             var snap = await docRef.GetSnapshotAsync();
 
-            if (!snap.Exists || snap.GetValue<object?>("deleted_at") != null)
+            if (!snap.Exists || (snap.ContainsField("deleted_at") && snap.GetValue<object?>("deleted_at") != null))
                 throw new AppException(ErrorCode.FEED_NOT_FOUND);
 
             var feed = snap.ConvertTo<Feeds>();
@@ -680,7 +681,7 @@ namespace backend.Services
         public async Task<CommentResponse> CreateCommentAsync(string feedId, string userId, CreateCommentRequest request)
         {
             var feedSnap = await db.Collection("feeds").Document(feedId).GetSnapshotAsync();
-            if (!feedSnap.Exists || feedSnap.GetValue<object?>("deleted_at") != null)
+            if (!feedSnap.Exists || (feedSnap.ContainsField("deleted_at") && feedSnap.GetValue<object?>("deleted_at") != null))
                 throw new AppException(ErrorCode.FEED_NOT_FOUND);
 
             var docRef = db.Collection("comments").Document();
@@ -706,6 +707,19 @@ namespace backend.Services
 
             await docRef.SetAsync(comment);
 
+            // Tăng comment_count trên feed document
+            await db.Collection("feeds").Document(feedId)
+                .UpdateAsync(new Dictionary<string, object>
+                {
+                    ["stats.comment_count"] = FieldValue.Increment(1)
+                });
+
+            // Đọc lại feed để lấy comment_count mới nhất
+            var updatedSnap = await db.Collection("feeds").Document(feedId).GetSnapshotAsync();
+            var newCommentCount = updatedSnap.ContainsField("stats.comment_count")
+                ? updatedSnap.GetValue<int>("stats.comment_count")
+                : 0;
+
             var authorSnap = await db.Collection("users").Document(userId).GetSnapshotAsync();
             var author = authorSnap.ConvertTo<User>();
 
@@ -720,7 +734,8 @@ namespace backend.Services
                 ImageUrl = comment.ImageUrl,
                 LikeCount = 0,
                 IsLiked = false,
-                CreatedAt = comment.CreatedAt
+                CreatedAt = comment.CreatedAt,
+                CommentCount = newCommentCount
             };
         }
 
