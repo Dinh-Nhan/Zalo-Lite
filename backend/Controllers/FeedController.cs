@@ -379,5 +379,16 @@ namespace backend.Controllers
             var result = await feedService.GetCommentsAsync(feedId, CurrentUserId);
             return Ok(new ApiResponse<List<CommentResponse>> { Result = result });
         }
+
+        [HttpPost("comments/{commentId}/like")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(typeof(ApiResponse<ErrorDetail>), StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> ToggleCommentLike(string commentId)
+        {
+            logger.LogInformation("[FeedController] ToggleCommentLike | CommentId={CommentId} UserId={UserId}", commentId, CurrentUserId);
+            var result = await feedService.ToggleLikeCommentAsync(commentId, CurrentUserId);
+            return Ok(new ApiResponse<object> { Result = result });
+        }
     }
 }

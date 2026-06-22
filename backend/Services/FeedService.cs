@@ -699,7 +699,7 @@ namespace backend.Services
                 Id = commentId,
                 FeedId = feedId,
                 UserId = userId,
-                Content = request.Content,
+                Content = request.Content ?? "",
                 ImageUrl = imageUrl,
                 Likes = new List<string>(),
                 CreatedAt = DateTime.UtcNow
