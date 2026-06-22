@@ -215,7 +215,9 @@ class _CommentSheetState extends State<CommentSheet> {
                           final comment = comments[index];
                           return _CommentItem(
                             comment: comment,
-                            onLikeTap: () {},
+                            onLikeTap: () {
+                              provider.toggleCommentLike(widget.post.id, comment.id);
+                            },
                           );
                         },
                       );

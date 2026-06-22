@@ -28,18 +28,18 @@ class CommentModel {
   factory CommentModel.fromJson(Map<String, dynamic> json) {
     return CommentModel(
       id: json['id'] ?? '',
-      feedId: json['feedId'] ?? '',
-      userId: json['userId'] ?? '',
-      userName: json['userName'] ?? 'User',
-      userAvatar: json['userAvatar'] ?? '',
+      feedId: json['feed_id'] ?? json['feedId'] ?? '',
+      userId: json['user_id'] ?? json['userId'] ?? '',
+      userName: json['user_name'] ?? json['userName'] ?? 'User',
+      userAvatar: json['user_avatar'] ?? json['userAvatar'] ?? '',
       content: json['content'] ?? '',
-      imageUrl: json['imageUrl'] ?? '',
-      likeCount: json['likeCount'] ?? 0,
-      isLiked: json['isLiked'] ?? false,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'])
+      imageUrl: json['image_url'] ?? json['imageUrl'] ?? '',
+      likeCount: json['like_count'] ?? json['likeCount'] ?? 0,
+      isLiked: json['is_liked'] ?? json['isLiked'] ?? false,
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
           : DateTime.now(),
-      commentCount: json['commentCount'] ?? 0,
+      commentCount: json['comment_count'] ?? json['commentCount'] ?? 0,
     );
   }
 

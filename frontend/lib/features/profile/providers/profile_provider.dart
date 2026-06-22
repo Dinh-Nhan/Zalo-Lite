@@ -14,6 +14,7 @@ class ProfileProvider extends ChangeNotifier {
   bool _isLoadingExternalFriends = false;
   String? _errorMessage;
   UserProfileModel? _userProfile;
+  UserProfileModel? _externalUserProfile;
   final Map<String, List<CommentModel>> _commentsMap = {};
 
   String? userName;
@@ -27,6 +28,7 @@ class ProfileProvider extends ChangeNotifier {
   bool get isLoadingExternalFriends => _isLoadingExternalFriends;
   String? get errorMessage => _errorMessage;
   UserProfileModel? get userProfile => _userProfile;
+  UserProfileModel? get externalUserProfile => _externalUserProfile;
   Map<String, List<CommentModel>> get commentsMap => _commentsMap;
 
   int get photoCount => _posts.where((p) => p.mediaUrls.isNotEmpty).length;
@@ -36,6 +38,11 @@ class ProfileProvider extends ChangeNotifier {
 
   void setExternalPosts(List<PostModel> posts) {
     _posts = posts;
+    notifyListeners();
+  }
+
+  void setExternalUserProfile(UserProfileModel profile) {
+    _externalUserProfile = profile;
     notifyListeners();
   }
 
@@ -83,6 +90,29 @@ class ProfileProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> toggleCommentLike(String postId, String commentId) async {
+    final comments = _commentsMap[postId] ?? [];
+    final index = comments.indexWhere((c) => c.id == commentId);
+    if (index == -1) return;
+
+    final comment = comments[index];
+    final wasLiked = comment.isLiked;
+
+    comments[index] = comment.copyWith(
+      isLiked: !wasLiked,
+      likeCount: wasLiked ? comment.likeCount - 1 : comment.likeCount + 1,
+    );
+    notifyListeners();
+
+    try {
+      await FeedService.toggleLikeComment(commentId);
+    } catch (e) {
+      comments[index] = comment;
+      _errorMessage = e.toString();
+      notifyListeners();
+    }
+  }
+
   Future<void> toggleLike(String postId) async {
     final index = _posts.indexWhere((p) => p.id == postId);
     if (index == -1) return;
@@ -106,6 +136,9 @@ class ProfileProvider extends ChangeNotifier {
   }
 
   Future<void> loadProfile(String userId) async {
+    _posts = [];
+    _friends = [];
+    _userProfile = null;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -172,6 +205,12 @@ class ProfileProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void clearExternalUserProfile() {
+    _externalUserProfile = null;
+    _commentsMap.clear();
+    notifyListeners();
+  }
+
   void updateUserProfile(UserProfileModel updated) {
     _userProfile = updated;
     userName = updated.fullName;
@@ -188,6 +227,7 @@ class ProfileProvider extends ChangeNotifier {
     _isLoading = false;
     _errorMessage = null;
     _userProfile = null;
+    _externalUserProfile = null;
     _commentsMap.clear();
     userName = null;
     birthday = null;

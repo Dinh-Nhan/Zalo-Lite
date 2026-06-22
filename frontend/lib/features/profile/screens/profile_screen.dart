@@ -9,16 +9,13 @@ import 'package:frontend/features/profile/providers/profile_provider.dart';
 import 'package:frontend/features/profile/services/profile_service.dart';
 import 'package:frontend/services/auth_service.dart';
 import 'package:frontend/features/newfeed/models/post_model.dart';
-import 'package:frontend/features/newfeed/providers/feed_provider.dart';
 import 'package:frontend/features/newfeed/widgets/comment_sheet.dart';
 import 'package:frontend/features/newfeed/screens/create_post_screen.dart';
 import 'package:frontend/features/friends/services/friend_service.dart';
 import 'package:frontend/features/friends/providers/friend_provider.dart';
-import 'package:frontend/services/dio_client.dart';
 import 'package:frontend/services/chat/chat_service.dart';
 import 'package:frontend/providers/chat_provider.dart';
 import 'package:frontend/views/chat/chat_screen.dart';
-import 'package:frontend/views/chat/chat_list_view.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String? targetUserId;
@@ -89,7 +86,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   void _loadInitialProfile() {
     if (_isOwnProfile) {
-      _loadOwnProfile();
+      _reloadOwnProfile();
     } else {
       _loadOtherUserProfile();
     }
@@ -116,6 +113,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   void _setupTargetUser() {
     _targetUserId = widget.targetUserId;
+    final wasOwnProfile = _isOwnProfile;
     _isOwnProfile =
         _targetUserId == null || _targetUserId == _currentUserId;
 
@@ -123,10 +121,15 @@ class _ProfileScreenState extends State<ProfileScreen>
       _targetUserId = _currentUserId;
       _targetUserName = _currentUserName;
       _targetUserAvatar = _currentUserAvatar;
+      if (!wasOwnProfile) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          context.read<ProfileProvider>().clearExternalUserProfile();
+        });
+      }
     }
   }
 
-  Future<void> _loadOwnProfile() async {
+  Future<void> _reloadOwnProfile() async {
     if (_targetUserId == null) return;
     if (!mounted) return;
     await context.read<ProfileProvider>().loadProfile(_targetUserId!);
@@ -151,6 +154,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       final relationship = results[2] as FriendshipModel?;
       final externalFriends = results[3] as List<FriendSummaryModel>;
 
+      provider.setExternalUserProfile(userProfile);
       provider.setExternalPosts(posts);
       provider.setExternalFriends(externalFriends);
 
@@ -669,18 +673,18 @@ class _ProfileScreenState extends State<ProfileScreen>
             },
             body: TabBarView(
               controller: _tabController,
-              children: _isOwnProfile
-                  ? [
-                      _PostsTab(targetUserId: _targetUserId ?? ''),
-                      _InfoTab(isOwnProfile: _isOwnProfile),
-                      _ImagesTab(),
-                      const _SettingsTab(),
-                    ]
-                  : [
-                      _PostsTab(targetUserId: _targetUserId ?? ''),
-                      _InfoTab(isOwnProfile: _isOwnProfile),
-                      _ImagesTab(),
-                    ],
+              children:                     _isOwnProfile
+                        ? [
+                            _PostsTab(targetUserId: _targetUserId ?? ''),
+                            _InfoTab(isOwnProfile: true),
+                            _ImagesTab(),
+                            const _SettingsTab(),
+                          ]
+                        : [
+                            _PostsTab(targetUserId: _targetUserId ?? ''),
+                            _InfoTab(isOwnProfile: false, targetUserId: _targetUserId),
+                            _ImagesTab(),
+                          ],
             ),
           ),
         ),
@@ -695,7 +699,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         color: Colors.white,
         child: Consumer<ProfileProvider>(
           builder: (context, provider, _) {
-            final profile = provider.userProfile;
+            final profile = _isOwnProfile ? provider.userProfile : provider.externalUserProfile;
             final displayName = _isOwnProfile
                 ? (profile?.fullName.isNotEmpty == true
                     ? profile!.fullName
@@ -707,14 +711,22 @@ class _ProfileScreenState extends State<ProfileScreen>
               children: [
                 _buildAvatar(),
                 const SizedBox(height: 12),
-                Text(
-                  displayName,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                  textAlign: TextAlign.center,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        displayName,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
                 if (bio.isNotEmpty) ...[
                   const SizedBox(height: 8),
@@ -1053,10 +1065,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 onTap: friendCount > 0
                     ? () {
                         if (_isOwnProfile) {
-                          ChatListViewState? chatListState =
-                              context.findAncestorStateOfType<ChatListViewState>();
-                          chatListState?.switchTab(1);
-                          if (context.mounted) context.pop();
+                          _tabController.animateTo(1);
                         } else {
                           _showFriendCountSheet(context, friendCount);
                         }
@@ -1543,20 +1552,24 @@ class _PostsTabState extends State<_PostsTab> {
 // ============================================================
 class _InfoTab extends StatelessWidget {
   final bool isOwnProfile;
+  final String? targetUserId;
 
-  const _InfoTab({required this.isOwnProfile});
+  const _InfoTab({required this.isOwnProfile, this.targetUserId});
 
   @override
   Widget build(BuildContext context) {
     return Consumer<ProfileProvider>(
       builder: (context, provider, _) {
-        final profile = provider.userProfile;
-        final email = profile?.email ?? FirebaseAuth.instance.currentUser?.email ?? '';
-        final fullName = profile?.fullName ?? provider.userName ?? '';
+        final profile = isOwnProfile
+            ? provider.userProfile
+            : provider.externalUserProfile;
+        final email = profile?.email ??
+            (isOwnProfile ? FirebaseAuth.instance.currentUser?.email ?? '' : '');
+        final fullName = profile?.fullName ?? (isOwnProfile ? provider.userName ?? '' : '');
         final bio = profile?.bio ?? '';
         final birthday = profile?.dateOfBirth != null
             ? '${profile!.dateOfBirth!.year}-${profile.dateOfBirth!.month.toString().padLeft(2, '0')}-${profile.dateOfBirth!.day.toString().padLeft(2, '0')}'
-            : (provider.birthday ?? '');
+            : (isOwnProfile ? (provider.birthday ?? '') : '');
 
         return CustomScrollView(
           slivers: [
@@ -2049,44 +2062,63 @@ class _ImagePostSheet extends StatelessWidget {
                 child: ListView(
                   controller: scrollController,
                   children: [
-                    _buildPostHeader(post),
+                    Consumer<ProfileProvider>(
+                      builder: (context, provider, _) {
+                        final currentPost = provider.posts.where((p) => p.id == post.id).firstOrNull ?? post;
+                        return _buildPostHeader(currentPost);
+                      },
+                    ),
                     if (post.content.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.all(12),
-                        child: Text(
-                          post.content,
-                          style: const TextStyle(fontSize: 15, height: 1.4),
+                        child: Consumer<ProfileProvider>(
+                          builder: (context, provider, _) {
+                            final currentPost = provider.posts.where((p) => p.id == post.id).firstOrNull ?? post;
+                            return Text(
+                              currentPost.content,
+                              style: const TextStyle(fontSize: 15, height: 1.4),
+                            );
+                          },
                         ),
                       ),
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: post.mediaUrls.length == 1
-                            ? 1
-                            : post.mediaUrls.length == 2
-                                ? 2
-                                : 3,
-                        crossAxisSpacing: 2,
-                        mainAxisSpacing: 2,
-                      ),
-                      itemCount: post.mediaUrls.length,
-                      itemBuilder: (context, idx) {
-                        return Image.network(
-                          post.mediaUrls[idx],
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          height: double.infinity,
-                          errorBuilder: (_, __, ___) => Container(
-                            color: Colors.grey.shade300,
-                            child: Icon(Icons.broken_image,
-                                color: Colors.grey.shade400),
-                          ),
+                    Consumer<ProfileProvider>(
+                      builder: (context, provider, _) {
+                        final currentPost = provider.posts.where((p) => p.id == post.id).firstOrNull ?? post;
+                        return Column(
+                          children: [
+                            GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: currentPost.mediaUrls.length == 1
+                                    ? 1
+                                    : currentPost.mediaUrls.length == 2
+                                        ? 2
+                                        : 3,
+                                crossAxisSpacing: 2,
+                                mainAxisSpacing: 2,
+                              ),
+                              itemCount: currentPost.mediaUrls.length,
+                              itemBuilder: (context, idx) {
+                                return Image.network(
+                                  currentPost.mediaUrls[idx],
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    color: Colors.grey.shade300,
+                                    child: Icon(Icons.broken_image,
+                                        color: Colors.grey.shade400),
+                                  ),
+                                );
+                              },
+                            ),
+                            _buildPostActions(context, currentPost),
+                          ],
                         );
                       },
                     ),
-                    _buildPostActions(context, post),
                   ],
                 ),
               ),
@@ -2168,6 +2200,9 @@ class _ImagePostSheet extends StatelessWidget {
   }
 
   Widget _buildPostActions(BuildContext context, PostModel post) {
+    final provider = context.read<ProfileProvider>();
+    final latestPost = provider.posts.where((p) => p.id == post.id).firstOrNull ?? post;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
       child: Row(
@@ -2175,17 +2210,17 @@ class _ImagePostSheet extends StatelessWidget {
           Expanded(
             child: TextButton.icon(
               onPressed: () {
-                context.read<ProfileProvider>().toggleLike(post.id);
+                provider.toggleLike(post.id);
               },
               icon: Icon(
-                post.isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
+                latestPost.isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
                 size: 18,
-                color: post.isLiked
+                color: latestPost.isLiked
                     ? AppColors.primaryBlue
                     : AppColors.textSecondary,
               ),
               label: Text(
-                'Thích',
+                latestPost.likeCount > 0 ? '${latestPost.likeCount}' : 'Thích',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textSecondary,
@@ -2201,7 +2236,7 @@ class _ImagePostSheet extends StatelessWidget {
                   context: context,
                   isScrollControlled: true,
                   backgroundColor: Colors.transparent,
-                  builder: (ctx) => CommentSheet(post: post, useProfileProvider: true),
+                  builder: (ctx) => CommentSheet(post: latestPost, useProfileProvider: true),
                 );
               },
               icon: Icon(
@@ -2210,7 +2245,7 @@ class _ImagePostSheet extends StatelessWidget {
                 color: AppColors.textSecondary,
               ),
               label: Text(
-                'Bình luận',
+                latestPost.commentCount > 0 ? '${latestPost.commentCount}' : 'Bình luận',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textSecondary,
