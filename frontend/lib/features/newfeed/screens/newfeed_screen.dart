@@ -18,7 +18,8 @@ class NewfeedScreen extends StatefulWidget {
   State<NewfeedScreen> createState() => _NewfeedScreenState();
 }
 
-class _NewfeedScreenState extends State<NewfeedScreen> with WidgetsBindingObserver {
+class _NewfeedScreenState extends State<NewfeedScreen>
+    with WidgetsBindingObserver {
   String _currentUserId = '';
   String _currentUserName = '';
   String _currentUserAvatar = '';
@@ -79,13 +80,13 @@ class _NewfeedScreenState extends State<NewfeedScreen> with WidgetsBindingObserv
         ),
         transitionsBuilder: (_, animation, __, child) {
           return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, -1),
-              end: Offset.zero,
-            ).animate(CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOut,
-            )),
+            position:
+                Tween<Offset>(
+                  begin: const Offset(0, -1),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(parent: animation, curve: Curves.easeOut),
+                ),
             child: child,
           );
         },
@@ -183,9 +184,7 @@ class _NewfeedScreenState extends State<NewfeedScreen> with WidgetsBindingObserv
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      decoration: const BoxDecoration(
-        color: Color(0xFF0068FF),
-      ),
+      decoration: const BoxDecoration(color: Color(0xFF0068FF)),
       child: Row(
         children: [
           const Icon(Icons.search, color: Colors.white, size: 24),
@@ -297,10 +296,7 @@ class _NewfeedScreenState extends State<NewfeedScreen> with WidgetsBindingObserv
               ],
             ),
           ),
-          Container(
-            height: 1,
-            color: const Color(0xFFE4E6EB),
-          ),
+          Container(height: 1, color: const Color(0xFFE4E6EB)),
         ],
       ),
     );
@@ -382,7 +378,12 @@ class _NewfeedScreenState extends State<NewfeedScreen> with WidgetsBindingObserv
     );
   }
 
-  Widget _buildInputTypeButton(IconData icon, Color color, String label, VoidCallback onTap) {
+  Widget _buildInputTypeButton(
+    IconData icon,
+    Color color,
+    String label,
+    VoidCallback onTap,
+  ) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -441,11 +442,7 @@ class _NewfeedScreenState extends State<NewfeedScreen> with WidgetsBindingObserv
                   ),
                 ),
               ),
-              Container(
-                width: 1,
-                height: 16,
-                color: Colors.grey.shade300,
-              ),
+              Container(width: 1, height: 16, color: Colors.grey.shade300),
               const SizedBox(width: 12),
               const Icon(
                 Icons.local_fire_department,
@@ -474,17 +471,11 @@ class _NewfeedScreenState extends State<NewfeedScreen> with WidgetsBindingObserv
   }
 
   Widget _buildDivider() {
-    return Container(
-      height: 1,
-      color: const Color(0xFFE4E6EB),
-    );
+    return Container(height: 1, color: const Color(0xFFE4E6EB));
   }
 
   Widget _buildStoryDivider() {
-    return Container(
-      height: 8,
-      color: const Color(0xFFEFF1F4),
-    );
+    return Container(height: 8, color: const Color(0xFFEFF1F4));
   }
 
   Widget _buildStorySection() {
@@ -498,7 +489,8 @@ class _NewfeedScreenState extends State<NewfeedScreen> with WidgetsBindingObserv
   Widget _buildPostList() {
     return Consumer<FeedProvider>(
       builder: (context, provider, _) {
-        if (provider.state == FeedLoadingState.loading && provider.posts.isEmpty) {
+        if (provider.state == FeedLoadingState.loading &&
+            provider.posts.isEmpty) {
           return SliverFillRemaining(
             child: Center(
               child: Column(
@@ -515,10 +507,7 @@ class _NewfeedScreenState extends State<NewfeedScreen> with WidgetsBindingObserv
                   const SizedBox(height: 12),
                   Text(
                     'Đang tải...',
-                    style: TextStyle(
-                      color: Colors.grey.shade500,
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
                   ),
                 ],
               ),
@@ -526,7 +515,8 @@ class _NewfeedScreenState extends State<NewfeedScreen> with WidgetsBindingObserv
           );
         }
 
-        if (provider.state == FeedLoadingState.error && provider.posts.isEmpty) {
+        if (provider.state == FeedLoadingState.error &&
+            provider.posts.isEmpty) {
           return SliverFillRemaining(
             child: Center(
               child: Column(
@@ -540,10 +530,7 @@ class _NewfeedScreenState extends State<NewfeedScreen> with WidgetsBindingObserv
                   const SizedBox(height: 12),
                   Text(
                     'Không thể tải bài viết',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 15,
-                    ),
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
                   ),
                   const SizedBox(height: 8),
                   TextButton(
@@ -573,18 +560,12 @@ class _NewfeedScreenState extends State<NewfeedScreen> with WidgetsBindingObserv
                   const SizedBox(height: 16),
                   Text(
                     'Chưa có bài viết nào',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 16,
-                    ),
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Hãy là người đầu tiên đăng bài!',
-                    style: TextStyle(
-                      color: Colors.grey.shade500,
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
                   ),
                 ],
               ),
@@ -593,26 +574,23 @@ class _NewfeedScreenState extends State<NewfeedScreen> with WidgetsBindingObserv
         }
 
         return SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, index) {
-              if (index == provider.posts.length) {
-                if (provider.hasMore) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Center(
-                      child: TextButton(
-                        onPressed: () => provider.loadMore(),
-                        child: const Text('Xem thêm bài viết'),
-                      ),
+          delegate: SliverChildBuilderDelegate((context, index) {
+            if (index == provider.posts.length) {
+              if (provider.hasMore) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: TextButton(
+                      onPressed: () => provider.loadMore(),
+                      child: const Text('Xem thêm bài viết'),
                     ),
-                  );
-                }
-                return const SizedBox.shrink();
+                  ),
+                );
               }
-              return _PostCard(post: provider.posts[index]);
-            },
-            childCount: provider.posts.length + (provider.hasMore ? 1 : 0),
-          ),
+              return const SizedBox.shrink();
+            }
+            return _PostCard(post: provider.posts[index]);
+          }, childCount: provider.posts.length + (provider.hasMore ? 1 : 0)),
         );
       },
     );
@@ -706,10 +684,7 @@ class _PostCardState extends State<_PostCard> {
           Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color,
-            ),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: color),
             child: Center(
               child: widget.post.userAvatar.isNotEmpty
                   ? ClipOval(
@@ -794,8 +769,8 @@ class _PostCardState extends State<_PostCard> {
                       widget.post.visibility == 'public'
                           ? Icons.public
                           : widget.post.visibility == 'friends'
-                              ? Icons.group
-                              : Icons.lock,
+                          ? Icons.group
+                          : Icons.lock,
                       size: 12,
                       color: const Color(0xFF65676B),
                     ),
@@ -932,29 +907,19 @@ class _PostCardState extends State<_PostCard> {
                 color: AppColors.primaryBlue,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.thumb_up,
-                color: Colors.white,
-                size: 10,
-              ),
+              child: const Icon(Icons.thumb_up, color: Colors.white, size: 10),
             ),
             const SizedBox(width: 4),
             Text(
               '${widget.post.likeCount}',
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF65676B),
-              ),
+              style: const TextStyle(fontSize: 13, color: Color(0xFF65676B)),
             ),
           ],
           const Spacer(),
           if (widget.post.commentCount > 0)
             Text(
               '${widget.post.commentCount} bình luận',
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF65676B),
-              ),
+              style: const TextStyle(fontSize: 13, color: Color(0xFF65676B)),
             ),
         ],
       ),
@@ -972,9 +937,7 @@ class _PostCardState extends State<_PostCard> {
                 context.read<FeedProvider>().toggleLike(widget.post.id);
               },
               icon: Icon(
-                widget.post.isLiked
-                    ? Icons.thumb_up
-                    : Icons.thumb_up_outlined,
+                widget.post.isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
                 size: 18,
                 color: widget.post.isLiked
                     ? AppColors.primaryBlue
@@ -1008,10 +971,7 @@ class _PostCardState extends State<_PostCard> {
               ),
               label: const Text(
                 'Bình luận',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF65676B),
-                ),
+                style: TextStyle(fontSize: 14, color: Color(0xFF65676B)),
               ),
             ),
           ),
@@ -1025,10 +985,7 @@ class _PostCardState extends State<_PostCard> {
               ),
               label: const Text(
                 'Chia sẻ',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF65676B),
-                ),
+                style: TextStyle(fontSize: 14, color: Color(0xFF65676B)),
               ),
             ),
           ),
