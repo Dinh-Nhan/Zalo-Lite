@@ -129,19 +129,10 @@ public class FriendshipService(
             senderId, addresseeId, friendship.Id);
 
         // ── SignalR: notify người nhận có lời mời mới ─────────────
-        var enriched = new FriendshipResponse
-        {
-            Id          = friendship.Id,
-            SenderId    = friendship.SenderId,
-            AddresseeId = friendship.AddresseeId,
-            Status      = friendship.Status,
-            SourceType  = friendship.SourceType,
-            CreatedAt   = friendship.CreatedAt,
-            UpdatedAt   = friendship.UpdatedAt,
-            SenderName   = senderName,
-            SenderAvatar = senderAvatar,
-            AddresseeName = addresseeName
-        };
+        var enriched = friendship.Adapt<FriendshipResponse>();
+        enriched.SenderName = senderName;
+        enriched.SenderAvatar = senderAvatar;
+        enriched.AddresseeName = addresseeName;
 
         await hubContext.Clients
             .Group(FriendHub.GroupName(addresseeId))
@@ -220,6 +211,12 @@ public class FriendshipService(
 
         logger.LogInformation("Friend request {Id} cancelled by {UserId}",
             friendshipId, currentUserId);
+
+        // ── SignalR: notify người nhận biết lời mời đã bị huỷ ────
+        var response = friendship.Adapt<FriendshipResponse>();
+        await hubContext.Clients
+            .Group(FriendHub.GroupName(friendship.AddresseeId))
+            .SendAsync("FriendRequestCancelled", response);
     }
 
     /// <summary>
@@ -243,6 +240,16 @@ public class FriendshipService(
         await db.Collection(Col).Document(existing.Id).DeleteAsync();
 
         logger.LogInformation("Unfriend: {A} ↔ {B}", currentUserId, targetUserId);
+
+        // ── SignalR: notify bên kia biết đã bị unfriend ──────────
+        var otherUserId = existing.SenderId == currentUserId
+            ? existing.AddresseeId
+            : existing.SenderId;
+
+        var response = existing.Adapt<FriendshipResponse>();
+        await hubContext.Clients
+            .Group(FriendHub.GroupName(otherUserId))
+            .SendAsync("FriendUnfriended", response);
     }
 
     /// <summary>
@@ -420,19 +427,11 @@ public class FriendshipService(
                 addresseeName = $"{u.FirstName} {u.LastName}".Trim();
             }
 
-            result.Add(new FriendshipResponse
-            {
-                Id           = f.Id,
-                SenderId     = f.SenderId,
-                AddresseeId  = f.AddresseeId,
-                Status       = f.Status,
-                SourceType   = f.SourceType,
-                CreatedAt    = f.CreatedAt,
-                UpdatedAt    = f.UpdatedAt,
-                SenderName   = senderName,
-                SenderAvatar = senderAvatar,
-                AddresseeName = addresseeName
-            });
+            var resp = f.Adapt<FriendshipResponse>();
+            resp.SenderName = senderName;
+            resp.SenderAvatar = senderAvatar;
+            resp.AddresseeName = addresseeName;
+            result.Add(resp);
         }
 
         return result;
@@ -472,17 +471,9 @@ public class FriendshipService(
                 addresseeName = $"{u.FirstName} {u.LastName}".Trim();
             }
 
-            result.Add(new FriendshipResponse
-            {
-                Id           = f.Id,
-                SenderId     = f.SenderId,
-                AddresseeId  = f.AddresseeId,
-                Status       = f.Status,
-                SourceType   = f.SourceType,
-                CreatedAt    = f.CreatedAt,
-                UpdatedAt    = f.UpdatedAt,
-                AddresseeName = addresseeName
-            });
+            var resp = f.Adapt<FriendshipResponse>();
+            resp.AddresseeName = addresseeName;
+            result.Add(resp);
         }
 
         return result;
@@ -522,17 +513,9 @@ public class FriendshipService(
                 addresseeName = $"{u.FirstName} {u.LastName}".Trim();
             }
 
-            result.Add(new FriendshipResponse
-            {
-                Id           = f.Id,
-                SenderId     = f.SenderId,
-                AddresseeId  = f.AddresseeId,
-                Status       = f.Status,
-                SourceType   = f.SourceType,
-                CreatedAt    = f.CreatedAt,
-                UpdatedAt    = f.UpdatedAt,
-                AddresseeName = addresseeName
-            });
+            var resp = f.Adapt<FriendshipResponse>();
+            resp.AddresseeName = addresseeName;
+            result.Add(resp);
         }
 
         return result;
@@ -553,17 +536,9 @@ public class FriendshipService(
             addresseeName = $"{u.FirstName} {u.LastName}".Trim();
         }
 
-        return new FriendshipResponse
-        {
-            Id = rel.Id,
-            SenderId = rel.SenderId,
-            AddresseeId = rel.AddresseeId,
-            Status = rel.Status,
-            SourceType = rel.SourceType,
-            CreatedAt = rel.CreatedAt,
-            UpdatedAt = rel.UpdatedAt,
-            AddresseeName = addresseeName
-        };
+        var resp = rel.Adapt<FriendshipResponse>();
+        resp.AddresseeName = addresseeName;
+        return resp;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -673,7 +648,8 @@ public class FriendshipService(
             {
                 FriendshipId = entries[i].FriendshipId,
                 FriendId     = user.Id,
-                FullName     = $"{user.FirstName} {user.LastName}".Trim(),
+                FirstName    = user.FirstName,
+                LastName     = user.LastName,
                 Avatar       = user.Avatar,
                 FriendsSince = entries[i].Since
             });

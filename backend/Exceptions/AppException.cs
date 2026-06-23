@@ -7,13 +7,13 @@ using backend.Enums;
 namespace backend.Exceptions
 {
     public class AppException : Exception
-{
-    public ErrorCode ErrorCode { get; }
-
-    public AppException(ErrorCode errorCode) 
-        : base(errorCode.GetMeta().Message)
     {
-        ErrorCode = errorCode;
+        public ErrorCode ErrorCode { get; }
+
+        public AppException(ErrorCode errorCode) 
+            : base(errorCode.GetMeta().Message)
+        {
+            ErrorCode = errorCode;
+        }
     }
-}
 }

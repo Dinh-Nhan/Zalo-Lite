@@ -9,8 +9,9 @@ namespace backend.Services
     [ScopedService]
     public class CloudinaryService
     {
-        private readonly Cloudinary _cloudinary;
+        private readonly Cloudinary? _cloudinary;
         private readonly ILogger<CloudinaryService> _logger;
+        private readonly bool _isConfigured;
 
         public CloudinaryService(
             IOptions<CloudinarySettings> options,
@@ -18,8 +19,26 @@ namespace backend.Services
         {
             _logger = logger;
             var s = options.Value;
+
+            if (string.IsNullOrWhiteSpace(s.CloudName) || s.CloudName == "placeholder")
+            {
+                _logger.LogWarning(
+                    "[CloudinaryService] Cloudinary chưa được cấu hình đầy đủ — các API upload media sẽ không hoạt động. Vui lòng bổ sung CloudName, ApiKey, ApiSecret vào appsettings.Development.json");
+                _isConfigured = false;
+                return;
+            }
+
+            _isConfigured = true;
             var account = new Account(s.CloudName, s.ApiKey, s.ApiSecret);
             _cloudinary = new Cloudinary(account) { Api = { Secure = true } };
+        }
+
+        private Cloudinary GetClient()
+        {
+            if (!_isConfigured || _cloudinary == null)
+                throw new InvalidOperationException(
+                    "Cloudinary chưa được cấu hình. Vui lòng bổ sung CloudName, ApiKey, ApiSecret vào appsettings.Development.json");
+            return _cloudinary;
         }
 
         //---------------------Feeds---------------------
@@ -29,11 +48,9 @@ namespace backend.Services
         /// Trả về (url, publicId, MediaType).
         /// </summary>
         public async Task<(string Url, string PublicId, string MediaType)> UploadAsync(
-            IFormFile file,
-            string userId,
-            string feedId,
-            string feedType)
+            IFormFile file, string userId, string feedId, string feedType)
         {
+            var cloudinary = GetClient();
             await using var stream = file.OpenReadStream();
             var isVideo = file.ContentType.StartsWith("video/");
             var mediaType = isVideo ? "video" : "image";
@@ -43,50 +60,118 @@ namespace backend.Services
 
             if (isVideo)
             {
-                var result = await _cloudinary.UploadAsync(new VideoUploadParams
+                var result = await cloudinary.UploadAsync(new VideoUploadParams
                 {
                     File = new FileDescription(file.FileName, stream),
                     Folder = folder,
                     Transformation = new Transformation().Quality("auto")
                 });
+
+                if (result.Error != null)
+                {
+                    _logger.LogError("[Cloudinary] Video upload failed: {Message}", result.Error.Message);
+                    throw new Exception($"Cloudinary video upload failed: {result.Error.Message}");
+                }
+
                 _logger.LogInformation("[Cloudinary] Uploaded video {PublicId}", result.PublicId);
                 return (result.SecureUrl.ToString(), result.PublicId, mediaType);
             }
-            else
+
+            var imageResult = await cloudinary.UploadAsync(new ImageUploadParams
             {
-                var result = await _cloudinary.UploadAsync(new ImageUploadParams
+                File = new FileDescription(file.FileName, stream),
+                Folder = folder,
+                Transformation = new Transformation().Quality("auto").FetchFormat("auto")
+            });
+
+            if (imageResult.Error != null)
+            {
+                _logger.LogError("[Cloudinary] Image upload failed: {Message}", imageResult.Error.Message);
+                throw new Exception($"Cloudinary image upload failed: {imageResult.Error.Message}");
+            }
+
+            _logger.LogInformation("[Cloudinary] Uploaded image {PublicId}", imageResult.PublicId);
+            return (imageResult.SecureUrl.ToString(), imageResult.PublicId, mediaType);
+        }
+
+        //---------------------Chat---------------------
+
+        /// <summary>
+        /// Upload ảnh/video gửi trong tin nhắn chat.
+        /// Trả về (Url, PublicId, MediaType).
+        /// </summary>
+        public async Task<(string Url, string PublicId, string MediaType)> UploadChatMediaAsync(
+            IFormFile file, string userId, string conversationId)
+        {
+            _logger.LogInformation("[CloudinaryService] Bắt đầu xử lý upload cho chat. File: {FileName}, MimeType: {MimeType}, User: {UserId}", file.FileName, file.ContentType, userId);
+            var cloudinary = GetClient();
+            await using var stream = file.OpenReadStream();
+            var isVideo = file.ContentType.StartsWith("video/");
+            var isAudio = file.ContentType.StartsWith("audio/");
+            var mediaType = isVideo ? "video" : (isAudio ? "audio" : "image");
+
+            // chat/{conversationId}/{userId}/
+            var folder = $"chat/{conversationId}/{userId}";
+
+            if (isVideo || isAudio)
+            {
+                _logger.LogInformation("[CloudinaryService] Phát hiện file Video/Audio. Sử dụng VideoUploadParams để upload. File: {FileName}", file.FileName);
+                var result = await cloudinary.UploadAsync(new VideoUploadParams
                 {
                     File = new FileDescription(file.FileName, stream),
                     Folder = folder,
-                    Transformation = new Transformation().Quality("auto").FetchFormat("auto")
+                    Transformation = new Transformation().Quality("auto")
                 });
-                _logger.LogInformation("[Cloudinary] Uploaded image {PublicId}", result.PublicId);
+
+                if (result.Error != null)
+                {
+                    _logger.LogError("[Cloudinary] Chat media (video/audio) upload failed: {Message}", result.Error.Message);
+                    throw new Exception($"Không thể tải video/audio lên Cloudinary: {result.Error.Message}");
+                }
+
+                _logger.LogInformation("[Cloudinary] Đã upload chat media (video/audio) thành công. PublicId: {PublicId}", result.PublicId);
                 return (result.SecureUrl.ToString(), result.PublicId, mediaType);
             }
+
+            _logger.LogInformation("[CloudinaryService] Phát hiện file Image. Sử dụng ImageUploadParams để upload. File: {FileName}", file.FileName);
+            var imageResult = await cloudinary.UploadAsync(new ImageUploadParams
+            {
+                File = new FileDescription(file.FileName, stream),
+                Folder = folder,
+                Transformation = new Transformation().Quality("auto").FetchFormat("auto")
+            });
+
+            if (imageResult.Error != null)
+            {
+                _logger.LogError("[Cloudinary] Chat image upload failed: {Message}", imageResult.Error.Message);
+                throw new Exception($"Không thể tải hình ảnh lên Cloudinary: {imageResult.Error.Message}");
+            }
+
+            _logger.LogInformation("[Cloudinary] Đã upload chat image thành công. PublicId: {PublicId}", imageResult.PublicId);
+            return (imageResult.SecureUrl.ToString(), imageResult.PublicId, mediaType);
         }
+
         public async Task DeleteFolderAsync(string userId, string feedId, string feedType)
         {
+            var cloudinary = GetClient();
             var folder = $"feeds/{userId}/{feedType}s/{feedId}";
-
-            // Folder chỉ xóa được khi rỗng
-            // Nên phải xóa hết files trước — nhưng gọi method này từ FeedService
-            // thì publicIds đã được xóa trước đó rồi, giờ chỉ cần xóa folder
             try
             {
-                await _cloudinary.DeleteFolderAsync(folder);
+                await cloudinary.DeleteFolderAsync(folder);
                 _logger.LogInformation("[Cloudinary] Deleted folder {Folder}", folder);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning("[Cloudinary] Could not delete folder {Folder}: {Msg}",
-                    folder, ex.Message);
+                _logger.LogWarning("[Cloudinary] Could not delete folder {Folder}: {Msg}", folder, ex.Message);
             }
         }
+
         public async Task DeleteManyAsync(IEnumerable<(string PublicId, bool IsVideo)> assets)
         {
+            var cloudinary = GetClient();
             foreach (var (publicId, isVideo) in assets)
             {
-                await _cloudinary.DestroyAsync(new DeletionParams(publicId)
+                await cloudinary.DestroyAsync(new DeletionParams(publicId)
                 {
                     ResourceType = isVideo ? ResourceType.Video : ResourceType.Image
                 });
@@ -95,33 +180,29 @@ namespace backend.Services
         }
 
         //---------------------Users---------------------
+
         /// <summary>
         /// Upload avatar cho user.
         /// Trả về (Url, PublicId).
         /// </summary>
-        public async Task<(string Url, string PublicId)> UploadAvatarAsync(
-            IFormFile file,
-            string userId)
+        public async Task<(string Url, string PublicId)> UploadAvatarAsync(IFormFile file, string userId)
         {
+            var cloudinary = GetClient();
             await using var stream = file.OpenReadStream();
-
-            // avatars/{userId}/
             var folder = $"user-avatars/{userId}";
 
-            var result = await _cloudinary.UploadAsync(new ImageUploadParams
+            var result = await cloudinary.UploadAsync(new ImageUploadParams
             {
                 File = new FileDescription(file.FileName, stream),
                 Folder = folder,
                 Transformation = new Transformation()
                     .Width(400).Height(400)
-                    .Crop("fill")           // crop vuông, focus center
+                    .Crop("fill")
                     .Quality("auto")
                     .FetchFormat("auto")
             });
 
-            _logger.LogInformation("[Cloudinary] Uploaded avatar {PublicId} for user {UserId}",
-                result.PublicId, userId);
-
+            _logger.LogInformation("[Cloudinary] Uploaded avatar {PublicId} for user {UserId}", result.PublicId, userId);
             return (result.SecureUrl.ToString(), result.PublicId);
         }
 
@@ -131,12 +212,11 @@ namespace backend.Services
         public async Task DeleteAvatarAsync(string publicId)
         {
             if (string.IsNullOrEmpty(publicId)) return;
-
-            await _cloudinary.DestroyAsync(new DeletionParams(publicId)
+            var cloudinary = GetClient();
+            await cloudinary.DestroyAsync(new DeletionParams(publicId)
             {
                 ResourceType = ResourceType.Image
             });
-
             _logger.LogInformation("[Cloudinary] Deleted avatar {PublicId}", publicId);
         }
 
@@ -145,17 +225,16 @@ namespace backend.Services
         /// </summary>
         public async Task DeleteUserFolderAsync(string userId)
         {
+            var cloudinary = GetClient();
             var folder = $"user-avatars/{userId}";
-
             try
             {
-                await _cloudinary.DeleteFolderAsync(folder);
+                await cloudinary.DeleteFolderAsync(folder);
                 _logger.LogInformation("[Cloudinary] Deleted avatar folder {Folder}", folder);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning("[Cloudinary] Could not delete avatar folder {Folder}: {Msg}",
-                    folder, ex.Message);
+                _logger.LogWarning("[Cloudinary] Could not delete avatar folder {Folder}: {Msg}", folder, ex.Message);
             }
         }
     }

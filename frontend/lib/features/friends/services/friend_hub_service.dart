@@ -2,18 +2,19 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:frontend/config/api_config.dart';
 import 'package:signalr_netcore/signalr_client.dart';
 
 import 'friend_service.dart';
 
-/// Các sự kiện realtime từ FriendHub
 enum FriendHubEvent {
-  friendRequestReceived, // có người gửi lời mời cho mình
-  friendRequestAccepted, // lời mời của mình được chấp nhận
-  friendRequestDeclined, // lời mời của mình bị từ chối
+  friendRequestReceived,  // có người gửi lời mời cho mình
+  friendRequestAccepted,  // lời mời của mình được chấp nhận
+  friendRequestDeclined,  // lời mời của mình bị từ chối
+  friendRequestCancelled, // lời mời gửi cho mình bị sender huỷ
+  friendUnfriended,  
 }
 
-/// Payload nhận từ server khi có sự kiện realtime
 class FriendRealtimeEvent {
   final FriendHubEvent type;
   final FriendshipModel friendship;
@@ -21,30 +22,15 @@ class FriendRealtimeEvent {
   const FriendRealtimeEvent({required this.type, required this.friendship});
 }
 
-/// Service quản lý kết nối SignalR đến FriendHub.
-///
-/// Cách dùng:
-///   final hub = FriendHubService();
-///   await hub.connect();
-///   hub.events.listen((e) { ... });
-///   // khi dispose:
-///   await hub.disconnect();
 class FriendHubService {
-  // static const String _baseUrl = 'http://10.0.2.2:5244';
-  static const String _baseUrl = 'http://localhost:5244';
   static const String _hubPath = '/hubs/friend';
 
   HubConnection? _connection;
   final _controller = StreamController<FriendRealtimeEvent>.broadcast();
 
-  /// Stream phát ra sự kiện khi có thay đổi realtime
   Stream<FriendRealtimeEvent> get events => _controller.stream;
+  bool get isConnected => _connection?.state == HubConnectionState.Connected;
 
-  bool get isConnected =>
-      _connection?.state == HubConnectionState.Connected;
-
-  /// Kết nối đến FriendHub với Firebase token.
-  /// Tự động reconnect khi mất kết nối.
   Future<void> connect() async {
     if (isConnected) return;
 
@@ -54,7 +40,7 @@ class FriendHubService {
       return;
     }
 
-    final url = '$_baseUrl$_hubPath?access_token=$token';
+    final url = '${ApiConfig.baseUrl}$_hubPath?access_token=$token';
 
     _connection = HubConnectionBuilder()
         .withUrl(
@@ -64,12 +50,7 @@ class FriendHubService {
             skipNegotiation: true,
           ),
         )
-        .withAutomaticReconnect(
-          retryDelays: [2000, 5000, 10000, 30000],
-        )
-        .build();
-
-    // ── Lắng nghe sự kiện từ server ──────────────────────────────
+        .withAutomaticReconnect(retryDelays: [2000, 5000, 10000, 30000]).build();
 
     // _connection!.on('FriendRequestReceived', (args) {
     //   final data = _parseArgs(args);
@@ -107,6 +88,18 @@ class FriendHubService {
       _emit(FriendHubEvent.friendRequestDeclined, data);
     });
 
+    _connection!.on('FriendRequestCancelled', (args) {
+      final data = _parseArgs(args);
+      if (data == null) return;
+      _emit(FriendHubEvent.friendRequestCancelled, data);
+    });
+
+    _connection!.on('FriendUnfriended', (args) {
+      final data = _parseArgs(args);
+      if (data == null) return;
+      _emit(FriendHubEvent.friendUnfriended, data);
+    });
+
     _connection!.onclose(({error}) {
       debugPrint('[FriendHub] Đã đóng kết nối. Error: $error');
     });
@@ -127,7 +120,6 @@ class FriendHubService {
     }
   }
 
-  /// Ngắt kết nối và giải phóng resources
   Future<void> disconnect() async {
     await _connection?.stop();
     _connection = null;
@@ -138,8 +130,6 @@ class FriendHubService {
     _controller.close();
     disconnect();
   }
-
-  // ── Private helpers ───────────────────────────────────────────
 
   Future<String?> _getToken() async {
     try {
@@ -177,11 +167,8 @@ class FriendHubService {
       if (raw is Map<String, dynamic>) {
         return FriendshipModel.fromJson(raw);
       }
-      // signalr_netcore có thể trả về Map<Object?, Object?>
       if (raw is Map) {
-        final json = raw.map(
-          (k, v) => MapEntry(k.toString(), v),
-        );
+        final json = raw.map((k, v) => MapEntry(k.toString(), v));
         return FriendshipModel.fromJson(json);
       }
     } catch (e) {

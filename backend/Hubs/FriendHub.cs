@@ -7,7 +7,7 @@ namespace backend.Hubs;
 /// SignalR Hub cho realtime kết bạn.
 ///
 /// Client kết nối bằng cách gửi token Firebase qua query string:
-///   ?access_token=<firebase_id_token>
+///   ?access_token=&lt;firebase_id_token&gt;
 ///
 /// Mỗi user được join vào group riêng tên "user_{uid}" để nhận push.
 /// </summary>

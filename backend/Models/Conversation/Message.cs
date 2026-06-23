@@ -103,4 +103,20 @@ public class Message
 
     [FirestoreProperty("updated_at")]
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    [FirestoreProperty("expires_at")]
+    public DateTime? ExpiresAt { get; set; }
+
+    /// <summary>UserIds đã ẩn tin nhắn ở phía họ (không xóa cho người kia).</summary>
+    [FirestoreProperty("hidden_for")]
+    public List<string> HiddenFor { get; set; } = new();
+
+    [FirestoreProperty("latitude")]
+    public double? Latitude { get; set; }
+
+    [FirestoreProperty("longitude")]
+    public double? Longitude { get; set; }
+
+    [FirestoreProperty("address")]
+    public string? Address { get; set; }
 }

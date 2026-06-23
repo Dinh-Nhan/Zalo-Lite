@@ -21,7 +21,7 @@ class FriendSearchAppBar extends StatelessWidget
         child: Container(
           height: 38,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
+            color: Colors.white.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(6),
           ),
           alignment: Alignment.centerLeft,
@@ -39,7 +39,7 @@ class FriendSearchAppBar extends StatelessWidget
               Text(
                 'Tìm bạn bè',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.75),
+                  color: Colors.white.withValues(alpha: 0.75),
                   fontSize: 14,
                 ),
               ),

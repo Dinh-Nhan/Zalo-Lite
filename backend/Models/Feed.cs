@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -23,6 +22,9 @@ namespace backend.Models
 
     [FirestoreProperty("privacy")]
     public string Privacy { get; set; } = string.Empty;
+
+    [FirestoreProperty("allowed_user_ids")]
+    public List<string> AllowedUserIds { get; set; } = new();
 
     [FirestoreProperty("settings")]
     public Settings Settings { get; set; } = null!;

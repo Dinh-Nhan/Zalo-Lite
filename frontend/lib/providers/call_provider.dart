@@ -6,92 +6,107 @@ class CallProvider with ChangeNotifier {
   CallModel? _currentCall;
   int _seconds = 0;
   Timer? _timer;
-  Timer? _timeoutTimer; // Timer cho thời gian chờ 20s
+  Timer? _timeoutTimer;
   bool _isMuted = false;
   bool _isSpeakerOn = false;
-  String _statusText = ""; // Thông báo trạng thái (ví dụ: "Người nhận không nhấc máy")
+  bool _isVideoOff = false;
+
+  // Gọi bởi ChatProvider khi caller timeout 30s (không có ai bắt)
+  Function(String conversationId, String callType)? onCallMissed;
+
   CallModel? get currentCall => _currentCall;
   int get seconds => _seconds;
   bool get isMuted => _isMuted;
   bool get isSpeakerOn => _isSpeakerOn;
-  String get statusText => _statusText;
+  bool get isVideoOff => _isVideoOff;
+  bool get hasActiveCall => _currentCall != null;
 
   String get formattedDuration {
-    final minutes = (_seconds ~/ 60).toString().padLeft(2, '0');
-    final seconds = (_seconds % 60).toString().padLeft(2, '0');
-    return "$minutes:$seconds";
+    final m = (_seconds ~/ 60).toString().padLeft(2, '0');
+    final s = (_seconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 
-  // void initCall(CallModel call) {
-  //   _currentCall = call;
-  //   _seconds = 0;
-  //   _isMuted = false;
-  //   _isSpeakerOn = false;
-  //   notifyListeners();
+  // ── Caller side ──────────────────────────────────────────────────
 
-  //   // 1. Thiết lập Timeout 20 giây
-  //   _timeoutTimer?.cancel();
-  //   _timeoutTimer = Timer(const Duration(seconds: 20), () {
-  //     if (_currentCall?.status == CallStatus.dialing) {
-  //       endCall(); // Tự kết thúc nếu sau 20s vẫn đang "dialing"
-  //     }
-  //   });
-
-  //   // GIẢ LẬP: Sau 5 giây người kia bắt máy (Bạn có thể xóa đoạn này khi kết nối Backend)
-  //   Future.delayed(const Duration(seconds: 5), () {
-  //     if (_currentCall != null && _currentCall!.status == CallStatus.dialing) {
-  //       acceptCall();
-  //     }
-  //   });
-  // }
-  void initCall(CallModel call) {
-  _currentCall = call;
-  _seconds = 0;
-  notifyListeners();
-
-  _timeoutTimer?.cancel();
-  _timeoutTimer = Timer(const Duration(seconds: 20), () {
-    if (_currentCall?.status == CallStatus.dialing) {
-      _currentCall!.status = CallStatus.ended; // Hoặc thêm trạng thái noAnswer
-      _statusText = "Người nhận không nhấc máy";
-      notifyListeners();
-      
-      // Tự động thoát sau 3 giây hiển thị thông báo
-      Future.delayed(const Duration(seconds: 3), () => endCall());
-    }
-  });
-}
-
-// Hàm xử lý khi người kia tắt máy (bận)
-void setBusy() {
-  if (_currentCall != null) {
-    _currentCall!.status = CallStatus.ended;
-    _statusText = "Người nhận hiện đang bận";
+  void startOutgoingCall(CallModel call) {
+    _currentCall = call;
+    _seconds = 0;
+    _isMuted = false;
+    _isSpeakerOn = false;
+    _isVideoOff = false;
     notifyListeners();
-    Future.delayed(const Duration(seconds: 3), () => endCall());
+
+    // Timeout 30s nếu không ai bắt
+    _timeoutTimer?.cancel();
+    _timeoutTimer = Timer(const Duration(seconds: 30), () {
+      if (_currentCall?.status == CallStatus.dialing) {
+        final convId = _currentCall!.conversationId;
+        final callType = _currentCall!.isVideo ? 'video' : 'voice';
+        _currentCall!.status = CallStatus.missed;
+        notifyListeners();
+        onCallMissed?.call(convId, callType);
+        Future.delayed(const Duration(seconds: 2), endCall);
+      }
+    });
   }
-}
+
+  // ── Callee side ──────────────────────────────────────────────────
+
+  void receiveIncomingCall(CallModel call) {
+    _currentCall = call;
+    notifyListeners();
+  }
+
+  // ── Both sides ───────────────────────────────────────────────────
+
+  /// Gọi khi đối phương chấp nhận (caller nhận CallAccepted)
+  void onCallAccepted() {
+    if (_currentCall == null) return;
+    _timeoutTimer?.cancel();
+    _currentCall!.status = CallStatus.active;
+    _startTimer();
+    notifyListeners();
+  }
+
+  /// Gọi khi callee bấm chấp nhận
   void acceptCall() {
     if (_currentCall == null) return;
-    _timeoutTimer?.cancel(); // Hủy đếm ngược timeout vì đã bắt máy
+    _timeoutTimer?.cancel();
     _currentCall!.status = CallStatus.active;
-    startTimer();
+    _startTimer();
     notifyListeners();
   }
 
-  void startTimer() {
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _seconds++;
-      notifyListeners();
-    });
+  /// Gọi khi reject
+  void rejectCall() {
+    _currentCall?.status = CallStatus.rejected;
+    notifyListeners();
+    Future.delayed(const Duration(milliseconds: 500), endCall);
+  }
+
+  /// Đối phương từ chối
+  void onCallRejected() {
+    if (_currentCall == null) return;
+    _timeoutTimer?.cancel(); // tránh double-save nếu timer chưa kịp fire
+    _currentCall!.status = CallStatus.rejected;
+    notifyListeners();
+    Future.delayed(const Duration(milliseconds: 500), endCall);
+  }
+
+  /// Đối phương kết thúc cuộc gọi
+  void onCallEnded() {
+    if (_currentCall == null) return;
+    _currentCall!.status = CallStatus.ended;
+    notifyListeners();
+    Future.delayed(const Duration(milliseconds: 500), endCall);
   }
 
   void endCall() {
     _timer?.cancel();
     _timeoutTimer?.cancel();
-    _currentCall?.status = CallStatus.ended;
     _currentCall = null;
+    _seconds = 0;
     notifyListeners();
   }
 
@@ -103,5 +118,18 @@ void setBusy() {
   void toggleSpeaker() {
     _isSpeakerOn = !_isSpeakerOn;
     notifyListeners();
+  }
+
+  void toggleVideo() {
+    _isVideoOff = !_isVideoOff;
+    notifyListeners();
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _seconds++;
+      notifyListeners();
+    });
   }
 }

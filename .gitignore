@@ -1,3 +1,6 @@
 .vs/
 .vscode/
 .env
+
+# Firebase credentials
+backend/config/

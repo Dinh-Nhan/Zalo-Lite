@@ -162,8 +162,6 @@ class _SignUpViewState extends State<SignUpView> with SingleTickerProviderStateM
   }
 
   void _onBackPressed() {
-    final t = AppLocalizations(localeNotifier.value);
-    
     showDialog(
   context: context,
   barrierDismissible: false, // Bắt buộc người dùng phải chọn

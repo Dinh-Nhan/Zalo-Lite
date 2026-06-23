@@ -14,5 +14,8 @@ namespace backend.Models
 
         [FirestoreProperty("likes")]
         public List<string> Likes { get; set; } = null!;
+
+        [FirestoreProperty("comment_count")]
+        public int CommentCount { get; set; } = 0;
     }
 }

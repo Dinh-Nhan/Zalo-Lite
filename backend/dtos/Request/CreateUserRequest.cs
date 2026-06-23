@@ -12,7 +12,7 @@ namespace backend.dtos.Request
       public string LastName { get; set; } = string.Empty;
       public string Email { get; set; } = string.Empty;
       public string Password { get; set; } = string.Empty;
-      public DateOnly DateOfBirth { get; set; }
+      public string? DateOfBirth { get; set; }  // format: "yyyy-MM-dd", nullable
       public string Bio { get; set; } = string.Empty;
     }
 }

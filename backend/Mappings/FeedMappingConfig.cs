@@ -27,7 +27,8 @@ namespace backend.Mappings
             {
                 ViewCount = src.Stats.Views.Count,
                 LikeCount = src.Stats.Likes.Count,
-                IsLiked = false 
+                CommentCount = src.Stats.CommentCount,
+                IsLiked = false
             });
 
         config.NewConfig<Content, ContentResponse>();

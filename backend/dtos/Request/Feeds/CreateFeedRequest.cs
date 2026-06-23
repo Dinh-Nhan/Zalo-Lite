@@ -1,7 +1,4 @@
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace backend.dtos.Request
 {
@@ -9,8 +6,10 @@ namespace backend.dtos.Request
     {
         public string Type { get; set; } = string.Empty;       // post | story
 
-        public string Privacy { get; set; } = string.Empty;    // public | private | friends
+        public string Privacy { get; set; } = string.Empty;    // public | friends | selected_friends | only_me
 
-        public CreateContentRequest Content {get; set;} = null!;
+        public List<string>? AllowedUserIds { get; set; }
+
+        public CreateContentRequest? Content { get; set; }
     }
 }
