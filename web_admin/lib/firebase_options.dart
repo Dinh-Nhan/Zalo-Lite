@@ -53,12 +53,13 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyAaxGgjUGYHJfLEHZ9OdvC29T-NlXGyjyo',
-    appId: '1:1004023558166:web:e44c5cbc606d7d59094537',
-    messagingSenderId: '1004023558166',
-    projectId: 'zalo-lite-v2',
-    authDomain: 'zalo-lite-v2.firebaseapp.com',
-    storageBucket: 'zalo-lite-v2.firebasestorage.app',
+    apiKey: 'AIzaSyBKUaWo01Sbz4tWevWseHLbbaHkB9mAd2s',
+    appId: '1:704895954808:web:7d48d5c618e49a3933228d',
+    messagingSenderId: '704895954808',
+    projectId: 'zalo-lite-f2d28',
+    authDomain: 'zalo-lite-f2d28.firebaseapp.com',
+    storageBucket: 'zalo-lite-f2d28.firebasestorage.app',
+    measurementId: 'G-LFNPD9FV3S',
   );
 
 }

@@ -1,18 +1,12 @@
 # 💬 Zalo Lite — Ứng dụng nhắn tin
 
-> **Đồ án môn học:** Lập trình thiết bị di động  
-> **Trường:** Đại học Giao thông Vận tải TP.HCM (UTC2)  
-> **Năm học:** 2025 – 2026
+> **Project cá nhân** của **Phan Công Trí** (MSSV: 6451071080)
 
-## 👥 Thành viên nhóm
+## 👤 Tác giả
 
-| STT | Họ và tên            | MSSV       | Vai trò     |
-| :-: | -------------------- | ---------- | ----------- |
-|  1  | Mai Quốc Đại         | 6451071013 | Nhóm trưởng |
-|  2  | Nguyễn Khánh Hà      | 6451071022 | Thành viên  |
-|  3  | Đinh Nhật Huyền Nhân | 6451071055 | Thành viên  |
-|  4  | Phan Công Trí        | 6451071080 | Thành viên  |
-|  5  | Lê Quốc Trung        | 6451071082 | Thành viên  |
+| Họ và tên     | MSSV      |
+| ------------- | --------- |
+| Phan Công Trí | 6451071080 |
 
 ---
 
@@ -159,14 +153,13 @@ Sau khi chạy lệnh trên, mở Docker Desktop, chọn Redis, đảm bảo tr�
 ### Bước 1: Clone dự án
 
 ```bash
-git clone https://github.com/Dinh-Nhan/Zalo-Lite.git
+git clone <repository-url>
 cd Zalo-Lite
 ```
 
 ### Bước 2: Cấu hình các biến môi trường cần thiết và quan trọng (nếu thiếu thì dự án sẽ không thể chạy được)
 
 1. Truy cập Google Drive: [Google Drive](https://drive.google.com/drive/folders/1_Dq62gvkSPkGK1nc3hK4sVd03IRj8_zB)
-   **⚠️ Lưu ý:** Sử dụng tài khoảng Google: `example.st.utc2.edu.vn` - phải là tên miền của trường UTC2 thì mới có thể truy cập được vì đảm bảo tính bảo mật của dự án.
 
 2. Truy cập vào thư mục `backend/` trên Drive sẽ thấy file **appsettings.json** và thư mục **FirebaseCredentials**.
 
@@ -273,25 +266,6 @@ flutter run -d chrome
 ```
 
 > Web Admin sẽ mở tại: `http://localhost:xxxx` (port do Flutter tự chọn)
-
----
-
-## 🔑 Tài khoản test
-
-### Ứng dụng Mobile (frontend)
-
-| Mô tả            | Email               | Mật khẩu   |
-| ---------------- | ------------------- | ---------- |
-| Tài khoản test 1 | `dinhnhan@gmai.com` | `Aa@12345` |
-| Tài khoản test 2 | `khanhha@gmail.com` | `Aa@12345` |
-
-> **Lưu ý:** Các tài khoản trên đã được đăng ký sẵn trên Firebase Authentication. Bạn có thể đăng ký tài khoản mới trực tiếp trên ứng dụng.
-
-### Trang quản trị Web Admin
-
-| Mô tả           | Email                | Mật khẩu       |
-| --------------- | -------------------- | -------------- |
-| Tài khoản Admin | `admin123@gmail.com` | `admin123@456` |
 
 ---
 
@@ -410,12 +384,10 @@ Backend sử dụng Redis để lưu trữ trạng thái online/offline, OTP và
 
 ## 📄 License
 
-Dự án này được thực hiện cho mục đích học tập tại Trường Đại học Giao thông Vận tải TP.HCM (UTC2).
+Dự án cá nhân, thực hiện cho mục đích học tập và rèn luyện.
 
 ## 📞 Contact
 
-- Name: Mai Quốc Đại
-- Email: 6451071013@st.utc2.edu.vn
-
-- Name: Đinh Nhật Huyền Nhân
-- Email: 6451071055@st.utc2.edu.vn
+- **Name:** Phan Công Trí
+- **MSSV:** 6451071080
+- **Email:** `phancongtri@example.com` *(cập nhật email thật của bạn tại đây)*

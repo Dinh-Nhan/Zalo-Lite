@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId);
+      match /{document=**} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    match /conversations/{conversationId} {
+      allow read, write: if isSignedIn()
+        && request.auth.uid in resource.data.participant_ids;
+      match /messages/{messageId} {
+        allow read: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participant_ids;
+        allow create: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participant_ids
+          && request.resource.data.sender_id == request.auth.uid;
+        allow update, delete: if isSignedIn()
+          && resource.data.sender_id == request.auth.uid;
+      }
+    }
+
+    match /feeds/{feedId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if isSignedIn()
+        && resource.data.user_id == request.auth.uid;
+    }
+
+    match /friendships/{friendshipId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn()
+        && (resource.data.sender_id == request.auth.uid
+          || resource.data.addressee_id == request.auth.uid);
+    }
+
+    match /admin_notifications/{notifId} {
+      allow read, write: if isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /feedbacks/{feedbackId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    match /hidden_posts/{postId} {
+      allow read, write: if isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    match /reports/{reportId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+  }
+}
